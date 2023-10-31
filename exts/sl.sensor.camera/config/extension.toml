@@ -30,7 +30,7 @@ preview_image = "data/preview.png"
 icon = "data/icon.png"
 
 [package.target]
-platform = ["linux-x86_64"]
+platform = ["windows-x86_64", "linux-x86_64"]
 python = ["cp310"]
 
 # Watch the .ogn files for hot reloading (only works for Python files)
@@ -53,4 +53,4 @@ name = "sl.sensor.camera"
 
 [[native.library]]
 "filter:platform"."linux-x86_64"."path" = "bin/${platform}/${config}/libsl_zed_sim_streamer.so"
-
+"filter:platform"."windows-x86_64"."path" = "bin/${platform}/${config}/sl_zed_sim_streamer.dll"
