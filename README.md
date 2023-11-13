@@ -1,21 +1,28 @@
 # zed-isaac-sim
 ISAAC Sim integration for ZED SDK.
 
-All the ZED Isaac extensions are still under development. This repo will remain private until release versions are reached.
+The ZED camera extension streams your virtual ZED camera data to the ZED SDK.
 
-## Structure
-The structure of this repository is created in such a way to allow easier integration with Isaac Sim and a better development experience.
-The ZEDBot Playground will serve as an example of an extension when getting started with Extensions in Isaac.
+## Getting started    
 
-The main branch will contain all the extensions that have reached an "internal release" version.
+### Adding the 3D model of the ZED
 
-Sub branches will contain extensions that are being actively changed/developed.
+Navigate to this extension's folder in the content browser, you can drag and drop the zed_x.usd under data into your stage.
+
+### Starting the data stream    
+
+To enable the streaming in Isaac sim, add the ZED Camera Omnigraph node to an Action graph, connect your camera to it and press play.
+
+#### Parameters    
+
+You can configure the streamer properties in the Property panel on the right:
+- Serial number: this field allows you identify the virtual camera you are using. It has no functional effect and can be left to the default value. This field can be useful when using multiple camera and you need to identify each one.
+- Streaming port: Defines which port is used for streaming. It must be an even number.
+- Use system time: when set to true, the streamer assigns the latest system time to the images that are sent to the SDK. If set to false, the streamer only sets the first timestamp to system time and then increments the later timestamps by simulation time.
+- ZED Camera prim: this parameter should be set to the ZED X camera prim in the stage as shown in the picture above.
 
 
-## Creating an extension
-Simply copy the sl.zedbot.playground extension and modify everything.
+### Connecting to the ZED SDK    
 
-## Adding robots
-Since Omniverse Nucleus is not stable, to add a new robot it is preferred for now to create a new extension just for this robot that has a single button that loads the robots and shows relevant info. That way, ROS can be easilly rigged and the resulting robot can then be copied into a specific workstation.
+Once you press play in the simulation, you can connect the virtual camera to the ZED SDK via the streaming interface.
 
-**N.B.** This also prepares ROS configuration using code.
