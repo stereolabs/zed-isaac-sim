@@ -46,6 +46,7 @@ class SlCameraStreamer:
         override_simulation_time = False
         imu_sensor_interface = None
         imu_prim_path = ""
+        imu_prim = None
         invalid_images_count = 0
         pass
 
@@ -153,15 +154,18 @@ class SlCameraStreamer:
 
             if (db.internal_state.annotator_left is None):
                 render_product_path_left = SlCameraStreamer.get_render_product_path(left_cam_path)
-                db.internal_state.annotator_left = rep.AnnotatorRegistry.get_annotator("rgb")
+                db.internal_state.annotator_left = rep.AnnotatorRegistry.get_annotator("rgb", device="cuda", do_array_copy=False)
                 db.internal_state.annotator_left.attach([render_product_path_left])
 
             if (db.internal_state.annotator_right is None):
                 render_product_path_right = SlCameraStreamer.get_render_product_path(right_cam_path)
-                db.internal_state.annotator_right = rep.AnnotatorRegistry.get_annotator("rgb")
+                db.internal_state.annotator_right = rep.AnnotatorRegistry.get_annotator("rgb", device="cuda", do_array_copy=False)
                 db.internal_state.annotator_right.attach([render_product_path_right])
 
             db.internal_state.imu_prim_path = db.inputs.camera_prim[0].pathString + IMU_PRIM_PATH
+            db.internal_state.imu_prim = XFormPrim(prim_path=db.internal_state.imu_prim_path)
+
+            carb.settings.get_settings().set("/omni/replicator/captureOnPlay", False)
 
             # Setup streamer parameters
             db.internal_state.pyzed_streamer = ZEDSimStreamer()
@@ -202,7 +206,7 @@ class SlCameraStreamer:
                         carb.log_warn(f"{db.internal_state.camera_prim_name} - Left camera retrieved unexpected "
                                       "data shape, skipping frame.")
                     return False # no need to continue compute
-                
+
                 right, res = SlCameraStreamer.get_image_data(db.internal_state.annotator_right)
                 if res == False:
                     db.internal_state.invalid_images_count +=1
@@ -229,8 +233,8 @@ class SlCameraStreamer:
                 # their IMUand still have access to the image functionality without issues in Isaac Sim
                 lin_acc_x, lin_acc_y, lin_acc_z = 0, 0, 0
                 orientation = [0]*4
-                if is_prim_path_valid(db.internal_state.imu_prim_path) == True:
-                    imu_prim = XFormPrim(prim_path=db.internal_state.imu_prim_path)
+                if is_prim_path_valid(db.internal_state.imu_prim_path) == True and db.internal_state.imu_prim is not None:
+                    imu_prim = db.internal_state.imu_prim
                     temp_orientation = imu_prim.get_world_pose()[1]
                     swp = copy.deepcopy(temp_orientation)
                     orientation = [swp[0], -swp[1], -swp[3], -swp[2]]
@@ -244,12 +248,15 @@ class SlCameraStreamer:
                                 lin_acc_x = imu_reading.lin_acc_x
                                 lin_acc_y = imu_reading.lin_acc_y
                                 lin_acc_z = imu_reading.lin_acc_z
-                
+
                 # stream data
                 if not (left is None) and not (right is None):
+                    # Copy GPU image data to CPU and convert to bytes
+                    left_bytes = left.numpy().tobytes()
+                    right_bytes = right.numpy().tobytes()
                     res = db.internal_state.pyzed_streamer.stream(
-                        left.tobytes(),
-                        right.tobytes(),
+                        left_bytes,
+                        right_bytes,
                         ts,
                         orientation[0],
                         orientation[1],
@@ -266,7 +273,6 @@ class SlCameraStreamer:
                     else:
                         carb.log_verbose(f"Streamed at {ts} 2 rgb images and orientation: {orientation} ")
                     db.internal_state.last_timestamp = current_time
-                    
 
         except Exception as error:
             # If anything causes your compute to fail report the error and return False
@@ -278,25 +284,28 @@ class SlCameraStreamer:
 
     @staticmethod
     def release(node):
-        carb.log_verbose("Releasing resources")        
+        carb.log_verbose("Releasing resources")
         try:
             state = SlCameraStreamerDatabase.per_node_internal_state(node)
             if state is not None:
                 # disabling this could fix the render product issue (return empty arrays) when the scene reloads
                 # but could also create issues when attaching cameras to render products
                 if state.annotator_left:
-                    state.annotator_left.detach([state.render_product_left])
+                    state.annotator_left.detach()
                     if state.render_product_left is not None:
+                        state.render_product_left.hydra_texture.set_updates_enabled(False)
                         state.render_product_left.destroy()
                 if state.annotator_right:
-                    state.annotator_right.detach([state.render_product_right])
+                    state.annotator_right.detach()
                     if state.render_product_right is not None:
+                        state.render_product_right.hydra_texture.set_updates_enabled(False)
                         state.render_product_right.destroy()
-                
+
                 if state.pyzed_streamer:
                     state.pyzed_streamer.close()
                     # remove the streamer object when no longer needed
                     del state.pyzed_streamer
+
                 _sensor.release_imu_sensor_interface(state.imu_sensor_interface)
                 state.initialized = False
             
