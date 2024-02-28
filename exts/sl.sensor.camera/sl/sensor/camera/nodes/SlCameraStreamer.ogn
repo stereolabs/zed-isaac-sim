@@ -25,7 +25,7 @@
             },
             "fps": {
                 "type" : "uint",
-                "description": "Camera stream frame rate. This value will also set the engine frame rate to its value",
+                "description": "Camera stream frame rate. Can be either 60, 30 or 15.",
                 "metadata": {
                     "uiName": "FPS"
                 },
@@ -33,7 +33,7 @@
             },
             "resolution": {
                 "type" : "token",
-                "description": "Camera stream resolution. Can be either HD1080 or HD720",
+                "description": "Camera stream resolution. Can be either HD1080, HD720 or VGA",
                 "metadata": {
                     "allowedTokens": ["HD1080", "HD720", "VGA"]
                 },

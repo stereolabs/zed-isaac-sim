@@ -21,6 +21,7 @@ RIGHT_CAMERA_PATH = "/base_link/ZED_X/CameraRight"
 IMU_PRIM_PATH = "/base_link/ZED_X/Imu_Sensor"
 CHANNELS = 3
 
+
 class SlCameraStreamer:
     """
          Streams camera data to the ZED SDK
@@ -38,6 +39,7 @@ class SlCameraStreamer:
         pyzed_streamer = None
         start_time = -1.0
         last_timestamp = 0.0
+        target_fps = 30
         camera_prim_name = None
         override_simulation_time = False
         imu_sensor_interface = None
@@ -190,7 +192,7 @@ class SlCameraStreamer:
                 carb.log_warn(f"Invalid resolution passed. Defaulting to HD720.")
 
             # Check frame rate
-            fps = SlCameraStreamer.check_frame_rate(db.inputs.fps)
+            db.internal_state.target_fps = SlCameraStreamer.check_frame_rate(db.inputs.fps)
 
             if (db.internal_state.annotator_left is None):
                 render_product_path_left = SlCameraStreamer.get_render_product_path(left_cam_path, render_product_size=resolution)
@@ -218,7 +220,7 @@ class SlCameraStreamer:
             streamer_params = ZEDSimStreamerParams()
             streamer_params.image_width = resolution[0]
             streamer_params.image_height = resolution[1]
-            streamer_params.fps = fps
+            streamer_params.fps = db.internal_state.target_fps
             streamer_params.alpha_channel_included = False
             streamer_params.rgb_encoded = True
             streamer_params.serial_number = serial_number
@@ -229,6 +231,7 @@ class SlCameraStreamer:
             # set state to initialized
             carb.log_info(f"Streaming camera {db.internal_state.camera_prim_name} at port {port} and using serial number {serial_number}.")
             db.internal_state.invalid_images_count = 0
+            db.internal_state.last_timestamp = 0.0
             db.internal_state.data_shape = (resolution[1], resolution[0], CHANNELS)
             db.internal_state.initialized = True
 
@@ -237,6 +240,16 @@ class SlCameraStreamer:
             if db.internal_state.initialized is True:
                 left, right = None, None
                 current_time = db.internal_state.core_nodes_interface.get_sim_time()
+
+                # Reset last_timestamp between different play sessions
+                if db.internal_state.last_timestamp > current_time:
+                    db.internal_state.last_timestamp = current_time
+
+                delta_time = current_time - db.internal_state.last_timestamp
+
+                # Skip data fetch if the time between frames is too short
+                if delta_time < 1.0 / db.internal_state.target_fps:
+                    return False
                 
                 # we fetch image data from annotators - we do it sequentially to avoid fetching both if one fails
                 left, res = SlCameraStreamer.get_image_data(db.internal_state.annotator_left,
