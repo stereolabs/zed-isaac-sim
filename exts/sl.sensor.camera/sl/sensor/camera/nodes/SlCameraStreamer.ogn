@@ -23,6 +23,22 @@
                     "uiName": "ZED Camera prim"
                 }
             },
+            "fps": {
+                "type" : "uint",
+                "description": "Camera stream frame rate. Can be either 60, 30 or 15.",
+                "metadata": {
+                    "uiName": "FPS"
+                },
+                "default": 30
+            },
+            "resolution": {
+                "type" : "token",
+                "description": "Camera stream resolution. Can be either HD1080, HD720 or VGA",
+                "metadata": {
+                    "allowedTokens": ["HD1080", "HD720", "VGA"]
+                },
+                "default" : "HD720"
+            },
             "streaming_port": {
                 "type": "uint",
                 "description": "Streaming port - unique per camera",

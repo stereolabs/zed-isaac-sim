@@ -29,3 +29,6 @@ Once you press play in the simulation, you can connect the virtual camera to the
 Please refer to the [StereoLabs' website for the full documentation](https://www.stereolabs.com/docs/isaac-sim/setting_up_zed_isaac_sim).
 
 
+### TODO
+
+- ZED Camera extension parameters are not reset after pressing Stop in Isaac Sim UI, but requires the node to be released. TODO: Clean parameters between each play/stop session

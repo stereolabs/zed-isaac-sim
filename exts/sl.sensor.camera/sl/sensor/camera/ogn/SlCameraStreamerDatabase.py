@@ -7,7 +7,6 @@ import omni.graph.core as og
 import omni.graph.core._omni_graph_core as _og
 import omni.graph.tools.ogn as ogn
 import traceback
-import carb
 import sys
 class SlCameraStreamerDatabase(og.Database):
     """Helper class providing simplified access to data on nodes of type sl.sensor.camera.ZED_Camera
@@ -19,6 +18,8 @@ class SlCameraStreamerDatabase(og.Database):
         Inputs:
             inputs.camera_prim
             inputs.exec_in
+            inputs.resolution
+            inputs.fps
             inputs.serial_number
             inputs.streaming_port
             inputs.use_system_time
@@ -33,6 +34,8 @@ class SlCameraStreamerDatabase(og.Database):
     INTERFACE = og.Database._get_interface([
         ('inputs:camera_prim', 'bundle', 0, 'ZED Camera prim', 'ZED Camera prim used to stream data', {}, True, None, False, ''),
         ('inputs:exec_in', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
+        ('inputs:resolution', 'token', 0, 'Resolution', 'Camera stream resolution. Can be either HD1080, HD720 or VGA', {ogn.MetadataKeys.DEFAULT: 'HD720'}, True, "HD720", False, ''),
+        ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate. Can be either 60, 30 or 15', {ogn.MetadataKeys.DEFAULT: '30'}, True, '30', False, ''),
         ('inputs:serial_number', 'uint', 0, 'Serial number', 'Serial number (identification) of the camera to stream, can be left to default. It must be of one of the compatible values: 20976320, 29123828, 25626933, 27890353, 25263213, 21116066, 27800035, 27706147', {ogn.MetadataKeys.DEFAULT: '20976320'}, True, 20976320, False, ''),
         ('inputs:streaming_port', 'uint', 0, 'Streaming port', 'Streaming port - unique per camera', {ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
         ('inputs:use_system_time', 'bool', 0, 'Use system time', 'Override simulation time with system time for image timestamps', {ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
@@ -45,15 +48,15 @@ class SlCameraStreamerDatabase(og.Database):
         role_data.inputs.exec_in = og.Database.ROLE_EXECUTION
         return role_data
     class ValuesForInputs(og.DynamicAttributeAccess):
-        LOCAL_PROPERTY_NAMES = {"exec_in", "serial_number", "streaming_port", "use_system_time", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
+        LOCAL_PROPERTY_NAMES = {"exec_in", "resolution", "fps", "serial_number", "streaming_port", "use_system_time", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
         """Helper class that creates natural hierarchical access to input attributes"""
         def __init__(self, node: og.Node, attributes, dynamic_attributes: og.DynamicAttributeInterface):
             """Initialize simplified access for the attribute data"""
             context = node.get_graph().get_default_graph_context()
             super().__init__(context, node, attributes, dynamic_attributes)
             self.__bundles = og.BundleContainer(context, node, attributes, [], read_only=True, gpu_ptr_kinds={})
-            self._batchedReadAttributes = [self._attributes.exec_in, self._attributes.serial_number, self._attributes.streaming_port, self._attributes.use_system_time]
-            self._batchedReadValues = [0, 20976320, 30000, False]
+            self._batchedReadAttributes = [self._attributes.exec_in, self._attributes.resolution, self._attributes.fps, self._attributes.serial_number, self._attributes.streaming_port, self._attributes.use_system_time]
+            self._batchedReadValues = [0, "HD720", "30", 20976320, 30000, False]
 
         @property
         def camera_prim(self) -> og.BundleContents:
@@ -69,28 +72,44 @@ class SlCameraStreamerDatabase(og.Database):
             self._batchedReadValues[0] = value
 
         @property
-        def serial_number(self):
+        def resolution(self):
             return self._batchedReadValues[1]
 
-        @serial_number.setter
-        def serial_number(self, value):
+        @resolution.setter
+        def resolution(self, value):
             self._batchedReadValues[1] = value
 
         @property
-        def streaming_port(self):
+        def fps(self):
             return self._batchedReadValues[2]
 
-        @streaming_port.setter
-        def streaming_port(self, value):
+        @fps.setter
+        def fps(self, value):
             self._batchedReadValues[2] = value
 
         @property
-        def use_system_time(self):
+        def serial_number(self):
             return self._batchedReadValues[3]
+
+        @serial_number.setter
+        def serial_number(self, value):
+            self._batchedReadValues[3] = value
+
+        @property
+        def streaming_port(self):
+            return self._batchedReadValues[4]
+
+        @streaming_port.setter
+        def streaming_port(self, value):
+            self._batchedReadValues[4] = value
+
+        @property
+        def use_system_time(self):
+            return self._batchedReadValues[5]
 
         @use_system_time.setter
         def use_system_time(self, value):
-            self._batchedReadValues[3] = value
+            self._batchedReadValues[5] = value
 
         def __getattr__(self, item: str):
             if item in self.LOCAL_PROPERTY_NAMES:

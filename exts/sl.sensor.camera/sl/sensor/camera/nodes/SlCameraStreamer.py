@@ -3,15 +3,13 @@ This is the implementation of the OGN node defined in SlCameraStreamer.ogn
 """
 import carb
 from dataclasses import dataclass
-# imports needed if you want to create viewports of the camera
-# from omni.kit.viewport.utility import get_viewport_from_window_name
-# from omni.kit.viewport.utility import create_viewport_window
 import omni.replicator.core as rep
 from omni.isaac.core_nodes.bindings import _omni_isaac_core_nodes
 from omni.isaac.core.prims import XFormPrim
 from pxr import Vt
 from omni.isaac.core.utils.prims import is_prim_path_valid, get_prim_at_path
 from omni.isaac.sensor import _sensor
+
 from sl.sensor.camera.pyzed_sim_streamer import ZEDSimStreamer, ZEDSimStreamerParams 
 import time
 import copy
@@ -21,10 +19,9 @@ STREAM_PORT = 30000
 LEFT_CAMERA_PATH = "/base_link/ZED_X/CameraLeft"
 RIGHT_CAMERA_PATH = "/base_link/ZED_X/CameraRight"
 IMU_PRIM_PATH = "/base_link/ZED_X/Imu_Sensor"
-IMAGE_WIDTH = 1920
-IMAGE_HEIGHT = 1080
 CHANNELS = 3
-    
+
+
 class SlCameraStreamer:
     """
          Streams camera data to the ZED SDK
@@ -42,6 +39,7 @@ class SlCameraStreamer:
         pyzed_streamer = None
         start_time = -1.0
         last_timestamp = 0.0
+        target_fps = 30
         camera_prim_name = None
         override_simulation_time = False
         imu_sensor_interface = None
@@ -55,12 +53,12 @@ class SlCameraStreamer:
         return SlCameraStreamer.State()
 
     @staticmethod
-    def get_render_product_path(camera_path :str, render_product_size = [IMAGE_WIDTH, IMAGE_HEIGHT], force_new=True):
+    def get_render_product_path(camera_path :str, render_product_size = [1280, 720], force_new=True):
         """Helper function to get render product path
 
         Args:
             camera_path (str): the path of the camera prim
-            render_product_size (list, optional): the resolution of the image. Defaults to [IMAGE_WIDTH, IMAGE_HEIGHT].
+            render_product_size (list, optional): the resolution of the image. Defaults to HD720.
             force_new (bool, optional): forces the creation of a new render product. Defaults to True.
 
         Returns:
@@ -71,7 +69,7 @@ class SlCameraStreamer:
         return render_product_path
     
     @staticmethod
-    def get_image_data(annotator):
+    def get_image_data(annotator, data_shape: tuple):
         """Helper function to fetch image data.
 
         Args:
@@ -88,7 +86,7 @@ class SlCameraStreamer:
                 result = False
                 return data, result
             data = data[:, :, :3]
-            if not data.shape == (IMAGE_HEIGHT, IMAGE_WIDTH, CHANNELS):
+            if not data.shape == data_shape:
                 result = False
         except:
             return None, False
@@ -96,6 +94,14 @@ class SlCameraStreamer:
     
     @staticmethod
     def check_camera(camera_prim_path : str):
+        """Check if the camera properties are valid. If not, set them to default values.
+
+        Args:
+            camera_prim_path (str): the path of the camera prim
+
+        Returns:
+            bool: True if the camera properties are valid, False otherwise
+        """
         result = False
         default_fl, default_apt_h, default_apt_v = 2.208, 5.76, 3.24
         default_projection_type = "pinhole"
@@ -119,6 +125,33 @@ class SlCameraStreamer:
                 result = True
         return result
 
+    @staticmethod
+    def get_resolution(camera_resolution: str):
+        """Get the resolution of the camera
+        
+        Args:
+            camera_resolution (str): the resolution name of the camera
+            
+        Returns:
+            list: the resolution of the camera
+        """
+        if camera_resolution == "HD1080":
+            result = [1920, 1080]
+        elif camera_resolution == "HD720":
+            result = [1280, 720]
+        elif camera_resolution == "VGA":
+            result = [672, 376]
+        else:
+            result = None
+        return result
+
+    @staticmethod
+    def check_frame_rate(camera_frame_rate: int):
+        if camera_frame_rate not in [15, 30, 60]:
+            carb.log_warn(f"Invalid frame rate passed: {camera_frame_rate}. Defaulting to 30.")
+            return 30
+        return camera_frame_rate
+
 
     @staticmethod
     def compute(db) -> bool:
@@ -129,7 +162,7 @@ class SlCameraStreamer:
             if db.inputs.camera_prim is None:
                 carb.log_error("Invalid Camera prim")
                 return
-            
+
             # Check port
             port = db.inputs.streaming_port
             if  port <= 0 or port %2 == 1:
@@ -152,20 +185,27 @@ class SlCameraStreamer:
             if not res:
                 carb.log_warn(f"[{db.inputs.camera_prim[0].GetPrimPath()}] Invalid or non existing zed camera, try to re-import your camera prim.")
 
+            # Check resolution and retrieve width and height
+            resolution = SlCameraStreamer.get_resolution(db.inputs.resolution)
+            if resolution is None:
+                resolution = [1280, 720]
+                carb.log_warn(f"Invalid resolution passed. Defaulting to HD720.")
+
+            # Check frame rate
+            db.internal_state.target_fps = SlCameraStreamer.check_frame_rate(db.inputs.fps)
+
             if (db.internal_state.annotator_left is None):
-                render_product_path_left = SlCameraStreamer.get_render_product_path(left_cam_path)
+                render_product_path_left = SlCameraStreamer.get_render_product_path(left_cam_path, render_product_size=resolution)
                 db.internal_state.annotator_left = rep.AnnotatorRegistry.get_annotator("rgb", device="cuda", do_array_copy=False)
                 db.internal_state.annotator_left.attach([render_product_path_left])
 
             if (db.internal_state.annotator_right is None):
-                render_product_path_right = SlCameraStreamer.get_render_product_path(right_cam_path)
+                render_product_path_right = SlCameraStreamer.get_render_product_path(right_cam_path, render_product_size=resolution)
                 db.internal_state.annotator_right = rep.AnnotatorRegistry.get_annotator("rgb", device="cuda", do_array_copy=False)
                 db.internal_state.annotator_right.attach([render_product_path_right])
 
             db.internal_state.imu_prim_path = db.inputs.camera_prim[0].pathString + IMU_PRIM_PATH
             db.internal_state.imu_prim = XFormPrim(prim_path=db.internal_state.imu_prim_path)
-
-            carb.settings.get_settings().set("/omni/replicator/captureOnPlay", False)
 
             # Setup streamer parameters
             db.internal_state.pyzed_streamer = ZEDSimStreamer()
@@ -178,8 +218,9 @@ class SlCameraStreamer:
                 carb.log_warn(f"Invalid serial number passed. Defaulting to: {serial_number}.")
 
             streamer_params = ZEDSimStreamerParams()
-            streamer_params.image_width = IMAGE_WIDTH
-            streamer_params.image_height = IMAGE_HEIGHT
+            streamer_params.image_width = resolution[0]
+            streamer_params.image_height = resolution[1]
+            streamer_params.fps = db.internal_state.target_fps
             streamer_params.alpha_channel_included = False
             streamer_params.rgb_encoded = True
             streamer_params.serial_number = serial_number
@@ -190,6 +231,8 @@ class SlCameraStreamer:
             # set state to initialized
             carb.log_info(f"Streaming camera {db.internal_state.camera_prim_name} at port {port} and using serial number {serial_number}.")
             db.internal_state.invalid_images_count = 0
+            db.internal_state.last_timestamp = 0.0
+            db.internal_state.data_shape = (resolution[1], resolution[0], CHANNELS)
             db.internal_state.initialized = True
 
         try:
@@ -197,9 +240,20 @@ class SlCameraStreamer:
             if db.internal_state.initialized is True:
                 left, right = None, None
                 current_time = db.internal_state.core_nodes_interface.get_sim_time()
+
+                # Reset last_timestamp between different play sessions
+                if db.internal_state.last_timestamp > current_time:
+                    db.internal_state.last_timestamp = current_time
+
+                delta_time = current_time - db.internal_state.last_timestamp
+
+                # Skip data fetch if the time between frames is too short
+                if delta_time < 1.0 / db.internal_state.target_fps:
+                    return False
                 
                 # we fetch image data from annotators - we do it sequentially to avoid fetching both if one fails
-                left, res = SlCameraStreamer.get_image_data(db.internal_state.annotator_left)
+                left, res = SlCameraStreamer.get_image_data(db.internal_state.annotator_left,
+                                                            db.internal_state.data_shape)
                 if res == False:
                     db.internal_state.invalid_images_count +=1
                     if db.internal_state.invalid_images_count >= 10:
@@ -207,7 +261,8 @@ class SlCameraStreamer:
                                       "data shape, skipping frame.")
                     return False # no need to continue compute
 
-                right, res = SlCameraStreamer.get_image_data(db.internal_state.annotator_right)
+                right, res = SlCameraStreamer.get_image_data(db.internal_state.annotator_right,
+                                                             db.internal_state.data_shape)
                 if res == False:
                     db.internal_state.invalid_images_count +=1
                     if db.internal_state.invalid_images_count >= 10:
