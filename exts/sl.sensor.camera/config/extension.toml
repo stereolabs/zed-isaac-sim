@@ -13,6 +13,9 @@ description="Streams virtual ZED camera data to the ZED SDK. "
 # Path (relative to the root) or content of readme markdown file for UI.
 readme  = "docs/README.md"
 
+# Path (relative to the root) or content of changelog markdown file for UI.
+changelog  = "docs/CHANGELOG.md"
+
 # URL of the extension source repository.
 repository="https://github.com/stereolabs/zed-isaac-sim"
 
