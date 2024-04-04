@@ -15,7 +15,6 @@ import time
 import copy
 from sl.sensor.camera.ogn.SlCameraStreamerDatabase import SlCameraStreamerDatabase
 
-STREAM_PORT = 30000
 LEFT_CAMERA_PATH = "/base_link/ZED_X/CameraLeft"
 RIGHT_CAMERA_PATH = "/base_link/ZED_X/CameraRight"
 IMU_PRIM_PATH = "/base_link/ZED_X/Imu_Sensor"
@@ -226,7 +225,11 @@ class SlCameraStreamer:
             streamer_params.serial_number = serial_number
             streamer_params.port = port
             streamer_params.codec_type = 1
-            db.internal_state.pyzed_streamer.init(streamer_params)
+
+            init_error = db.internal_state.pyzed_streamer.init(streamer_params)
+            if not init_error:
+                carb.log_error(f"Failed to initialize the ZED SDK streamer with serial number {serial_number}.")
+                return False
 
             # set state to initialized
             carb.log_info(f"Streaming camera {db.internal_state.camera_prim_name} at port {port} and using serial number {serial_number}.")
@@ -239,6 +242,7 @@ class SlCameraStreamer:
             ts : int = 0
             if db.internal_state.initialized is True:
                 left, right = None, None
+                # Get simulation time in seconds
                 current_time = db.internal_state.core_nodes_interface.get_sim_time()
 
                 # Reset last_timestamp between different play sessions
@@ -276,13 +280,14 @@ class SlCameraStreamer:
                 if db.internal_state.start_time == -1:
                     carb.log_info(f"{db.internal_state.camera_prim_name} - Starting stream to the ZED SDK")
                 if db.internal_state.start_time == -1 or current_time < db.internal_state.last_timestamp:
-                    db.internal_state.start_time = int(time.time() * 1000)
+                    db.internal_state.start_time = int(time.time_ns())
                     carb.log_info(f"{db.internal_state.camera_prim_name} - Setting initial streaming time stamp to: {db.internal_state.start_time}")
-                ts = int(db.internal_state.start_time + current_time * 1000)
+
+                ts = int(db.internal_state.start_time + current_time * 1000000000)
                 
                 # override with system time
                 if db.internal_state.override_simulation_time:
-                    ts = int(time.time() * 1000)
+                    ts = int(time.time_ns())
 
                 # fetch IMU data if the imu prim is there - this check allows user to basically delete
                 # their IMUand still have access to the image functionality without issues in Isaac Sim
