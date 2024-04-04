@@ -36,7 +36,7 @@ class SlCameraStreamerDatabase(og.Database):
         ('inputs:exec_in', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('inputs:resolution', 'token', 0, 'Resolution', 'Camera stream resolution. Can be either HD1080, HD720 or VGA', {ogn.MetadataKeys.DEFAULT: 'HD720'}, True, "HD720", False, ''),
         ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate. Can be either 60, 30 or 15', {ogn.MetadataKeys.DEFAULT: '30'}, True, '30', False, ''),
-        ('inputs:serial_number', 'uint', 0, 'Serial number', 'Serial number (identification) of the camera to stream, can be left to default. It must be of one of the compatible values: 20976320, 29123828, 25626933, 27890353, 25263213, 21116066, 27800035, 27706147', {ogn.MetadataKeys.DEFAULT: '20976320'}, True, 20976320, False, ''),
+        ('inputs:serial_number', 'uint', 0, 'Serial number', 'Serial number (identification) of the camera to stream, can be left to default. It must be of one of the compatible values: 40976320, 41116066, 49123828, 45626933, 47890353, 45263213, 47800035, 47706147', {ogn.MetadataKeys.DEFAULT: '40976320'}, True, 40976320, False, ''),
         ('inputs:streaming_port', 'uint', 0, 'Streaming port', 'Streaming port - unique per camera', {ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
         ('inputs:use_system_time', 'bool', 0, 'Use system time', 'Override simulation time with system time for image timestamps', {ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
     ])
@@ -56,7 +56,7 @@ class SlCameraStreamerDatabase(og.Database):
             super().__init__(context, node, attributes, dynamic_attributes)
             self.__bundles = og.BundleContainer(context, node, attributes, [], read_only=True, gpu_ptr_kinds={})
             self._batchedReadAttributes = [self._attributes.exec_in, self._attributes.resolution, self._attributes.fps, self._attributes.serial_number, self._attributes.streaming_port, self._attributes.use_system_time]
-            self._batchedReadValues = [0, "HD720", "30", 20976320, 30000, False]
+            self._batchedReadValues = [0, "HD720", "30", 40976320, 30000, False]
 
         @property
         def camera_prim(self) -> og.BundleContents:

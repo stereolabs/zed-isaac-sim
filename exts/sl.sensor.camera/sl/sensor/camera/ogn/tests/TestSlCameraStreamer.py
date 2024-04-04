@@ -40,7 +40,7 @@ class TestOgn(ogts.OmniGraphTestCase):
         self.assertTrue(test_node.get_attribute_exists("inputs:serial_number"))
         attribute = test_node.get_attribute("inputs:serial_number")
         db_value = database.inputs.serial_number
-        expected_value = 20976320
+        expected_value = 40976320
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
