@@ -2,6 +2,9 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.1.1] - 2024-07-31
+- Add sl_streamer library support for Ubuntu 20.04
+
 ## [1.1.0] - 2024-04-04
 - Add support for ZED SDK 4.1
 
