@@ -1,9 +1,24 @@
 # zed-isaac-sim
+
 ISAAC Sim integration for ZED SDK.
+
+![](./exts/sl.sensor.camera/data/preview.png)
 
 The ZED camera extension streams your virtual ZED camera data to the ZED SDK.
 
+
+## Compatibility
+
+Major versions of the ZED camera extension will follow major versions of Isaac Sim.
+
+Please find the correct extension version compatible with your Isaac Sim version:
+
+- Versions 1.X.X are compatible with Isaac Sim 2023.X.X.
+- Versions 2.X.X are compatible with Isaac Sim 4.X
+
 ## Getting started    
+
+To start using the ZED Camera extension in Isaac Sim, we recommend using our [Getting started with Isaac Sim](https://www.stereolabs.com/docs/isaac-sim/isaac_sim) guide from our online documentation first.
 
 ### Adding the 3D model of the ZED
 
