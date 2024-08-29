@@ -7,7 +7,7 @@ The ZED camera extension allow you to stream virtual ZED camera data to the ZED 
 Please find the correct extension version compatible with your Isaac Sim version:
 
 - Versions 1.X.X are compatible with Isaac Sim 2023.X.X.
-- Versions 2.X.X are compatible with Isaac Sim 4.X
+- Versions 2.X.X are compatible with Isaac Sim 4.0
 
 ### Getting started
 To start using the ZED Camera extension in Isaac Sim, we recommend using our [Getting started with Isaac Sim](https://www.stereolabs.com/docs/isaac-sim/isaac_sim) guide from our online documentation first.
