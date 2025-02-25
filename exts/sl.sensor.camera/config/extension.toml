@@ -1,23 +1,23 @@
 
 [package]
 # Semantic Versioning is used: https://semver.org/
-version = "2.0.0"
+version = "2.0.1"
 
 # Lists people or organizations that are considered the "authors" of the package.
 authors = ["Stereolabs"]
 
 # The title and description fields are primarly for displaying extension info in UI
 title = "ZED Camera Extension"
-description="Streams virtual ZED camera data to the ZED SDK. "
+description = "Streams virtual ZED camera data to the ZED SDK. "
 
 # Path (relative to the root) or content of readme markdown file for UI.
-readme  = "docs/README.md"
+readme = "docs/README.md"
 
 # Path (relative to the root) or content of changelog markdown file for UI.
-changelog  = "docs/CHANGELOG.md"
+changelog = "docs/CHANGELOG.md"
 
 # URL of the extension source repository.
-repository="https://github.com/stereolabs/zed-isaac-sim"
+repository = "https://github.com/stereolabs/zed-isaac-sim"
 
 # One of categories for UI.
 category = "simulation"
@@ -35,6 +35,7 @@ icon = "data/icon.png"
 [package.target]
 platform = ["windows-x86_64", "linux-x86_64"]
 python = ["cp310"]
+kit = ["106.1.0"]
 
 # Watch the .ogn files for hot reloading (only works for Python files)
 [fswatcher.patterns]
