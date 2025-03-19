@@ -33,11 +33,11 @@
             },
             "resolution": {
                 "type" : "token",
-                "description": "Camera stream resolution. Can be either HD1080, HD720 or VGA",
+                "description": "Camera stream resolution. Can be either HD1200, HD1080 or SVGA",
                 "metadata": {
-                    "allowedTokens": ["HD1080", "HD720", "VGA"]
+                    "allowedTokens": ["HD1200", "HD1080", "SVGA"]
                 },
-                "default" : "HD720"
+                "default" : "HD1200"
             },
             "streaming_port": {
                 "type": "uint",
