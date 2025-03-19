@@ -1,23 +1,23 @@
 
 [package]
 # Semantic Versioning is used: https://semver.org/
-version = "2.0.1"
+version = "3.0.0"
 
 # Lists people or organizations that are considered the "authors" of the package.
 authors = ["Stereolabs"]
 
 # The title and description fields are primarly for displaying extension info in UI
 title = "ZED Camera Extension"
-description = "Streams virtual ZED camera data to the ZED SDK. "
+description="Streams virtual ZED camera data to the ZED SDK. "
 
 # Path (relative to the root) or content of readme markdown file for UI.
-readme = "docs/README.md"
+readme  = "docs/README.md"
 
 # Path (relative to the root) or content of changelog markdown file for UI.
-changelog = "docs/CHANGELOG.md"
+changelog  = "docs/CHANGELOG.md"
 
 # URL of the extension source repository.
-repository = "https://github.com/stereolabs/zed-isaac-sim"
+repository="https://github.com/stereolabs/zed-isaac-sim"
 
 # One of categories for UI.
 category = "simulation"
@@ -35,21 +35,23 @@ icon = "data/icon.png"
 [package.target]
 platform = ["windows-x86_64", "linux-x86_64"]
 python = ["cp310"]
-kit = ["106.1.0"]
+kit = ["106.5"]
 
 # Watch the .ogn files for hot reloading (only works for Python files)
 [fswatcher.patterns]
 include = ["*.ogn", "*.py"]
 exclude = ["Ogn*Database.py"]
 
+[package.writeTarget]
+kit = true
+
 [dependencies]
-"omni.kit.test" = {}
 "omni.graph" = {}
 "omni.replicator.core" = {}
-"omni.isaac.core_nodes" = {}
-"omni.isaac.core" = {}
-"omni.isaac.sensor" = {}
-
+"isaacsim.core.nodes" = {}
+"isaacsim.core.api" = {}
+"isaacsim.sensors.camera" = {}
+"isaacsim.sensors.physics" = {}
 
 # Main python module this extension provides, it will be publicly available as "sl.sensor.camera".
 [[python.module]]

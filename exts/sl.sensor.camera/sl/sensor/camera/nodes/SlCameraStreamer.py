@@ -4,11 +4,14 @@ This is the implementation of the OGN node defined in SlCameraStreamer.ogn
 import carb
 from dataclasses import dataclass
 import omni.replicator.core as rep
-from omni.isaac.core_nodes.bindings import _omni_isaac_core_nodes
-from omni.isaac.core.prims import XFormPrim
+from isaacsim.core.prims import SingleXFormPrim
 from pxr import Vt
-from omni.isaac.core.utils.prims import is_prim_path_valid, get_prim_at_path
-from omni.isaac.sensor import _sensor
+from isaacsim.core.utils.prims import is_prim_path_valid, get_prim_at_path
+from isaacsim.core.nodes.bindings import _isaacsim_core_nodes
+from isaacsim.sensors.physics import _sensor
+from isaacsim.core.api import SimulationContext
+from carb.events import IEvent
+import omni.kit.commands
 
 from sl.sensor.camera.pyzed_sim_streamer import ZEDSimStreamer, ZEDSimStreamerParams 
 import time
@@ -20,18 +23,15 @@ RIGHT_CAMERA_PATH = "/base_link/ZED_X/CameraRight"
 IMU_PRIM_PATH = "/base_link/ZED_X/Imu_Sensor"
 CHANNELS = 3
 
-
 class SlCameraStreamer:
     """
          Streams camera data to the ZED SDK
     """
-
-
     @dataclass
     class State:
         initialized: bool = False
-        render_product_left = None
-        render_product_right = None
+        render_product_path_left = None
+        render_product_path_right = None
         annotator_left = None
         annotator_right = None
         core_nodes_interface = None
@@ -45,6 +45,8 @@ class SlCameraStreamer:
         imu_prim_path = ""
         imu_prim = None
         invalid_images_count = 0
+        timeline_stop_sub = None
+        timeline_start_sub = None
         pass
 
     @staticmethod
@@ -52,12 +54,12 @@ class SlCameraStreamer:
         return SlCameraStreamer.State()
 
     @staticmethod
-    def get_render_product_path(camera_path :str, render_product_size = [1280, 720], force_new=True):
+    def get_render_product_path(camera_path :str, render_product_size = [1920, 1200], force_new=True):
         """Helper function to get render product path
 
         Args:
             camera_path (str): the path of the camera prim
-            render_product_size (list, optional): the resolution of the image. Defaults to HD720.
+            render_product_size (list, optional): the resolution of the image. Defaults to HD1200.
             force_new (bool, optional): forces the creation of a new render product. Defaults to True.
 
         Returns:
@@ -65,6 +67,7 @@ class SlCameraStreamer:
         """
         render_product_path = ""
         render_product_path = rep.create.render_product(camera_path, render_product_size, force_new=force_new)
+        print("create new render product")
         return render_product_path
     
     @staticmethod
@@ -123,6 +126,38 @@ class SlCameraStreamer:
                 carb.log_warn(f"Camera {camera_prim_path} properties are not valid. Setting them back to default value.")
                 result = True
         return result
+    
+    @staticmethod
+    def get_focal_length(camera_resolution):
+        f = 741.6
+        if camera_resolution[1] == 1200:
+            f = 741.6
+        elif camera_resolution[1] == 1080:
+            f = 741.6
+        elif camera_resolution[1] == 600:
+            f = 370.8
+        return f
+
+    @staticmethod
+    def init_camera(camera_prim_path : str, resolution):
+        result = False
+
+        if is_prim_path_valid(camera_prim_path) == True:
+                cam_prim = get_prim_at_path(prim_path=camera_prim_path)
+                pixel_size = 3 * 1e-3
+                f_stop = 0 # disable focusing
+                f = SlCameraStreamer.get_focal_length(resolution)
+
+                horizontal_aperture = pixel_size * resolution[0]
+                vertical_aperture = pixel_size * resolution[1]
+                focal_length = f * pixel_size
+
+                cam_prim.GetAttribute("focalLength").Set(focal_length)
+                cam_prim.GetAttribute("horizontalAperture").Set(horizontal_aperture)
+                cam_prim.GetAttribute("verticalAperture").Set(vertical_aperture)
+                cam_prim.GetAttribute("fStop").Set(f_stop)
+                result = True
+        return result
 
     @staticmethod
     def get_resolution(camera_resolution: str):
@@ -134,12 +169,12 @@ class SlCameraStreamer:
         Returns:
             list: the resolution of the camera
         """
-        if camera_resolution == "HD1080":
+        if camera_resolution == "HD1200":
+            result = [1920, 1200]
+        elif camera_resolution == "HD1080":
             result = [1920, 1080]
-        elif camera_resolution == "HD720":
-            result = [1280, 720]
-        elif camera_resolution == "VGA":
-            result = [672, 376]
+        elif camera_resolution == "SVGA":
+            result = [960, 600]
         else:
             result = None
         return result
@@ -151,92 +186,116 @@ class SlCameraStreamer:
             return 30
         return camera_frame_rate
 
+    @staticmethod
+    def createStreamer(db) -> bool:
+        db.internal_state.imu_sensor_interface = _sensor.acquire_imu_sensor_interface()
+        db.internal_state.core_nodes_interface = _isaacsim_core_nodes.acquire_interface()
+
+        if db.inputs.camera_prim is None:
+            carb.log_error("Invalid Camera prim")
+            print("invalid camera prim")
+            return
+
+        # Check port
+        port = db.inputs.streaming_port
+        if  port <= 0 or port %2 == 1:
+            carb.log_warn("Invalid port passed! It must be a positive even number. Will default to 30000.")
+            port = 30000
+        
+        db.internal_state.override_simulation_time = db.inputs.use_system_time
+        if db.internal_state.override_simulation_time:
+            carb.log_warn("Overriding simulation time by system time")
+        
+        if not len(db.inputs.camera_prim) == 1:
+            print("please pass the corerct target")
+            carb.log_error("Please pass the correct target to the omnigraph node")
+            return False
+        db.internal_state.camera_prim_name = db.inputs.camera_prim[0].name
+
+        # Check resolution and retrieve width and height
+        resolution = SlCameraStreamer.get_resolution(db.inputs.resolution)
+        if resolution is None:
+            resolution = [1920, 1200]
+            carb.log_warn(f"Invalid resolution passed. Defaulting to HD1200.")
+
+        left_cam_path = db.inputs.camera_prim[0].pathString + LEFT_CAMERA_PATH
+        right_cam_path = db.inputs.camera_prim[0].pathString + RIGHT_CAMERA_PATH
+        res = SlCameraStreamer.init_camera(left_cam_path, resolution)
+        res = res and SlCameraStreamer.init_camera(right_cam_path, resolution)
+        if not res:
+            carb.log_warn(f"[{db.inputs.camera_prim[0].GetPrimPath()}] Invalid or non existing zed camera, try to re-import your camera prim.")
+
+        # Check frame rate
+        db.internal_state.target_fps = SlCameraStreamer.check_frame_rate(db.inputs.fps)
+
+        if (db.internal_state.annotator_left is None):
+            db.render_product_path_left = SlCameraStreamer.get_render_product_path(left_cam_path, render_product_size=resolution)
+            db.internal_state.annotator_left = rep.AnnotatorRegistry.get_annotator("rgb", device="cuda", do_array_copy=False)
+            db.internal_state.annotator_left.attach([db.render_product_path_left])
+
+        if (db.internal_state.annotator_right is None):
+            db.render_product_path_right = SlCameraStreamer.get_render_product_path(right_cam_path, render_product_size=resolution)
+            db.internal_state.annotator_right = rep.AnnotatorRegistry.get_annotator("rgb", device="cuda", do_array_copy=False)
+            db.internal_state.annotator_right.attach([db.render_product_path_right])
+
+        db.internal_state.imu_prim_path = db.inputs.camera_prim[0].pathString + IMU_PRIM_PATH
+        db.internal_state.imu_prim = SingleXFormPrim(prim_path=db.internal_state.imu_prim_path)
+
+        # Setup streamer parameters
+        db.internal_state.pyzed_streamer = ZEDSimStreamer()
+
+        # Check serial number
+        serial_number = db.inputs.serial_number
+        camera_ids = db.internal_state.pyzed_streamer.getVirtualCameraIdentifiers()
+        if serial_number not in camera_ids:
+            serial_number = next(iter(camera_ids))
+            carb.log_warn(f"Invalid serial number passed. Defaulting to: {serial_number}.")
+
+        streamer_params = ZEDSimStreamerParams()
+        streamer_params.image_width = resolution[0]
+        streamer_params.image_height = resolution[1]
+        streamer_params.fps = db.internal_state.target_fps
+        streamer_params.alpha_channel_included = False
+        streamer_params.rgb_encoded = True
+        streamer_params.serial_number = serial_number
+        streamer_params.port = port
+        streamer_params.codec_type = 1
+        init_error = db.internal_state.pyzed_streamer.init(streamer_params)
+        if not init_error:
+            carb.log_error(f"Failed to initialize the ZED SDK streamer with serial number {serial_number}.")
+            return False
+
+        # set state to initialized
+        carb.log_info(f"Streaming camera {db.internal_state.camera_prim_name} at port {port} and using serial number {serial_number}.")
+        db.internal_state.invalid_images_count = 0
+        db.internal_state.last_timestamp = 0.0
+        db.internal_state.data_shape = (resolution[1], resolution[0], CHANNELS)
+        db.internal_state.initialized = True
 
     @staticmethod
     def compute(db) -> bool:
         """Compute the outputs from the current input"""
-        if db.internal_state.initialized is False:
-            db.internal_state.core_nodes_interface = _omni_isaac_core_nodes.acquire_interface()
-            db.internal_state.imu_sensor_interface =  _sensor.acquire_imu_sensor_interface()
-            if db.inputs.camera_prim is None:
-                carb.log_error("Invalid Camera prim")
-                return
+        if db.per_instance_state.initialized is False:
+            # ZED Sim streamer cleanup on timeline stop
+            def on_timeline_stop(event: carb.events.IEvent):
+                SlCameraStreamer.release(db)
 
-            # Check port
-            port = db.inputs.streaming_port
-            if  port <= 0 or port %2 == 1:
-                carb.log_warn("Invalid port passed! It must be a positive even number. Will default to 30000.")
-                port = 30000
-            
-            db.internal_state.override_simulation_time = db.inputs.use_system_time
-            if db.internal_state.override_simulation_time:
-                carb.log_warn("Overriding simulation time by system time")
-            
-            if not len(db.inputs.camera_prim) == 1:
-                carb.log_error("Please pass the correct target to the omnigraph node")
-                return False
-            db.internal_state.camera_prim_name = db.inputs.camera_prim[0].name
+            #def on_timeline_start(event: carb.events.IEvent):
+            #    SlCameraStreamer.createStreamer(db)
+            #    print("play")
 
-            left_cam_path = db.inputs.camera_prim[0].pathString + LEFT_CAMERA_PATH
-            right_cam_path = db.inputs.camera_prim[0].pathString + RIGHT_CAMERA_PATH
-            res = SlCameraStreamer.check_camera(left_cam_path)
-            res = res and SlCameraStreamer.check_camera(right_cam_path)
-            if not res:
-                carb.log_warn(f"[{db.inputs.camera_prim[0].GetPrimPath()}] Invalid or non existing zed camera, try to re-import your camera prim.")
+            SlCameraStreamer.createStreamer(db)
 
-            # Check resolution and retrieve width and height
-            resolution = SlCameraStreamer.get_resolution(db.inputs.resolution)
-            if resolution is None:
-                resolution = [1280, 720]
-                carb.log_warn(f"Invalid resolution passed. Defaulting to HD720.")
+            timeline = omni.timeline.get_timeline_interface()
+            db.per_instance_state.timeline_stop_sub = timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
+                int(omni.timeline.TimelineEventType.STOP),
+                on_timeline_stop
+            )
 
-            # Check frame rate
-            db.internal_state.target_fps = SlCameraStreamer.check_frame_rate(db.inputs.fps)
-
-            if (db.internal_state.annotator_left is None):
-                render_product_path_left = SlCameraStreamer.get_render_product_path(left_cam_path, render_product_size=resolution)
-                db.internal_state.annotator_left = rep.AnnotatorRegistry.get_annotator("rgb", device="cuda", do_array_copy=False)
-                db.internal_state.annotator_left.attach([render_product_path_left])
-
-            if (db.internal_state.annotator_right is None):
-                render_product_path_right = SlCameraStreamer.get_render_product_path(right_cam_path, render_product_size=resolution)
-                db.internal_state.annotator_right = rep.AnnotatorRegistry.get_annotator("rgb", device="cuda", do_array_copy=False)
-                db.internal_state.annotator_right.attach([render_product_path_right])
-
-            db.internal_state.imu_prim_path = db.inputs.camera_prim[0].pathString + IMU_PRIM_PATH
-            db.internal_state.imu_prim = XFormPrim(prim_path=db.internal_state.imu_prim_path)
-
-            # Setup streamer parameters
-            db.internal_state.pyzed_streamer = ZEDSimStreamer()
-
-            # Check serial number
-            serial_number = db.inputs.serial_number
-            camera_ids = db.internal_state.pyzed_streamer.getVirtualCameraIdentifiers()
-            if serial_number not in camera_ids:
-                serial_number = next(iter(camera_ids))
-                carb.log_warn(f"Invalid serial number passed. Defaulting to: {serial_number}.")
-
-            streamer_params = ZEDSimStreamerParams()
-            streamer_params.image_width = resolution[0]
-            streamer_params.image_height = resolution[1]
-            streamer_params.fps = db.internal_state.target_fps
-            streamer_params.alpha_channel_included = False
-            streamer_params.rgb_encoded = True
-            streamer_params.serial_number = serial_number
-            streamer_params.port = port
-            streamer_params.codec_type = 1
-
-            init_error = db.internal_state.pyzed_streamer.init(streamer_params)
-            if not init_error:
-                carb.log_error(f"Failed to initialize the ZED SDK streamer with serial number {serial_number}.")
-                return False
-
-            # set state to initialized
-            carb.log_info(f"Streaming camera {db.internal_state.camera_prim_name} at port {port} and using serial number {serial_number}.")
-            db.internal_state.invalid_images_count = 0
-            db.internal_state.last_timestamp = 0.0
-            db.internal_state.data_shape = (resolution[1], resolution[0], CHANNELS)
-            db.internal_state.initialized = True
+            #db.per_instance_state.timeline_start_sub = timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
+            #    int(omni.timeline.TimelineEventType.PLAY),
+            #    on_timeline_start
+            #)
 
         try:
             ts : int = 0
@@ -343,25 +402,31 @@ class SlCameraStreamer:
         return True
 
     @staticmethod
-    def release(node):
+    def release(db):
         carb.log_verbose("Releasing resources")
+        print("release zsim streamer")
         try:
-            state = SlCameraStreamerDatabase.per_node_internal_state(node)
+            state = db.per_instance_state
             if state is not None:
                 # disabling this could fix the render product issue (return empty arrays) when the scene reloads
                 # but could also create issues when attaching cameras to render products
                 if state.annotator_left:
                     state.annotator_left.detach()
-                    if state.render_product_left is not None:
-                        state.render_product_left.hydra_texture.set_updates_enabled(False)
-                        state.render_product_left.destroy()
+                    state.annotator_left = None
+                    if state.render_product_path_left is not None:
+                        #state.render_product_left.hydra_texture.set_updates_enabled(False)
+                        state.render_product_path_left.detach()
+                        state.render_product_path_left.destroy()
                 if state.annotator_right:
                     state.annotator_right.detach()
-                    if state.render_product_right is not None:
-                        state.render_product_right.hydra_texture.set_updates_enabled(False)
-                        state.render_product_right.destroy()
+                    state.annotator_right = None
+                    if state.render_product_path_right is not None:
+                        #state.render_product_right.hydra_texture.set_updates_enabled(False)
+                        state.render_product_path_right.detach()
+                        state.render_product_path_right.destroy()
 
                 if state.pyzed_streamer:
+                    print("close streamer")
                     state.pyzed_streamer.close()
                     # remove the streamer object when no longer needed
                     del state.pyzed_streamer
