@@ -277,25 +277,21 @@ class SlCameraStreamer:
         """Compute the outputs from the current input"""
         if db.per_instance_state.initialized is False:
             # ZED Sim streamer cleanup on timeline stop
-            def on_timeline_stop(event: carb.events.IEvent):
-                SlCameraStreamer.release(db)
-
-            #def on_timeline_start(event: carb.events.IEvent):
-            #    SlCameraStreamer.createStreamer(db)
-            #    print("play")
+            # def on_timeline_stop(event: carb.events.IEvent):
+            #     SlCameraStreamer.release(db)
 
             SlCameraStreamer.createStreamer(db)
 
-            timeline = omni.timeline.get_timeline_interface()
-            db.per_instance_state.timeline_stop_sub = timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
-                int(omni.timeline.TimelineEventType.STOP),
-                on_timeline_stop
-            )
+            # timeline = omni.timeline.get_timeline_interface()
+            # db.per_instance_state.timeline_stop_sub = timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
+            #     int(omni.timeline.TimelineEventType.STOP),
+            #     on_timeline_stop
+            # )
 
-            #db.per_instance_state.timeline_start_sub = timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
-            #    int(omni.timeline.TimelineEventType.PLAY),
-            #    on_timeline_start
-            #)
+            def on_pre_shutdown_event(event: IEvent):
+                SlCameraStreamer.release(db)
+                
+            omni.usd.get_context().get_stage_event_stream().create_subscription_to_pop_by_type(int(omni.usd.StageEventType.CLOSING), on_pre_shutdown_event)
 
         try:
             ts : int = 0
