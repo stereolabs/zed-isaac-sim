@@ -39,13 +39,11 @@ class SlCameraStreamerDatabase(og.Database):
 
     Predefined Tokens:
         tokens.HD1200
-        tokens.HD1080
-        tokens.SVGA
     """
 
     # Imprint the generator and target ABI versions in the file for JIT generation
-    GENERATOR_VERSION = (1, 79, 0)
-    TARGET_VERSION = (2, 179, 2)
+    GENERATOR_VERSION = (1, 79, 1)
+    TARGET_VERSION = (2, 181, 8)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}
@@ -59,7 +57,7 @@ class SlCameraStreamerDatabase(og.Database):
         ('inputs:camera_prim', 'target', 0, 'ZED Camera prim', 'ZED Camera prim used to stream data', {}, True, None, False, ''),
         ('inputs:exec_in', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate. Can be either 60, 30 or 15.', {ogn.MetadataKeys.DEFAULT: '30'}, True, 30, False, ''),
-        ('inputs:resolution', 'token', 0, None, 'Camera stream resolution. Can be either HD1200, HD1080 or SVGA', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD1200,HD1080,SVGA', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD1200", "HD1080", "SVGA"]', ogn.MetadataKeys.DEFAULT: '"HD1200"'}, True, "HD1200", False, ''),
+        ('inputs:resolution', 'token', 0, None, 'Camera stream resolution. Can be either HD1200, HD1080 or SVGA', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD1200', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD1200"]', ogn.MetadataKeys.DEFAULT: '"HD1200"'}, True, "HD1200", False, ''),
         ('inputs:serial_number', 'uint', 0, 'Serial number', 'Serial number (identification) of the camera to stream, can be left to default. It must be of one of the compatible values: 40976320, 41116066, 49123828, 45626933, 47890353, 45263213, 47800035, 47706147', {ogn.MetadataKeys.DEFAULT: '40976320'}, True, 40976320, False, ''),
         ('inputs:streaming_port', 'uint', 0, 'Streaming port', 'Streaming port - unique per camera', {ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
         ('inputs:use_system_time', 'bool', 0, 'Use system time', 'Override simulation time with system time for image timestamps', {ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
@@ -67,8 +65,6 @@ class SlCameraStreamerDatabase(og.Database):
 
     class tokens:
         HD1200 = "HD1200"
-        HD1080 = "HD1080"
-        SVGA = "SVGA"
 
     @classmethod
     def _populate_role_data(cls):
@@ -253,6 +249,11 @@ class SlCameraStreamerDatabase(og.Database):
 
             node.register_on_connected_callback(on_connection_or_disconnection)
             node.register_on_disconnected_callback(on_connection_or_disconnection)
+
+        @staticmethod
+        def initialize_nodes(context, nodes):
+            for n in nodes:
+                SlCameraStreamerDatabase.abi.initialize(context, n)
 
         @staticmethod
         def release(node):
