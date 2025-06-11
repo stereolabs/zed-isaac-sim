@@ -35,6 +35,8 @@ Inputs
     :header: "Name", "Type", "Descripton", "Default"
     :widths: 20, 20, 50, 10
 
+    "Camera Model (*inputs:camera_model*)", "``token``", "ZED Camera model. Can be either ZED_X, ZED_X_Mini or ZED_2i", "ZED_X"
+    "", "Metadata", "*allowedTokens* = ZED_X,ZED_X_Mini,ZED_2i", ""
     "ZED Camera prim (*inputs:camera_prim*)", "``target``", "ZED Camera prim used to stream data", "None"
     "ExecIn (*inputs:exec_in*)", "``execution``", "Triggers execution", "0"
     "FPS (*inputs:fps*)", "``uint``", "Camera stream frame rate. Can be either 60, 30 or 15.", "30"
