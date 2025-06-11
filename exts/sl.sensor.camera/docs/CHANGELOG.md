@@ -2,15 +2,6 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [3.0.0] - 2025-03-20
-- Add support for Isaac Sim 4.5.0
-- Add support for ZED SDK 5.0.0
-- Updated ZED X camera resolutions to match real resolutions: HD1200, HD1080, SVGA
-- Release streamer on stop button press, allowing to change camera parameters between start/stop without reloading the scene
-
-## [2.0.1] - 2025-02-25
-- Fix ZED Camera extension compatibility with Stereolabs ZED SDK 4.2.5
-
 ## [2.0.0] - 2024-08-29
 - Add support for Isaac Sim 4.0
 
