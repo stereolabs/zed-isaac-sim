@@ -50,7 +50,7 @@
             },
             "serial_number": {
                 "type": "uint",
-                "description": "Serial number (identification) of the camera to stream, can be left to default. It must be of one of the compatible values: 40976320, 41116066, 49123828, 45626933, 47890353, 45263213, 47800035, 47706147",
+                "description": "Serial number (identification) of the camera to stream, can be left to default. It must be of one of the compatible values: ZED X: 40976320, 41116066, 49123828, 45626933 - ZED X Mini: 57890353, 55263213, 57800035, 57706147",
                 "metadata": {
                     "uiName": "Serial number"
                 },
