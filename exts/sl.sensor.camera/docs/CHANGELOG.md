@@ -2,6 +2,10 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [3.1.0] - 2025-06-26
+- Add support for ZED X Mini camera
+- Add new ZED X and ZED X Mini USD models
+
 ## [3.0.0] - 2025-03-20
 - Add support for Isaac Sim 4.5.0
 - Add support for ZED SDK 5.0.0

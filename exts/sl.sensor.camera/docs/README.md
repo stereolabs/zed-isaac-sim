@@ -9,6 +9,7 @@ Please find the correct extension version compatible with your Isaac Sim version
 
 - Versions 1.X.X are compatible with Isaac Sim 2023.X.X.
 - Versions 2.X.X are compatible with Isaac Sim 4.X
+- Versions 3.X.X are compatible with Isaac Sim 5.X
 
 ## Getting started
 
