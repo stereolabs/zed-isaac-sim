@@ -14,8 +14,8 @@ Major versions of the ZED camera extension will follow major versions of Isaac S
 Please find the correct extension version compatible with your Isaac Sim version:
 
 - Versions 1.X.X are compatible with Isaac Sim 2023.X.X.
-- Versions 2.X.X are compatible with Isaac Sim 4.X
-- Versions 3.X.X are compatible with Isaac Sim 5.X
+- Versions 2.X.X are compatible with Isaac Sim 4.0 to 4.2
+- Versions 3.X.X are compatible with Isaac Sim 4.5
 
 ## Getting started    
 
