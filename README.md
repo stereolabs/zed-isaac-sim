@@ -5,14 +5,11 @@
 - Linux Ubuntu 22.04 or Windows 10/11
 - [NVIDIA Isaac SIM Requirements](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html)
 - [Isaac SIM >=4.5.0 (Workstation or Container)](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html)
-- [ZED SDK > 5.0.1](https://www.stereolabs.com/en-fr/developers/release)
 
 ### Installation
 
 1. Clone the repository
 2. Run ./build.bat on Windows or ./build.sh on Linux to build the extension.
-
-
 
 ## Usage
 
@@ -40,3 +37,35 @@ Then, In your scene,
 <img src="imgs/action_graph_zed.png">
 
 <img src="imgs/zed_x_prim.png">
+
+### Using IPC
+
+It is now possible to stream images to the ZED SDK using IPC instead of RTSP.
+This feature is only available on Linux and only when streaming to the same machine.
+
+To use IPC:
+
+- In the action graph, enable the "IPC" option in the ZED Camera Helper node. It is enabled by default.
+
+
+<img src="imgs/enable_ipc.png">
+
+Once streaming has started, you should see the following message in the console window:
+
+<img src="imgs/log_ipc_enable.png">
+<br><br>
+
+**Important**:
+
+To receive a stream using IPC, the IP address must be set to `127.0.0.1` or `localhost`.
+
+For example, in ZED Explorer:
+
+- Set the IP to 127.0.0.1
+
+<img src="imgs/ipc_stream_ip.png">
+<br><br>
+
+- On the top-left corner, the streaming mode is specified:
+
+<img src="imgs/stream_ipc_zed_explorer.png">

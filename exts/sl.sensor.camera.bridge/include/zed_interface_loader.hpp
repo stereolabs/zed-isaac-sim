@@ -167,6 +167,12 @@ namespace sl
                 std::cerr << "[ZED] Error with init_streamer function call" << std::endl;
                 return false;
             }
+
+            if (streaming_params->transport_layer_mode == 1)
+            {
+                CARB_LOG_INFO("IPC stream enabled");
+            }
+
             return init_streamer(streamer_id, streaming_params);
         }
     
