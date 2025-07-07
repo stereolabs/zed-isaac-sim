@@ -66,6 +66,6 @@ For example, in ZED Explorer:
 <img src="imgs/ipc_stream_ip.png">
 <br><br>
 
-- On the top-left corner, the streaming mode is specified:
+- On the top-left corner, the streaming mode will be displayed:
 
 <img src="imgs/stream_ipc_zed_explorer.png">
