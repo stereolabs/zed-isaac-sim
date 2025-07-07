@@ -29,14 +29,13 @@ class SlCameraStreamerDatabase(og.Database):
 
     Attribute Value Properties:
         Inputs:
-            inputs.camera_model
-            inputs.camera_prim
-            inputs.exec_in
+            inputs.cameraModel
+            inputs.cameraPrim
+            inputs.execIn
             inputs.fps
+            inputs.ipc
             inputs.resolution
-            inputs.serial_number
-            inputs.streaming_port
-            inputs.use_system_time
+            inputs.streamingPort
 
     Predefined Tokens:
         tokens.ZED_X
@@ -45,8 +44,8 @@ class SlCameraStreamerDatabase(og.Database):
     """
 
     # Imprint the generator and target ABI versions in the file for JIT generation
-    GENERATOR_VERSION = (1, 77, 0)
-    TARGET_VERSION = (2, 170, 0)
+    GENERATOR_VERSION = (1, 79, 1)
+    TARGET_VERSION = (2, 181, 8)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}
@@ -57,14 +56,13 @@ class SlCameraStreamerDatabase(og.Database):
     #     Is_Required, DefaultValue, Is_Deprecated, DeprecationMsg
     # You should not need to access any of this data directly, use the defined database interfaces
     INTERFACE = og.Database._get_interface([
-        ('inputs:camera_model', 'token', 0, 'Camera Model', 'ZED Camera model. Can be either ZED_X, ZED_X_Mini', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_X,ZED_X_Mini', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_X", "ZED_X_Mini"]', ogn.MetadataKeys.DEFAULT: '"ZED_X"'}, True, "ZED_X", False, ''),
-        ('inputs:camera_prim', 'target', 0, 'ZED Camera prim', 'ZED Camera prim used to stream data', {}, True, None, False, ''),
-        ('inputs:exec_in', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
+        ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Camera model. Can be either ZED_X, ZED_X_Mini', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_X,ZED_X_Mini', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_X", "ZED_X_Mini"]', ogn.MetadataKeys.DEFAULT: '"ZED_X"'}, True, "ZED_X", False, ''),
+        ('inputs:cameraPrim', 'target', 0, 'ZED Camera prim', 'ZED Camera prim used to stream data', {}, True, None, False, ''),
+        ('inputs:execIn', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate. Can be either 60, 30 or 15.', {ogn.MetadataKeys.DEFAULT: '30'}, True, 30, False, ''),
+        ('inputs:ipc', 'bool', 0, 'IPC', 'Stream data using IPC (Only available on Linux). This improve streaming performances when streaming to the same machine', {ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:resolution', 'token', 0, None, 'Camera stream resolution. Can be either HD1200, HD1080 or SVGA', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD1200', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD1200"]', ogn.MetadataKeys.DEFAULT: '"HD1200"'}, True, "HD1200", False, ''),
-        ('inputs:serial_number', 'uint', 0, 'Serial number', 'Serial number (identification) of the camera to stream, can be left to default. It must be of one of the compatible values: ZED X: 40976320, 41116066, 49123828, 45626933 - ZED X Mini: 57890353, 55263213, 57800035, 57706147', {ogn.MetadataKeys.DEFAULT: '40976320'}, True, 40976320, False, ''),
-        ('inputs:streaming_port', 'uint', 0, 'Streaming port', 'Streaming port - unique per camera', {ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
-        ('inputs:use_system_time', 'bool', 0, 'Use system time', 'Override simulation time with system time for image timestamps', {ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
+        ('inputs:streamingPort', 'uint', 0, 'Streaming port', 'Streaming port - unique per camera', {ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
     ])
 
     class tokens:
@@ -76,47 +74,47 @@ class SlCameraStreamerDatabase(og.Database):
     def _populate_role_data(cls):
         """Populate a role structure with the non-default roles on this node type"""
         role_data = super()._populate_role_data()
-        role_data.inputs.camera_prim = og.AttributeRole.TARGET
-        role_data.inputs.exec_in = og.AttributeRole.EXECUTION
+        role_data.inputs.cameraPrim = og.AttributeRole.TARGET
+        role_data.inputs.execIn = og.AttributeRole.EXECUTION
         return role_data
 
     class ValuesForInputs(og.DynamicAttributeAccess):
-        LOCAL_PROPERTY_NAMES = {"camera_model", "exec_in", "fps", "resolution", "serial_number", "streaming_port", "use_system_time", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
+        LOCAL_PROPERTY_NAMES = {"cameraModel", "execIn", "fps", "ipc", "resolution", "streamingPort", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
         """Helper class that creates natural hierarchical access to input attributes"""
         def __init__(self, node: og.Node, attributes, dynamic_attributes: og.DynamicAttributeInterface):
             """Initialize simplified access for the attribute data"""
             context = node.get_graph().get_default_graph_context()
             super().__init__(context, node, attributes, dynamic_attributes)
-            self._batchedReadAttributes = [self._attributes.camera_model, self._attributes.exec_in, self._attributes.fps, self._attributes.resolution, self._attributes.serial_number, self._attributes.streaming_port, self._attributes.use_system_time]
-            self._batchedReadValues = ["ZED_X", 0, 30, "HD1200", 40976320, 30000, False]
+            self._batchedReadAttributes = [self._attributes.cameraModel, self._attributes.execIn, self._attributes.fps, self._attributes.ipc, self._attributes.resolution, self._attributes.streamingPort]
+            self._batchedReadValues = ["ZED_X", 0, 30, True, "HD1200", 30000]
 
         @property
-        def camera_prim(self):
-            data_view = og.AttributeValueHelper(self._attributes.camera_prim)
+        def cameraPrim(self):
+            data_view = og.AttributeValueHelper(self._attributes.cameraPrim)
             return data_view.get()
 
-        @camera_prim.setter
-        def camera_prim(self, value):
+        @cameraPrim.setter
+        def cameraPrim(self, value):
             if self._setting_locked:
-                raise og.ReadOnlyError(self._attributes.camera_prim)
-            data_view = og.AttributeValueHelper(self._attributes.camera_prim)
+                raise og.ReadOnlyError(self._attributes.cameraPrim)
+            data_view = og.AttributeValueHelper(self._attributes.cameraPrim)
             data_view.set(value)
-            self.camera_prim_size = data_view.get_array_size()
+            self.cameraPrim_size = data_view.get_array_size()
 
         @property
-        def camera_model(self):
+        def cameraModel(self):
             return self._batchedReadValues[0]
 
-        @camera_model.setter
-        def camera_model(self, value):
+        @cameraModel.setter
+        def cameraModel(self, value):
             self._batchedReadValues[0] = value
 
         @property
-        def exec_in(self):
+        def execIn(self):
             return self._batchedReadValues[1]
 
-        @exec_in.setter
-        def exec_in(self, value):
+        @execIn.setter
+        def execIn(self, value):
             self._batchedReadValues[1] = value
 
         @property
@@ -128,36 +126,28 @@ class SlCameraStreamerDatabase(og.Database):
             self._batchedReadValues[2] = value
 
         @property
-        def resolution(self):
+        def ipc(self):
             return self._batchedReadValues[3]
 
-        @resolution.setter
-        def resolution(self, value):
+        @ipc.setter
+        def ipc(self, value):
             self._batchedReadValues[3] = value
 
         @property
-        def serial_number(self):
+        def resolution(self):
             return self._batchedReadValues[4]
 
-        @serial_number.setter
-        def serial_number(self, value):
+        @resolution.setter
+        def resolution(self, value):
             self._batchedReadValues[4] = value
 
         @property
-        def streaming_port(self):
+        def streamingPort(self):
             return self._batchedReadValues[5]
 
-        @streaming_port.setter
-        def streaming_port(self, value):
+        @streamingPort.setter
+        def streamingPort(self, value):
             self._batchedReadValues[5] = value
-
-        @property
-        def use_system_time(self):
-            return self._batchedReadValues[6]
-
-        @use_system_time.setter
-        def use_system_time(self, value):
-            self._batchedReadValues[6] = value
 
         def __getattr__(self, item: str):
             if item in self.LOCAL_PROPERTY_NAMES:
@@ -265,6 +255,11 @@ class SlCameraStreamerDatabase(og.Database):
             node.register_on_disconnected_callback(on_connection_or_disconnection)
 
         @staticmethod
+        def initialize_nodes(context, nodes):
+            for n in nodes:
+                SlCameraStreamerDatabase.abi.initialize(context, n)
+
+        @staticmethod
         def release(node):
             release_function = getattr(SlCameraStreamerDatabase.NODE_TYPE_CLASS, 'release', None)
             if callable(release_function):  # pragma: no cover
@@ -299,7 +294,7 @@ class SlCameraStreamerDatabase(og.Database):
                 needs_initializing = initialize_type_function(node_type)
             if needs_initializing:
                 node_type.set_metadata(ogn.MetadataKeys.EXTENSION, "sl.sensor.camera")
-                node_type.set_metadata(ogn.MetadataKeys.UI_NAME, "ZED camera streamer")
+                node_type.set_metadata(ogn.MetadataKeys.UI_NAME, "ZED Camera Helper")
                 node_type.set_metadata(ogn.MetadataKeys.CATEGORIES, "Stereolabs")
                 node_type.set_metadata(ogn.MetadataKeys.CATEGORY_DESCRIPTIONS, "Stereolabs,Nodes used with the Stereolabs ZED SDK")
                 node_type.set_metadata(ogn.MetadataKeys.DESCRIPTION, "Streams ZED camera data to the ZED SDK")
@@ -317,7 +312,7 @@ class SlCameraStreamerDatabase(og.Database):
     @staticmethod
     def register(node_type_class):
         SlCameraStreamerDatabase.NODE_TYPE_CLASS = node_type_class
-        og.register_node_type(SlCameraStreamerDatabase.abi, 1)
+        og.register_node_type(SlCameraStreamerDatabase.abi, 2)
 
     @staticmethod
     def deregister():

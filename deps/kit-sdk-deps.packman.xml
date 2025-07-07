@@ -1,0 +1,25 @@
+<project toolsVersion="5.0">
+  <!-- Import dependencies from kit-kernel to ensure we're using the same versions. -->
+  <import path="../_build/${platform_target}/${config}/kit/dev/all-deps.packman.xml">
+    <filter include="boost_preprocessor" linkPath="../_build/target-deps/boost-preprocessor"/>
+    <filter include="carb_sdk_plugins" linkPath="../_build/target-deps/carb_sdk_plugins"/>
+    <filter include="cuda" linkPath="../_build/target-deps/cuda"/>
+    <filter include="imgui" linkPath="../_build/target-deps/imgui"/>
+    <filter include="premake" linkPath="../_build/host-deps/premake"/>
+    <filter include="pybind11" linkPath="../_build/target-deps/pybind11"/>
+    <filter include="python" linkPath="../_build/target-deps/python"/>
+    <filter include="usd-release" linkPath="../_build/target-deps/usd/release"/>
+  </import>
+
+  <!-- The doctest package imported from kit-kernel is not yet available. -->
+  <dependency name="doctest" linkPath="../_build/target-deps/doctest">
+    <package name="doctest" version="2.4.5+nv1-3" />
+  </dependency>
+
+  <!-- Because we always use the release kit-kernel we have to explicitly refer to the debug usd package. -->
+  <dependency name="usd-debug" linkPath="../_build/target-deps/usd/debug">
+    <package name="usd.py311.windows-x86_64.stock.debug" version="0.24.05-gl.12679+3.34e06858" platforms="windows-x86_64"/>
+    <package name="usd.py311.manylinux_2_35_x86_64.stock.debug" version="0.24.05-gl.12679+3.34e06858" platforms="linux-x86_64 manylinux_2_35_x86_64"/>
+    <package name="usd.py311.manylinux_2_35_aarch64.stock.debug" version="0.24.05-gl.12679+3.34e06858" platforms="linux-aarch64 manylinux_2_35_aarch64"/>
+  </dependency>
+</project>

@@ -1,0 +1,93 @@
+{
+  "OgnZEDSimCameraNode": {
+    "version": 1,
+    "uiName": "ZED Stream",
+    "description": [
+      ""
+    ],
+    "categories": [ "function" ],
+    "inputs": {
+      "execIn": {
+        "type": "execution",
+        "description": "Triggers execution",
+        "default": 0,
+        "metadata": {
+          "uiName": "ExecIn"
+        }
+      },
+      "stream": {
+        "type": "bool",
+        "description": "stream",
+        "default": false
+      },
+      "ipc": {
+        "type": "bool",
+        "description": "sream data using IPC (only available on Linux)",
+        "default": false
+      },
+      "cameraModel": {
+        "type": "string",
+        "description": "ZED Camera model. Can be either ZED_X, ZED_X_Mini",
+        "default": "ZED_X"
+      },
+      "width": {
+        "type": "uint",
+        "description": "Camera stream resolution. Can be either HD1200, HD1080 or SVGA",
+        "default": 1920
+      },
+      "height": {
+        "type": "uint",
+        "description": "Camera stream resolution. Can be either HD1200, HD1080 or SVGA",
+        "default": 1200
+      },
+      "fps": {
+        "type": "uint",
+        "description": "frame rate",
+        "default": 30
+      },
+      "port": {
+        "type": "uint",
+        "description": "server port",
+        "default": 5561
+      },
+      "simulationTime": {
+        "type": "double",
+        "description": "simulation time"
+      },
+      "systemTime": {
+        "type": "double",
+        "description": "system time"
+      },
+      "bufferSizeLeft": {
+        "type": "uint64",
+        "description": "Size (in bytes) of the buffer (0 if the input is a texture)"
+      },
+      "bufferSizeRight": {
+        "type": "uint64",
+        "description": "Size (in bytes) of the buffer (0 if the input is a texture)"
+      },
+      "dataPtrLeft": {
+        "type": "uint64",
+        "description": "Pointer to the raw data (cuda device pointer or host pointer)",
+        "default": 0
+      },
+      "dataPtrRight": {
+        "type": "uint64",
+        "description": "Pointer to the raw data (cuda device pointer or host pointer)",
+        "default": 0
+      },
+      "orientation": {
+        "type": "float[4]",
+        "description": "imu orientation",
+        "default": [ 0.0, 0.0, 0.0, 1.0 ]
+      },
+      "linearAcceleration": {
+        "type": "float[3]",
+        "description": "imu acceleration",
+        "default": [ 0.0, 0.0, 0.0 ]
+      }
+    },
+      "outputs": {
+      }
+    }
+}
