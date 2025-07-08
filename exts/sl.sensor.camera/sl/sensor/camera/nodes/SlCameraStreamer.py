@@ -91,12 +91,6 @@ class SlCameraStreamer:
             SlCameraStreamer.used_ports = set()
             state.initialized = False
 
-            stage = get_current_stage()
-            path = "/Render"
-            # delete any deltas on the root layer
-            from omni.kit.usd.layers import RemovePrimSpecCommand
-            RemovePrimSpecCommand(layer_identifier=stage.GetRootLayer().realPath, prim_spec_path=[Sdf.Path(path)]).do()
-
         except Exception:
             state = None
             pass
