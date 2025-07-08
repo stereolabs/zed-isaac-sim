@@ -25,6 +25,8 @@ repo_build.prebuild_copy {
 project_ext_ogn( ext, ogn )
 
 
+local abs_target_deps = path.getabsolute(target_deps)
+
 -- --------------------------------------------------------------------------------------------------------------
 -- Build the C++ plugin that will be loaded by the extension.
 project_ext_plugin(ext, ogn.plugin_project)
@@ -32,19 +34,14 @@ project_ext_plugin(ext, ogn.plugin_project)
     add_files("source", "plugins/"..ogn.module)
     add_files("nodes", "plugins/nodes")
 
-    includedirs { "include/",
-                  "%{target_deps}/cuda/include/"}
+    includedirs { "include/"}
 
 	filter "system:windows"
-		libdirs{"%{target_deps}/cuda/lib/x64/"}
+        includedirs"%{target_deps}/cuda"
+	    libdirs{"%{target_deps}/cuda/lib/x64/"}
+        links{"cudart"} --, "cuda"}
 
-	filter "system:linux"
-        libdirs{"%{target_deps}/cuda/lib64/"}
-
-	filter {}
-
-    links{"cudart"} --, "cuda"}
-
+    filter {}
 
     -- Add the standard dependencies all OGN projects have; includes, libraries to link, and required compiler flags
     add_ogn_dependencies(ogn)
