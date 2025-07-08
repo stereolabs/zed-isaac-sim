@@ -138,8 +138,7 @@ namespace sl {
                                 // Stream the data immediately
                                 auto ts_ns = static_cast<long long>(state.m_currentFrame.timestamp * 1000000000);
 
-
-                                int stream_err = state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
+                                state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
                                     data_ptr_left.get(),
                                     data_ptr_right.get(),
                                     ts_ns,
@@ -151,9 +150,6 @@ namespace sl {
                                     state.m_currentFrame.linear_acceleration.y,
                                     state.m_currentFrame.linear_acceleration.z);
 
-                                //if (stream_err != 0) {
-                                //    CARB_LOG_WARN("Stream error: %d", stream_err);
-                                //}
                             }
                         }
 
