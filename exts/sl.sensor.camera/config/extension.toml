@@ -42,6 +42,7 @@ kit = true
 
 [dependencies]
 "sl.sensor.camera.bridge" = {}
+"omni.replicator.core" = {}
 "omni.graph" = {}
 
 # Main python module this extension provides, it will be publicly available as "sl.sensor.camera".
