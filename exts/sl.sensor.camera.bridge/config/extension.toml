@@ -15,6 +15,7 @@ repository = ""
 
 [dependencies]
 "omni.graph.core" = {}
+"omni.replicator.core" = {}
 "omni.graph.tools" = {}
 
 [[python.module]]
