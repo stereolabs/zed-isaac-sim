@@ -2,6 +2,9 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [3.1.0] - 2025-07-15
+- Fix crash on Windows
+
 ## [3.1.0] - 2025-06-26
 - Add support for ZED X Mini camera
 - Add new ZED X and ZED X Mini USD models
