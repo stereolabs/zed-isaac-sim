@@ -11,7 +11,6 @@
 #include <algorithm>
 #include <thread>
 #include <mutex>
-#include <condition_variable>
 #include <atomic>
 #include <memory>
 
@@ -42,6 +41,18 @@ namespace sl {
 
                 static int streamer_id = -1;
 
+                // Data struct shared to the streaming thread
+                struct FrameData {
+                    void* raw_ptr_left;
+                    void* raw_ptr_right;
+                    size_t data_size_left;
+                    size_t data_size_right;
+                    float4 quaternion;
+                    float3 linear_acceleration;
+                    double timestamp;
+                    bool valid = false;
+                };
+
                 // List of available SN per camera model
                 static std::map<std::string, std::vector<int>> available_zed_cameras = {
                     {"ZED_X",   { 40976320, 41116066, 49123828, 45626933 }},
@@ -66,18 +77,6 @@ namespace sl {
                     return -1;
                 }
 
-                // Data struct shared to the streaming thread
-                struct FrameData {
-                    void* raw_ptr_left;
-                    void* raw_ptr_right;
-                    size_t data_size_left;
-                    size_t data_size_right;
-                    float4 quaternion;
-                    float3 linear_acceleration;
-                    double timestamp;
-                    bool valid = false;
-                };
-
                 class OgnZEDSimCameraNode
                 {
                     bool m_zed_sdk_compatible{ false };
@@ -90,11 +89,8 @@ namespace sl {
                     // Threading members
                     std::thread m_streamingThread;
                     std::atomic<bool> m_shouldStop{ false };
-                    std::mutex m_frameMutex;
-                    std::condition_variable m_frameCondition;
-                    FrameData m_currentFrame;
-                    FrameData m_pendingFrame;
-                    bool m_newFrameAvailable = false;
+                    sl::DoubleBuffer<FrameData> m_frameBuffer;
+
                     int m_streamer_id = 0;
 
 
@@ -106,78 +102,74 @@ namespace sl {
                         size_t allocated_size_left = 0;
                         size_t allocated_size_right = 0;
 
-                        while (!state.m_shouldStop.load()) {
-                            // Wait for new frame data
-                            std::unique_lock<std::mutex> lock(state.m_frameMutex);
-                            state.m_frameCondition.wait(lock, [&state] { return state.m_newFrameAvailable || state.m_shouldStop.load(); });
+                        FrameData current_frame;
 
-                            if (state.m_shouldStop.load()) break;
+                        int frame_index = -1;
 
-                            if (state.m_newFrameAvailable && state.m_pendingFrame.valid) {
-                                // Swap current and pending frames
-                                std::swap(state.m_currentFrame, state.m_pendingFrame);
-                                state.m_newFrameAvailable = false;
-                                state.m_pendingFrame.valid = false;
-
-                                const size_t data_size_left = state.m_currentFrame.data_size_left;
-                                const size_t data_size_right = state.m_currentFrame.data_size_right;
-                                void* const raw_ptr_left = state.m_currentFrame.raw_ptr_left;
-                                void* const raw_ptr_right = state.m_currentFrame.raw_ptr_right;
-                                const double timestamp = state.m_currentFrame.timestamp;
-                                const auto quaternion = state.m_currentFrame.quaternion;
-                                const auto linear_acceleration = state.m_currentFrame.linear_acceleration;
-                                const auto cudaStream = state.m_cudaStream;
-
-                                lock.unlock(); // Unlock early to minimize lock time
-
-                                // Resize buffers only if needed
-                                if (allocated_size_left < data_size_left) {
-                                    data_ptr_left = std::make_unique<unsigned char[]>(data_size_left);
-                                    allocated_size_left = data_size_left;
-                                }
-                                if (allocated_size_right < data_size_right) {
-                                    data_ptr_right = std::make_unique<unsigned char[]>(data_size_right);
-                                    allocated_size_right = data_size_right;
-                                }
-
-                                // Copy data from GPU to CPU
-                                cudaError_t err_left = cudaMemcpyAsync(data_ptr_left.get(),
-                                    raw_ptr_left,
-                                    data_size_left, cudaMemcpyDeviceToHost, cudaStream);
-
-                                cudaError_t err_right = cudaMemcpyAsync(data_ptr_right.get(),
-                                    raw_ptr_right,
-                                    data_size_right, cudaMemcpyDeviceToHost, cudaStream);
-
-                                if (err_left != cudaSuccess || err_right != cudaSuccess) {
-                                    //CARB_LOG_ERROR("CUDA memcpy error in streaming thread: %s",
-                                    //    cudaGetErrorString(err_left != cudaSuccess ? err_left : err_right));
-                                    continue;
-                                }
-
-                                // Wait for GPU operations to complete
-                                cudaError_t sync_err = cudaStreamSynchronize(cudaStream);
-                                if (sync_err != cudaSuccess) {
-                                    CARB_LOG_ERROR("[ZED] CUDA stream synchronization error: %s", cudaGetErrorString(sync_err));
-                                    continue;
-                                }
-
-                                // Stream the data immediately
-                                auto ts_ns = static_cast<long long>(timestamp * 1000000000);
-
-                                state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
-                                    data_ptr_left.get(),
-                                    data_ptr_right.get(),
-                                    ts_ns,
-                                    quaternion.x,
-                                    quaternion.y,
-                                    quaternion.z,
-                                    quaternion.w,
-                                    linear_acceleration.x,
-                                    linear_acceleration.y,
-                                    linear_acceleration.z);
-
+                        while (!state.m_shouldStop.load()) 
+                        {
+                            auto current_frame = state.m_frameBuffer.wait_and_read(state.m_shouldStop, frame_index);
+                            if (!current_frame || !current_frame->valid)
+                            {
+                                continue;
                             }
+
+                            const size_t data_size_left = current_frame->data_size_left;
+                            const size_t data_size_right = current_frame->data_size_right;
+                            void* const raw_ptr_left = current_frame->raw_ptr_left;
+                            void* const raw_ptr_right = current_frame->raw_ptr_right;
+                            const double timestamp = current_frame->timestamp;
+                            const auto quaternion = current_frame->quaternion;
+                            const auto linear_acceleration = current_frame->linear_acceleration;
+                            const auto cudaStream = state.m_cudaStream;
+
+                            // Resize buffers only if needed
+                            if (allocated_size_left < data_size_left) {
+                                data_ptr_left = std::make_unique<unsigned char[]>(data_size_left);
+                                allocated_size_left = data_size_left;
+                            }
+                            if (allocated_size_right < data_size_right) {
+                                data_ptr_right = std::make_unique<unsigned char[]>(data_size_right);
+                                allocated_size_right = data_size_right;
+                            }
+
+                            // Copy data from GPU to CPU
+                            cudaError_t err_left = cudaMemcpyAsync(data_ptr_left.get(),
+                                raw_ptr_left,
+                                data_size_left, cudaMemcpyDeviceToHost, cudaStream);
+
+                            cudaError_t err_right = cudaMemcpyAsync(data_ptr_right.get(),
+                                raw_ptr_right,
+                                data_size_right, cudaMemcpyDeviceToHost, cudaStream);
+
+                            if (err_left != cudaSuccess || err_right != cudaSuccess) {
+                                //CARB_LOG_ERROR("CUDA memcpy error in streaming thread: %s",
+                                //    cudaGetErrorString(err_left != cudaSuccess ? err_left : err_right));
+                                continue;
+                            }
+
+                            // Wait for GPU operations to complete
+                            cudaError_t sync_err = cudaStreamSynchronize(cudaStream);
+                            if (sync_err != cudaSuccess) {
+                                CARB_LOG_ERROR("[ZED] CUDA stream synchronization error: %s", cudaGetErrorString(sync_err));
+                                continue;
+                            }
+
+                            // Stream the data immediately
+                            auto ts_ns = static_cast<long long>(timestamp * 1000000000);
+
+                            state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
+                                data_ptr_left.get(),
+                                data_ptr_right.get(),
+                                ts_ns,
+                                quaternion.x,
+                                quaternion.y,
+                                quaternion.z,
+                                quaternion.w,
+                                linear_acceleration.x,
+                                linear_acceleration.y,
+                                linear_acceleration.z);
+
                         }
 
                         CARB_LOG_INFO("[ZED] Streaming thread stopped");
@@ -189,7 +181,6 @@ public:
                     {
                         //CARB_LOG_WARN("Create node");
                         m_zedStreamerInitStatus = false;
-                        m_newFrameAvailable = false;
                         m_cudaStreamNotCreated = true;
                         m_shouldStop = false;
 
@@ -227,8 +218,7 @@ public:
                         remaining_serial_numbers = available_zed_cameras;
                         streamer_id -= 1;
                         // Stop the streaming thread
-                        m_shouldStop.store(true);
-                        m_frameCondition.notify_all();
+                        m_shouldStop.store(true, std::memory_order_release);
 
                         if (m_streamingThread.joinable()) {
                             m_streamingThread.join();
@@ -281,7 +271,7 @@ public:
 #ifdef _WIN32
                             use_ipc = false;
 
-                            CARB_LOG_WARN("[ZED] IPC mode is not available on Windows. Switching back to RTSP...");
+                            CARB_LOG_WARN("[ZED] IPC mode is not available on Windows. Switching back to network streaming...");
 #endif
 
                             state.m_zedStreamer.load_api();
@@ -337,32 +327,27 @@ public:
                             }
 
                             // Prepare new frame data (just pointers and metadata)
-                            FrameData new_frame;
-                            new_frame.raw_ptr_left = raw_ptr_left;
-                            new_frame.raw_ptr_right = raw_ptr_right;
-                            new_frame.data_size_left = data_size_left;
-                            new_frame.data_size_right = data_size_right;
-                            new_frame.timestamp = db.inputs.simulationTime();
-                            new_frame.valid = true;
+                            auto new_frame = std::make_shared<FrameData>();
+                            new_frame->raw_ptr_left = raw_ptr_left;
+                            new_frame->raw_ptr_right = raw_ptr_right;
+                            new_frame->data_size_left = data_size_left;
+                            new_frame->data_size_right = data_size_right;
+                            new_frame->timestamp = db.inputs.simulationTime();
+                            new_frame->valid = true;
                             auto quat = db.inputs.orientation();
                             auto lin_acc = db.inputs.linearAcceleration();
 
-                            new_frame.quaternion.x = quat[0];
-                            new_frame.quaternion.y = -quat[1];
-                            new_frame.quaternion.z = -quat[3];
-                            new_frame.quaternion.w = -quat[2];
+                            new_frame->quaternion.x = quat[0];
+                            new_frame->quaternion.y = -quat[1];
+                            new_frame->quaternion.z = -quat[3];
+                            new_frame->quaternion.w = -quat[2];
 
-                            new_frame.linear_acceleration.x = lin_acc[0];
-                            new_frame.linear_acceleration.y = lin_acc[1];
-                            new_frame.linear_acceleration.z = lin_acc[2];
+                            new_frame->linear_acceleration.x = lin_acc[0];
+                            new_frame->linear_acceleration.y = lin_acc[1];
+                            new_frame->linear_acceleration.z = lin_acc[2];
 
-                            // Pass frame info to streaming thread
-                            {
-                                std::lock_guard<std::mutex> lock(state.m_frameMutex);
-                                state.m_pendingFrame = std::move(new_frame);
-                                state.m_newFrameAvailable = true;
-                            }
-                            state.m_frameCondition.notify_one();
+                            // Write frame to the double buffer
+                            state.m_frameBuffer.write(std::move(new_frame));
                         }
                         return true;
                     }

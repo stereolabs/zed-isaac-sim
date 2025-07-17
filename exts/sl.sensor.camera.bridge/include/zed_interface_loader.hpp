@@ -26,6 +26,50 @@ using LibHandle = void*;
 
 namespace sl
 {
+    // Simple double buffer for frame data
+    template <typename T>
+    class DoubleBuffer {
+    private:
+        std::array<std::shared_ptr<T>, 2> buffers_;
+        std::atomic<int> front_index_{ 0 };
+        std::atomic<int> frame_index_{ 0 }; // frame index counter to detect new data
+
+    public:
+        DoubleBuffer() {
+            buffers_[0] = std::make_shared<T>();
+            buffers_[1] = std::make_shared<T>();
+        }
+
+        // Producer: write and increment version to signal new data
+        void write(std::shared_ptr<T> data) {
+            int back_index = 1 - front_index_.load(std::memory_order_relaxed);
+            buffers_[back_index] = std::move(data);
+
+            // Swap buffer and signal version
+            front_index_.store(back_index, std::memory_order_release);
+            frame_index_.fetch_add(1, std::memory_order_release);
+        }
+
+        // Consumer: wait until version changes
+        std::shared_ptr<T> wait_and_read(std::atomic<bool>& shouldStop, int& frameIndex) {
+            while (true) {
+                int current_index = frame_index_.load(std::memory_order_acquire);
+                if (current_index != frameIndex) {
+                    frameIndex = current_index;
+                    int index = front_index_.load(std::memory_order_acquire);
+                    return buffers_[index];
+                }
+
+                if (shouldStop.load(std::memory_order_acquire)) {
+                    return nullptr;
+                }
+
+                // Yield or sleep lightly to reduce CPU usage
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
+            }
+        }
+    };
+
     class ZedStreamer {
     private:
         LibHandle hLibrary;
