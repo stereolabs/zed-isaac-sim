@@ -128,10 +128,15 @@ namespace sl {
 
                             GfQuatd quat = quaternion.GetNormalized();
 
-                            pxr::GfMatrix4d mat;
-                            mat.SetRotate(quat);
+                            pxr::GfMatrix4d orientation_mat;
+                            orientation_mat.SetRotate(quat);
 
-                            GfQuatd converted_quat = (rotation_matrix * mat * inv_rotation_matrix).GetOrthonormalized().ExtractRotationQuat();
+                            pxr::GfMatrix4d lin_acc_mat;
+                            lin_acc_mat.SetTranslate(linear_acceleration);
+
+                            GfQuatd converted_orientation = (rotation_matrix * orientation_mat * inv_rotation_matrix).GetOrthonormalized().ExtractRotationQuat();
+
+                            GfVec3d converted_lin_acc = (rotation_matrix * lin_acc_mat * inv_rotation_matrix).GetOrthonormalized().ExtractTranslation();
 
                             //CARB_LOG_INFO("%f %f %f %f",
                             //    converted_quat.GetImaginary()[0],
@@ -178,13 +183,13 @@ namespace sl {
                                 data_ptr_left.get(),
                                 data_ptr_right.get(),
                                 ts_ns,
-                                static_cast<float>(converted_quat.GetReal()),
-                                static_cast<float>(converted_quat.GetImaginary()[0]),
-                                static_cast<float>(converted_quat.GetImaginary()[1]),
-                                static_cast<float>(converted_quat.GetImaginary()[2]),
-                                static_cast<float>(-linear_acceleration[1]),
-                                static_cast<float>(-linear_acceleration[2]),
-                                static_cast<float>(linear_acceleration[0]));
+                                static_cast<float>(converted_orientation.GetReal()),
+                                static_cast<float>(converted_orientation.GetImaginary()[0]),
+                                static_cast<float>(converted_orientation.GetImaginary()[1]),
+                                static_cast<float>(converted_orientation.GetImaginary()[2]),
+                                static_cast<float>(converted_lin_acc[0]),
+                                static_cast<float>(converted_lin_acc[1]),
+                                static_cast<float>(converted_lin_acc[2]));
 
                         }
 
