@@ -77,12 +77,12 @@
         "default": 0
       },
       "orientation": {
-        "type": "float[4]",
+        "type": "quatd[4]",
         "description": "imu orientation",
         "default": [ 0.0, 0.0, 0.0, 1.0 ]
       },
       "linearAcceleration": {
-        "type": "float[3]",
+        "type": "vectord[3]",
         "description": "imu acceleration",
         "default": [ 0.0, 0.0, 0.0 ]
       }

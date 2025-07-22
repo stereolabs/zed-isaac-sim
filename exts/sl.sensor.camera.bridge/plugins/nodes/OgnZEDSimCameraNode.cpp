@@ -47,8 +47,8 @@ namespace sl {
                     void* raw_ptr_right;
                     size_t data_size_left;
                     size_t data_size_right;
-                    float4 quaternion;
-                    float3 linear_acceleration;
+                    GfQuatd quaternion;
+                    GfVec3d linear_acceleration;
                     double timestamp;
                     bool valid = false;
                 };
@@ -93,6 +93,9 @@ namespace sl {
 
                     int m_streamer_id = 0;
 
+                    static const pxr::GfMatrix4d rotation_matrix;
+
+                    static const pxr::GfMatrix4d inv_rotation_matrix;
 
                     static void streamingThreadFunc(OgnZEDSimCameraNode& state) {
                         //CARB_LOG_WARN("Starting streaming thread - will stream on new data arrival");
@@ -122,6 +125,19 @@ namespace sl {
                             const auto quaternion = current_frame->quaternion;
                             const auto linear_acceleration = current_frame->linear_acceleration;
                             const auto cudaStream = state.m_cudaStream;
+
+                            GfQuatd quat = quaternion.GetNormalized();
+
+                            pxr::GfMatrix4d mat;
+                            mat.SetRotate(quat);
+
+                            GfQuatd converted_quat = (rotation_matrix * mat * inv_rotation_matrix).GetOrthonormalized().ExtractRotationQuat();
+
+                            //CARB_LOG_INFO("%f %f %f %f",
+                            //    converted_quat.GetImaginary()[0],
+                            //    converted_quat.GetImaginary()[1],
+                            //    converted_quat.GetImaginary()[2],
+                            //    converted_quat.GetReal());
 
                             // Resize buffers only if needed
                             if (allocated_size_left < data_size_left) {
@@ -162,13 +178,13 @@ namespace sl {
                                 data_ptr_left.get(),
                                 data_ptr_right.get(),
                                 ts_ns,
-                                quaternion.x,
-                                quaternion.y,
-                                quaternion.z,
-                                quaternion.w,
-                                linear_acceleration.x,
-                                linear_acceleration.y,
-                                linear_acceleration.z);
+                                static_cast<float>(converted_quat.GetReal()),
+                                static_cast<float>(converted_quat.GetImaginary()[0]),
+                                static_cast<float>(converted_quat.GetImaginary()[1]),
+                                static_cast<float>(converted_quat.GetImaginary()[2]),
+                                static_cast<float>(-linear_acceleration[1]),
+                                static_cast<float>(-linear_acceleration[2]),
+                                static_cast<float>(linear_acceleration[0]));
 
                         }
 
@@ -334,17 +350,8 @@ public:
                             new_frame->data_size_right = data_size_right;
                             new_frame->timestamp = db.inputs.simulationTime();
                             new_frame->valid = true;
-                            auto quat = db.inputs.orientation();
-                            auto lin_acc = db.inputs.linearAcceleration();
-
-                            new_frame->quaternion.x = quat[0];
-                            new_frame->quaternion.y = -quat[1];
-                            new_frame->quaternion.z = -quat[3];
-                            new_frame->quaternion.w = -quat[2];
-
-                            new_frame->linear_acceleration.x = lin_acc[0];
-                            new_frame->linear_acceleration.y = lin_acc[1];
-                            new_frame->linear_acceleration.z = lin_acc[2];
+                            new_frame->quaternion = db.inputs.orientation();
+                            new_frame->linear_acceleration = db.inputs.linearAcceleration();
 
                             // Write frame to the double buffer
                             state.m_frameBuffer.write(std::move(new_frame));
@@ -352,6 +359,15 @@ public:
                         return true;
                     }
                 };
+
+                const pxr::GfMatrix4d OgnZEDSimCameraNode::rotation_matrix{
+                    0, -1, 0, 0,
+                    0, 0, -1, 0,
+                    -1, 0, 0, 0,
+                    0, 0, 0, 1
+                            };
+
+                const pxr::GfMatrix4d OgnZEDSimCameraNode::inv_rotation_matrix = rotation_matrix.GetInverse();
 
                 // This macro provides the information necessary to OmniGraph that lets it automatically register and deregister
                 // your node type definition.

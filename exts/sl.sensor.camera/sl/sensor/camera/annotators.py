@@ -3,15 +3,12 @@
 
 import carb
 from isaacsim.core.api.world import World
-from isaacsim.core.prims import SingleXFormPrim
 import omni.graph.core as og
 import omni.replicator.core as rep
 from omni.replicator.core.scripts.utils import viewport_manager
 from isaacsim.core.utils.prims import is_prim_path_valid, get_prim_at_path
 import omni.usd
 from omni.syntheticdata import SyntheticData, SyntheticDataStage
-
-import copy
 
 def get_resolution(camera_resolution: str):
         """Get the resolution of the camera
@@ -246,15 +243,9 @@ class ZEDAnnotator:
         self.sim_gate.get_attribute("outputs:execOut").connect(self.sync_node.get_attribute("inputs:execIn"), True)
         self.sync_node.get_attribute("outputs:execOut").connect(self.imu.get_attribute("inputs:execIn"), True)
 
-        imu_prim = SingleXFormPrim(prim_path=imu_full_path)
-        temp_orientation = imu_prim.get_world_pose()[1]
-        swp = copy.deepcopy(temp_orientation)
-        orientation = [swp[0], -swp[1], -swp[3], -swp[2]]
-
         self.imu.get_attribute("inputs:imuPrim").set(imu_full_path)
         self.zed_.get_attribute("inputs:ipc").set(self.ipc)
-        self.zed_.get_attribute("inputs:orientation").set(orientation)
-        #self.imu.get_attribute("outputs:orientation").connect(self.zed_.get_attribute("inputs:orientation"), True)
+        self.imu.get_attribute("outputs:orientation").connect(self.zed_.get_attribute("inputs:orientation"), True)
         self.imu.get_attribute("outputs:linAcc").connect(self.zed_.get_attribute("inputs:linearAcceleration"), True)
         self.imu.get_attribute("outputs:execOut").connect(self.zed_.get_attribute("inputs:execIn"), True)
 
