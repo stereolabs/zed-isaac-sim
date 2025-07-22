@@ -190,7 +190,7 @@ namespace sl
                 int res = getSDKVersion(major, minor, patch);
                 if (res == 0)
                 {
-                    CARB_LOG_INFO("[ZED] Found SDK v%d.%d.%d", major, minor, patch);
+                    //CARB_LOG_INFO("[ZED] Found SDK v%d.%d.%d", major, minor, patch);
 
                     if (major > ZED_SDK_VERSION_MAJOR) return true;
                     if (major < ZED_SDK_VERSION_MAJOR) return false;
