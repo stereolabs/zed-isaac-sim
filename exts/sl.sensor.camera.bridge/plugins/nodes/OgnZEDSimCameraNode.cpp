@@ -64,7 +64,7 @@ namespace sl {
 
                 // Try to open a new streamer given a camera model. Check if a serial number is still available among the list.
                 static int addStreamer(std::string camera_model)
-                {       
+                {
                     if (remaining_serial_numbers[camera_model].size() > 0)
                     {
                         streamer_id += 1;
@@ -109,7 +109,7 @@ namespace sl {
 
                         int frame_index = -1;
 
-                        while (!state.m_shouldStop.load()) 
+                        while (!state.m_shouldStop.load())
                         {
                             auto current_frame = state.m_frameBuffer.wait_and_read(state.m_shouldStop, frame_index);
                             if (!current_frame || !current_frame->valid)
@@ -368,7 +368,7 @@ public:
                 const pxr::GfMatrix4d OgnZEDSimCameraNode::rotation_matrix{
                     0, -1, 0, 0,
                     0, 0, -1, 0,
-                    -1, 0, 0, 0,
+                    1, 0, 0, 0,
                     0, 0, 0, 1
                             };
 
