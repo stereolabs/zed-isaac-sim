@@ -1,7 +1,7 @@
 
 [package]
 # Semantic Versioning is used: https://semver.org/
-version = "4.0.0"
+version = "3.2.0"
 
 # Lists people or organizations that are considered the "authors" of the package.
 authors = ["Stereolabs"]
@@ -31,6 +31,10 @@ preview_image = "data/preview.png"
 
 # Icon is shown in Extensions window, it is recommended to be square, of size 256x256.
 icon = "data/icon.png"
+
+[package.target]
+platform = ["windows-x86_64", "linux-x86_64"]
+kit = ["106.2"]
 
 # Watch the .ogn files for hot reloading (only works for Python files)
 [fswatcher.patterns]
