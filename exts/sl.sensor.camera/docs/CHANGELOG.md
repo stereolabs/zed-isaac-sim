@@ -2,7 +2,7 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [3.1.0] - 2025-07-15
+## [3.1.1] - 2025-07-15
 - Fix crash on Windows
 
 ## [3.1.0] - 2025-06-26
@@ -36,4 +36,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.0.0] - 2023-02-03
 - Initial version of the ZED Camera extension
-
