@@ -32,6 +32,10 @@ preview_image = "data/preview.png"
 # Icon is shown in Extensions window, it is recommended to be square, of size 256x256.
 icon = "data/icon.png"
 
+[package.target]
+platform = ["windows-x86_64", "linux-x86_64"]
+kit = ["107.3"]
+
 # Watch the .ogn files for hot reloading (only works for Python files)
 [fswatcher.patterns]
 include = ["*.ogn", "*.py"]

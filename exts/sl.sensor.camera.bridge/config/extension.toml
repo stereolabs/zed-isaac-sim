@@ -1,5 +1,5 @@
 [package]
-version = "1.0.0" # Semantic Versioning is used: https://semver.org/
+version = "4.0.0" # Semantic Versioning is used: https://semver.org/
 
 # These fields are used primarily for display in the extension browser UI.
 title = "Stereolabs bridge"
@@ -12,6 +12,10 @@ changelog = "docs/CHANGELOG.md"
 readme  = "docs/README.md"
 authors = ["Stereolabs"]
 repository = ""
+
+[package.target]
+platform = ["windows-x86_64", "linux-x86_64"]
+kit = ["107.3"]
 
 [dependencies]
 "omni.graph.core" = {}
