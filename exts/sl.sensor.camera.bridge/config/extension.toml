@@ -13,6 +13,10 @@ readme  = "docs/README.md"
 authors = ["Stereolabs"]
 repository = ""
 
+[package.target]
+platform = ["windows-x86_64", "linux-x86_64"]
+kit = ["106.2"]
+
 [dependencies]
 "omni.graph.core" = {}
 "omni.replicator.core" = {}
