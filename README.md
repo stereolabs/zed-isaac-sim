@@ -1,3 +1,11 @@
+# zed-isaac-sim
+
+ISAAC Sim integration for ZED SDK.
+
+![](./exts/sl.sensor.camera/data/preview.png)
+
+The ZED camera extension streams your virtual ZED camera data to the ZED SDK.
+
 ## Getting Started
 
 ### Requirements
@@ -28,11 +36,11 @@
 
 Then, In your scene,
 
-1. Add a ZED Camera 
+1. Add a ZED Camera
 
 <img src="imgs/zed_x_usd.png">
 
-2. Create a new Action Graph similar to this : 
+2. Create a new Action Graph similar to this :
 
 <img src="imgs/action_graph_zed.png">
 
