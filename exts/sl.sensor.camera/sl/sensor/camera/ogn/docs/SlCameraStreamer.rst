@@ -35,12 +35,14 @@ Inputs
     :header: "Name", "Type", "Descripton", "Default"
     :widths: 20, 20, 50, 10
 
+    "Camera Model (*inputs:camera_model*)", "``token``", "ZED Camera model. Can be either ZED_X, ZED_X_Mini", "ZED_X"
+    "", "Metadata", "*allowedTokens* = ZED_X,ZED_X_Mini", ""
     "ZED Camera prim (*inputs:camera_prim*)", "``target``", "ZED Camera prim used to stream data", "None"
     "ExecIn (*inputs:exec_in*)", "``execution``", "Triggers execution", "0"
     "FPS (*inputs:fps*)", "``uint``", "Camera stream frame rate. Can be either 60, 30 or 15.", "30"
     "Resolution (*inputs:resolution*)", "``token``", "Camera stream resolution. Can be either HD1200, HD1080 or SVGA", "HD1200"
-    "", "Metadata", "*allowedTokens* = HD1200,HD1080,SVGA", ""
-    "Serial number (*inputs:serial_number*)", "``uint``", "Serial number (identification) of the camera to stream, can be left to default. It must be of one of the compatible values: 40976320, 41116066, 49123828, 45626933, 47890353, 45263213, 47800035, 47706147", "40976320"
+    "", "Metadata", "*allowedTokens* = HD1200", ""
+    "Serial number (*inputs:serial_number*)", "``uint``", "Serial number (identification) of the camera to stream, can be left to default. It must be of one of the compatible values: ZED X: 40976320, 41116066, 49123828, 45626933 - ZED X Mini: 57890353, 55263213, 57800035, 57706147", "40976320"
     "Streaming port (*inputs:streaming_port*)", "``uint``", "Streaming port - unique per camera", "30000"
     "Use system time (*inputs:use_system_time*)", "``bool``", "Override simulation time with system time for image timestamps", "False"
 

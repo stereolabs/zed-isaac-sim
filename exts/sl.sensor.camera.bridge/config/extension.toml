@@ -1,0 +1,39 @@
+[package]
+version = "3.2.0" # Semantic Versioning is used: https://semver.org/
+
+# These fields are used primarily for display in the extension browser UI.
+title = "Stereolabs bridge"
+description = ""
+category = "Stereolabs"
+keywords = ["Stereolabs", "zed", "C++", "cpp", "Graph", "Node", "OmniGraph"]
+icon = "data/icon.png"
+preview_image = ""
+changelog = "docs/CHANGELOG.md"
+readme  = "docs/README.md"
+authors = ["Stereolabs"]
+repository = ""
+
+[package.target]
+platform = ["windows-x86_64", "linux-x86_64"]
+kit = ["106.2"]
+
+[dependencies]
+"omni.graph.core" = {}
+"omni.replicator.core" = {}
+"omni.graph.tools" = {}
+
+[[python.module]]
+name = "sl.sensor.camera.bridge"
+
+[[native.plugin]]
+path = "bin/*.plugin"
+
+[[native.library]]
+"filter:platform"."linux-x86_64".path = "bin/${lib_prefix}sl_zed${lib_ext}"
+"filter:platform"."windows-x86_64".path = "bin/${lib_prefix}sl_zed64${lib_ext}"
+
+[documentation]
+pages = [
+    "docs/Overview.md",
+    "docs/CHANGELOG.md",
+]

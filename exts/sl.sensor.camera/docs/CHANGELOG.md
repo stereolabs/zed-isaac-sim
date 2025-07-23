@@ -2,6 +2,18 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [3.2.0] - 2025-07-22
+- Add new extension rework for Isaac Sim 4.5
+- Improve extension's overall performance
+- Add IPC support for better streaming performance (enabled by default, only on Linux)
+
+## [3.1.1] - 2025-07-15
+- Fix crash on Windows
+
+## [3.1.0] - 2025-06-26
+- Add support for ZED X Mini camera
+- Add new ZED X and ZED X Mini USD models
+
 ## [3.0.0] - 2025-03-20
 - Add support for Isaac Sim 4.5.0
 - Add support for ZED SDK 5.0.0
@@ -29,4 +41,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.0.0] - 2023-02-03
 - Initial version of the ZED Camera extension
-

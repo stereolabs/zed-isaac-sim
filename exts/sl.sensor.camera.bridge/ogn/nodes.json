@@ -1,0 +1,13 @@
+{
+  "extension": "sl.sensor.camera.bridge",
+  "nodes": {
+    "OgnZEDSimCameraNode": {
+      "description": [
+        ""
+      ],
+      "version": 1,
+      "uiName": "ZED Stream",
+      "language": "C++"
+    }
+  }
+}
