@@ -15,3 +15,5 @@ if errorlevel 1 exit /b %ERRORLEVEL%
 REM Copy build artifacts
 xcopy /e /i /y "%BUILD_PATH%\bin\*" "exts\sl.sensor.camera.bridge\bin"
 xcopy /e /i /y "%BUILD_PATH%\ogn" "exts\sl.sensor.camera.bridge\ogn"
+
+copy /y "exts\sl.sensor.camera.bridge\bin\sl_zed64.dll" "%BUILD_PATH%\bin\sl_zed64.dll"
