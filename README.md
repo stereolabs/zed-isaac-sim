@@ -12,7 +12,7 @@ The ZED camera extension streams your virtual ZED camera data to the ZED SDK.
 
 - Linux Ubuntu 22.04 or Windows 10/11
 - [NVIDIA Isaac SIM Requirements](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html)
-- [Isaac SIM >=4.5.0 (Workstation or Container)](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html)
+- [Isaac SIM >=5.0.0 (Workstation or Container)](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html)
 
 ### Installation
 
