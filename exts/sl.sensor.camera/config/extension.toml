@@ -34,7 +34,7 @@ icon = "data/icon.png"
 
 [package.target]
 platform = ["windows-x86_64", "linux-x86_64"]
-kit = ["106.2"]
+kit = ["106.5"]
 
 # Watch the .ogn files for hot reloading (only works for Python files)
 [fswatcher.patterns]
