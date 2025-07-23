@@ -1,7 +1,7 @@
 
 [package]
 # Semantic Versioning is used: https://semver.org/
-version = "3.1.1"
+version = "4.0.0"
 
 # Lists people or organizations that are considered the "authors" of the package.
 authors = ["Stereolabs"]
@@ -34,8 +34,7 @@ icon = "data/icon.png"
 
 [package.target]
 platform = ["windows-x86_64", "linux-x86_64"]
-python = ["cp310"]
-kit = ["106.5"]
+kit = ["107.3"]
 
 # Watch the .ogn files for hot reloading (only works for Python files)
 [fswatcher.patterns]
@@ -46,18 +45,10 @@ exclude = ["Ogn*Database.py"]
 kit = true
 
 [dependencies]
-"omni.graph" = {}
+"sl.sensor.camera.bridge" = {}
 "omni.replicator.core" = {}
-"isaacsim.core.nodes" = {}
-"omni.kit.profiler.tracy" = {}
-"isaacsim.core.api" = {}
-"isaacsim.sensors.camera" = {}
-"isaacsim.sensors.physics" = {}
+"omni.graph" = {}
 
 # Main python module this extension provides, it will be publicly available as "sl.sensor.camera".
 [[python.module]]
 name = "sl.sensor.camera"
-
-[[native.library]]
-"filter:platform"."linux-x86_64"."path" = "bin/${platform}/${config}/libsl_zed_sim_streamer.so"
-"filter:platform"."windows-x86_64"."path" = "bin/${platform}/${config}/sl_zed_sim_streamer.dll"

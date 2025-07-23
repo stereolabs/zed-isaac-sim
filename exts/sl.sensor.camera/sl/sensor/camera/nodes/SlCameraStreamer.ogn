@@ -1,14 +1,14 @@
 {
     "ZED_Camera": {
-        "version": 1,
+        "version": 2,
         "categories": {"Stereolabs": "Nodes used with the Stereolabs ZED SDK"},
         "description": "Streams ZED camera data to the ZED SDK",
         "language": "Python",
         "metadata": {
-            "uiName": "ZED camera streamer"
+            "uiName": "ZED Camera Helper"
         },
         "inputs": {
-            "exec_in": {
+            "execIn": {
                 "type": "execution",
                 "description": "Triggers execution",
                 "default": 0,
@@ -16,14 +16,22 @@
                     "uiName": "ExecIn"
                 }
             },
-            "camera_prim": {
+            "ipc": {
+                "type": "bool",
+                "description": "Stream data using IPC (Only available on Linux). This improve streaming performances when streaming to the same machine",
+                "default": true,
+                "metadata": {
+                    "uiName": "IPC"
+                }
+            },
+            "cameraPrim": {
                 "type": "target",
                 "description": "ZED Camera prim used to stream data",
                 "metadata": {
                     "uiName": "ZED Camera prim"
                 }
             },
-            "camera_model": {
+            "cameraModel": {
                 "type": "token",
                 "description": "ZED Camera model. Can be either ZED_X, ZED_X_Mini",
                 "default": "ZED_X",
@@ -48,29 +56,13 @@
                 },
                 "default" : "HD1200"
             },
-            "serial_number": {
-                "type": "uint",
-                "description": "Serial number (identification) of the camera to stream, can be left to default. It must be of one of the compatible values: ZED X: 40976320, 41116066, 49123828, 45626933 - ZED X Mini: 57890353, 55263213, 57800035, 57706147",
-                "metadata": {
-                    "uiName": "Serial number"
-                },
-                "default" : 40976320
-            },
-            "streaming_port": {
+            "streamingPort": {
                 "type": "uint",
                 "description": "Streaming port - unique per camera",
                 "metadata": {
                     "uiName": "Streaming port"
                 },
                 "default" : 30000
-            },
-            "use_system_time": {
-                "type": "bool",
-                "description": "Override simulation time with system time for image timestamps",
-                "metadata": {
-                    "uiName": "Use system time"
-                },
-                "default" : false
             }
         }
     }
