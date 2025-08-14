@@ -52,7 +52,7 @@
                 "type" : "token",
                 "description": "Camera stream resolution. Can be either HD1200, HD1080 or SVGA",
                 "metadata": {
-                    "allowedTokens": ["HD1200"]
+                    "allowedTokens": ["HD1200", "HD1080", "SVGA"]
                 },
                 "default" : "HD1200"
             },
