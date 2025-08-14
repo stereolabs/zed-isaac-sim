@@ -41,11 +41,13 @@ class SlCameraStreamerDatabase(og.Database):
         tokens.ZED_X
         tokens.ZED_X_Mini
         tokens.HD1200
+        tokens.HD1080
+        tokens.SVGA
     """
 
     # Imprint the generator and target ABI versions in the file for JIT generation
-    GENERATOR_VERSION = (1, 79, 1)
-    TARGET_VERSION = (2, 181, 8)
+    GENERATOR_VERSION = (1, 77, 0)
+    TARGET_VERSION = (2, 170, 0)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}
@@ -61,7 +63,7 @@ class SlCameraStreamerDatabase(og.Database):
         ('inputs:execIn', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate. Can be either 60, 30 or 15.', {ogn.MetadataKeys.DEFAULT: '30'}, True, 30, False, ''),
         ('inputs:ipc', 'bool', 0, 'IPC', 'Stream data using IPC (Only available on Linux). This improve streaming performances when streaming to the same machine', {ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
-        ('inputs:resolution', 'token', 0, None, 'Camera stream resolution. Can be either HD1200, HD1080 or SVGA', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD1200', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD1200"]', ogn.MetadataKeys.DEFAULT: '"HD1200"'}, True, "HD1200", False, ''),
+        ('inputs:resolution', 'token', 0, None, 'Camera stream resolution. Can be either HD1200, HD1080 or SVGA', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD1200,HD1080,SVGA', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD1200", "HD1080", "SVGA"]', ogn.MetadataKeys.DEFAULT: '"HD1200"'}, True, "HD1200", False, ''),
         ('inputs:streamingPort', 'uint', 0, 'Streaming port', 'Streaming port - unique per camera', {ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
     ])
 
@@ -69,6 +71,8 @@ class SlCameraStreamerDatabase(og.Database):
         ZED_X = "ZED_X"
         ZED_X_Mini = "ZED_X_Mini"
         HD1200 = "HD1200"
+        HD1080 = "HD1080"
+        SVGA = "SVGA"
 
     @classmethod
     def _populate_role_data(cls):
@@ -253,11 +257,6 @@ class SlCameraStreamerDatabase(og.Database):
 
             node.register_on_connected_callback(on_connection_or_disconnection)
             node.register_on_disconnected_callback(on_connection_or_disconnection)
-
-        @staticmethod
-        def initialize_nodes(context, nodes):
-            for n in nodes:
-                SlCameraStreamerDatabase.abi.initialize(context, n)
 
         @staticmethod
         def release(node):
