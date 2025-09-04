@@ -1,11 +1,11 @@
 {
-    "ZED_Camera": {
+    "ZED_Camera_One": {
         "version": 2,
         "categories": {"Stereolabs": "Nodes used with the Stereolabs ZED SDK"},
-        "description": "Streams ZED camera data to the ZED SDK",
+        "description": "Streams ZED mono camera data to the ZED SDK",
         "language": "Python",
         "metadata": {
-            "uiName": "ZED Camera Helper"
+            "uiName": "ZED Camera One Helper"
         },
         "inputs": {
             "execIn": {
@@ -24,22 +24,32 @@
                     "uiName": "IPC"
                 }
             },
-          "cameraPrim": {
-            "type": "target",
-            "description": "ZED Camera prim used to stream data.",
-            "metadata": {
-              "uiName": "ZED Camera prim",
-              "literalOnly": "1",
-              "allowMultiInputs": "0"
-            }
+          "leftCameraPrim": {
+              "type": "target",
+              "description": "Main monocular camera",
+              "metadata": {
+                "uiName": "Left Camera Prim",
+                "literalOnly": "1",
+                "allowMultiInputs": "0"
+              }
+            },
+            "rightCameraPrim": {
+              "type": "target",
+              "description": "(optionnal) Used to create a virtual stereo camera from two monocular.",
+              "metadata": {
+                "uiName": "Right Camera Prim",
+                "literalOnly": "1",
+                "allowMultiInputs": "0"
+              },
+              "optional": true
             },
             "cameraModel": {
               "type": "token",
-              "description": "ZED Camera model. Can be either ZED_X, ZED_XM",
-              "default": "ZED_X",
+              "description": "ZED Mono Camera model.",
+              "default": "ZED_XONE_UHD",
               "metadata": {
                 "uiName": "Camera Model",
-                "allowedTokens": [ "ZED_X", "ZED_XM", "ZED_X_4MM", "ZED_XM_4MM"]
+                "allowedTokens": ["ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM"]
               }
             },
             "fps": {
@@ -54,7 +64,7 @@
               "type": "token",
               "description": "Camera stream resolution. Can be either HD1200, HD1080 or SVGA",
               "metadata": {
-                "allowedTokens": [ "HD1200", "HD1080", "SVGA" ]
+                "allowedTokens": [ "HD4K", "HD1200", "SVGA" ]
               },
               "default": "HD1200"
             },

@@ -39,6 +39,12 @@ def get_focal_length(camera_resolution):
             f = 370.8
         return f
 
+def is_stereo_camera(camera_model : str):
+        if camera_model in ["ZED_XONE_UHD", "ZED_XONE_GS ", "ZED_XONE_HDR"]:
+            return False
+        else:
+            return True
+
 class ZEDAnnotator:
     """
     Captures camera data and streams it to the ZED SDK.
@@ -75,7 +81,7 @@ class ZEDAnnotator:
         self.zed_ = None
 
         self.build_annotators()
-        print(f"[Port: {self.port}] Constructed annotator.")
+        print(f"[Port: {self.port}] Constructed annotator.")       
 
 
     def init_camera(self, camera_prim_path : str, resolution):
@@ -140,8 +146,10 @@ class ZEDAnnotator:
         self.right_rgb_annot.attach(self.right_rp)
         self.annotators["Right"] = self.right_rgb_annot
 
+        cams = [["Left", name_left], ["Right", name_right]]
+
         self.init_graph()
-        self.build_graph(name_left, name_right)
+        self.build_graph(cams)
 
     def init_graph(self) -> None:
 
@@ -184,7 +192,7 @@ class ZEDAnnotator:
         self.sys_time = _physics_nodes["sys_time"]["node"]
         self.imu = _physics_nodes["imu_sensor"]["node"]
 
-    def build_graph(self, left_rp_name: str, right_rp_name: str) -> None:
+    def build_graph(self, cams) -> None:
         """
         Build the OGN graph for streaming camera data.
 
@@ -207,8 +215,6 @@ class ZEDAnnotator:
         self.zed_.get_attribute("inputs:width").set(self.resolution[0])
         self.zed_.get_attribute("inputs:height").set(self.resolution[1])
         self.zed_.get_attribute("inputs:fps").set(self.fps)
-
-        cams = [["Left", left_rp_name], ["Right", right_rp_name]]
 
         for cam in cams:
             # get the annotator nodes and connect them to the zed node
