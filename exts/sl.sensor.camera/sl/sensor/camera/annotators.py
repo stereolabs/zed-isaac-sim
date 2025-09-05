@@ -19,7 +19,9 @@ def get_resolution(camera_resolution: str):
         Returns:
             list: the resolution of the camera
         """
-        if camera_resolution == "HD1200":
+        if camera_resolution == "HD4K":
+            result = [3840, 2180]
+        elif camera_resolution == "HD1200":
             result = [1920, 1200]
         elif camera_resolution == "HD1080":
             result = [1920, 1080]
@@ -40,7 +42,7 @@ def get_focal_length(camera_resolution):
         return f
 
 def is_stereo_camera(camera_model : str):
-        if camera_model in ["ZED_XONE_UHD", "ZED_XONE_GS ", "ZED_XONE_HDR"]:
+        if camera_model in ["ZED_XONE_UHD", "ZED_XONE_GS ", "ZED_XONE_GS_4MM"]:
             return False
         else:
             return True
@@ -56,19 +58,33 @@ class ZEDAnnotator:
 
     def __init__(
         self,
-        camera_prim : str,
+        camera_prim,
         camera_model = "ZED_X",
         streaming_port = 30000,
         resolution = "HD1200",
         fps = 30,
         ipc = True
         ):
+
         """
         Initializes a ZEDAnnotator object.
+        camera_prim can be:
+          - a single prim (stereo or mono)
+          - a list of two prims (custom stereo made of two monos)
         """
 
         # Get stage and synthetic data interface
         self.stage = omni.usd.get_context().get_stage()
+
+         # Normalize input
+        if isinstance(camera_prim, list):
+            if len(camera_prim) != 2:
+                raise ValueError(f"Expected exactly 2 camera prims for custom stereo, got {len(camera_prim)}")
+            self.camera_prim_path = camera_prim
+            self.custom_stereo = True
+        else:
+            self.camera_prim_path = [camera_prim]
+            self.custom_stereo = False
 
         self.camera_prim_path = camera_prim
         self.camera_model = camera_model
@@ -77,11 +93,17 @@ class ZEDAnnotator:
         self.fps = fps
         self.ipc = ipc
 
+        # Stereo if model is stereo OR user provides 2 prims
+        self.is_stereo = is_stereo_camera(camera_model) or self.custom_stereo
+
         self.nodes = []
         self.zed_ = None
 
         self.build_annotators()
-        print(f"[Port: {self.port}] Constructed annotator.")       
+        print(
+            f"[Port: {self.port}] Constructed annotator for "
+            f"{'custom stereo' if self.custom_stereo else ('stereo' if self.is_stereo else 'mono')} camera."
+        )
 
 
     def init_camera(self, camera_prim_path : str, resolution):
@@ -105,7 +127,7 @@ class ZEDAnnotator:
         return result
 
     def check_frame_rate(camera_frame_rate: int):
-        if camera_frame_rate not in [15, 30, 60]:
+        if camera_frame_rate not in [15, 30, 60, 120]:
             carb.log_warn(f"Invalid frame rate passed: {camera_frame_rate}. Defaulting to 30.")
             return 30
         return camera_frame_rate
@@ -114,39 +136,65 @@ class ZEDAnnotator:
 
         # Set device based on mode (CUDA for OGN nodes)
         device = "cuda"
-
-        # Create render product for the camera
-        left_path = "/base_link/" + self.camera_model + "/CameraLeft"
-        right_path = "/base_link/" + self.camera_model + "/CameraRight"
-
-        left_full_path = self.camera_prim_path[0].pathString + left_path
-        right_full_path = self.camera_prim_path[0].pathString + right_path
-
-        res = self.init_camera(left_full_path, self.resolution)
-        res = res and self.init_camera(left_full_path, self.resolution)
-        if not res:
-            carb.log_warn(f"[{self.camera_prim_path[0].pathString}] Invalid or non existing zed camera, try to re-import your camera prim.")
-
+        cams = []     
         self.annotators = {}
 
-        # Left Camera
-        name_left = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_left_rp"
-        self._left_rp = viewport_manager.get_render_product(left_full_path, self.resolution, False, name_left)
-        self.left_rp = self._left_rp.hydra_texture.get_render_product_path()
-        # Right Camera
-        name_right = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_right_rp"
-        self._right_rp = viewport_manager.get_render_product(right_full_path, self.resolution, False, name_right)
-        self.right_rp = self._right_rp.hydra_texture.get_render_product_path()
+         # Case 1: user gave 2 prims (custom stereo)
+        if self.custom_stereo:
+            cam_path = "/base_link/" + self.camera_model + "/Camera"
 
-        self.left_rgb_annot = rep.AnnotatorRegistry.get_annotator("rgb", device=device)
-        self.left_rgb_annot.attach(self.left_rp)
-        self.annotators["Left"] = self.left_rgb_annot
+            left_full_path = self.camera_prim_path[0].pathString + cam_path
+            right_full_path = self.camera_prim_path[1].pathString + cam_path
 
-        self.right_rgb_annot = rep.AnnotatorRegistry.get_annotator("rgb", device=device)
-        self.right_rgb_annot.attach(self.right_rp)
-        self.annotators["Right"] = self.right_rgb_annot
+            if self.init_camera(left_full_path, self.resolution):
+                name_left = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_left_rp"
+                self._left_rp = viewport_manager.get_render_product(left_full_path, self.resolution, False, name_left)
+                self.left_rp = self._left_rp.hydra_texture.get_render_product_path()
+                self.left_rgb_annot = rep.AnnotatorRegistry.get_annotator("rgb", device=device)
+                self.left_rgb_annot.attach(self.left_rp)
+                self.annotators["Left"] = self.left_rgb_annot
+                cams.append(["Left", name_left])
 
-        cams = [["Left", name_left], ["Right", name_right]]
+            if self.init_camera(right_full_path, self.resolution):
+                name_right = f"{self.camera_prim_path[1].pathString.split('/')[-1]}_right_rp"
+                self._right_rp = viewport_manager.get_render_product(right_full_path, self.resolution, False, name_right)
+                self.right_rp = self._right_rp.hydra_texture.get_render_product_path()
+                self.right_rgb_annot = rep.AnnotatorRegistry.get_annotator("rgb", device=device)
+                self.right_rgb_annot.attach(self.right_rp)
+                self.annotators["Right"] = self.right_rgb_annot
+                cams.append(["Right", name_right])
+         # Case 2: one prim (mono or stereo)
+        else:
+            left_path = "/base_link/" + self.camera_model + "/CameraLeft"
+            right_path = "/base_link/" + self.camera_model + "/CameraRight"
+
+            left_full_path = self.camera_prim_path[0].pathString + left_path
+            right_full_path = self.camera_prim_path[0].pathString + right_path
+
+            # Init left camra (or mono camera)
+            if self.init_camera(left_full_path, self.resolution):
+                name_left = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_left_rp"
+                self._left_rp = viewport_manager.get_render_product(left_full_path, self.resolution, False, name_left)
+                self.left_rp = self._left_rp.hydra_texture.get_render_product_path()
+                self.left_rgb_annot = rep.AnnotatorRegistry.get_annotator("rgb", device=device)
+                self.left_rgb_annot.attach(self.left_rp)
+                self.annotators["Left"] = self.left_rgb_annot
+                cams.append(["Left", name_left])
+            else:
+                carb.log_warn(f"[{self.camera_prim_path[0].pathString}] Invalid or non existing zed camera, try to re-import your camera prim.")
+
+            # Right Camera - Only for stereo cameras
+            if self.is_stereo:
+                if self.init_camera(right_full_path, self.resolution):
+                    name_right = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_right_rp"
+                    self._right_rp = viewport_manager.get_render_product(right_full_path, self.resolution, False, name_right)
+                    self.right_rp = self._right_rp.hydra_texture.get_render_product_path()
+                    self.right_rgb_annot = rep.AnnotatorRegistry.get_annotator("rgb", device=device)
+                    self.right_rgb_annot.attach(self.right_rp)
+                    self.annotators["Right"] = self.right_rgb_annot
+                    cams.append(["Right", name_right])
+            else:
+                carb.log_warn(f"[{self.camera_prim_path[0].pathString}] Invalid or non existing zed camera, try to re-import your camera prim.")
 
         self.init_graph()
         self.build_graph(cams)
@@ -274,8 +322,14 @@ class ZEDAnnotator:
                 carb.log_warn("Node {} not found".format(node))
         self.nodes = []
 
-        self.left_rgb_annot.detach(self.left_rp)
-        self.right_rgb_annot.detach(self.right_rp)
+        if hasattr(self, "left_rgb_annot"):
+            self.left_rgb_annot.detach(self.left_rp)
+            self._left_rp.destroy()
+
+        if self.is_stereo and hasattr(self, "right_rgb_annot"):
+            self.right_rgb_annot.detach(self.right_rp)
+            self._right_rp.destroy()
+
 
         self._left_rp.destroy()
         self._right_rp.destroy()
