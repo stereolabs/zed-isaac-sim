@@ -31,15 +31,21 @@ def get_resolution(camera_resolution: str):
             result = None
         return result
 
-def get_focal_length(camera_resolution):
+def get_focal_length(camera_resolution, is_4mm):
         f = 741.6
-        if camera_resolution[1] == 1200:
-            f = 741.6
-        elif camera_resolution[1] == 1080:
-            f = 741.6
+        if camera_resolution[1] == 2180:
+            f = 2545 if is_4mm else 1483.2
+        elif camera_resolution[1] == 1200 or camera_resolution[1] == 1080:
+            f = 1272.5 if is_4mm else 741.6
         elif camera_resolution[1] == 600:
-            f = 370.8
+            f = 636.25 if is_4mm else 370.8
         return f
+
+def is_4mm_camera(camera_model : str):
+    if camera_model in ["ZED_X_4MM", "ZED_XM_4MM ", "ZED_XONE_GS_4MM"]:
+        return True
+    else:
+        return False
 
 def is_stereo_camera(camera_model : str):
         if camera_model in ["ZED_XONE_UHD", "ZED_XONE_GS ", "ZED_XONE_GS_4MM"]:
@@ -106,14 +112,14 @@ class ZEDAnnotator:
         )
 
 
-    def init_camera(self, camera_prim_path : str, resolution):
+    def init_camera(self, camera_prim_path : str, resolution, is_4mm):
         result = False
 
         if is_prim_path_valid(camera_prim_path) == True:
                 cam_prim = get_prim_at_path(prim_path=camera_prim_path)
                 pixel_size = 3 * 1e-3
                 f_stop = 0 # disable focusing
-                f = get_focal_length(resolution)
+                f = get_focal_length(resolution, is_4mm)
 
                 horizontal_aperture = pixel_size * resolution[0]
                 vertical_aperture = pixel_size * resolution[1]
@@ -139,6 +145,7 @@ class ZEDAnnotator:
         cams = []     
         self.annotators = {}
 
+        is_4mm = is_4mm_camera(self.camera_model)
          # Case 1: user gave 2 prims (custom stereo)
         if self.custom_stereo:
             cam_path = "/base_link/" + self.camera_model + "/Camera"
@@ -146,7 +153,7 @@ class ZEDAnnotator:
             left_full_path = self.camera_prim_path[0].pathString + cam_path
             right_full_path = self.camera_prim_path[1].pathString + cam_path
 
-            if self.init_camera(left_full_path, self.resolution):
+            if self.init_camera(left_full_path, self.resolution, is_4mm):
                 name_left = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_left_rp"
                 self._left_rp = viewport_manager.get_render_product(left_full_path, self.resolution, False, name_left)
                 self.left_rp = self._left_rp.hydra_texture.get_render_product_path()
@@ -155,7 +162,7 @@ class ZEDAnnotator:
                 self.annotators["Left"] = self.left_rgb_annot
                 cams.append(["Left", name_left])
 
-            if self.init_camera(right_full_path, self.resolution):
+            if self.init_camera(right_full_path, self.resolution, is_4mm):
                 name_right = f"{self.camera_prim_path[1].pathString.split('/')[-1]}_right_rp"
                 self._right_rp = viewport_manager.get_render_product(right_full_path, self.resolution, False, name_right)
                 self.right_rp = self._right_rp.hydra_texture.get_render_product_path()
@@ -172,7 +179,7 @@ class ZEDAnnotator:
             right_full_path = self.camera_prim_path[0].pathString + right_path
 
             # Init left camra (or mono camera)
-            if self.init_camera(left_full_path, self.resolution):
+            if self.init_camera(left_full_path, self.resolution, is_4mm):
                 name_left = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_left_rp"
                 self._left_rp = viewport_manager.get_render_product(left_full_path, self.resolution, False, name_left)
                 self.left_rp = self._left_rp.hydra_texture.get_render_product_path()
@@ -185,7 +192,7 @@ class ZEDAnnotator:
 
             # Right Camera - Only for stereo cameras
             if self.is_stereo:
-                if self.init_camera(right_full_path, self.resolution):
+                if self.init_camera(right_full_path, self.resolution, is_4mm):
                     name_right = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_right_rp"
                     self._right_rp = viewport_manager.get_render_product(right_full_path, self.resolution, False, name_right)
                     self.right_rp = self._right_rp.hydra_texture.get_render_product_path()

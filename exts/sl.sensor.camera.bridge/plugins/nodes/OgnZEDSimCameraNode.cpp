@@ -43,20 +43,37 @@ namespace sl {
 
                 // Data struct shared to the streaming thread
                 struct FrameData {
-                    void* raw_ptr_left;
-                    void* raw_ptr_right;
-                    size_t data_size_left;
-                    size_t data_size_right;
+                    const void* raw_ptr_left{ nullptr };
+                    const void* raw_ptr_right{ nullptr };
+                    const size_t data_size_left{ 0 };
+                    const size_t data_size_right{ 0 };
                     GfQuatd quaternion;
                     GfVec3d linear_acceleration;
                     double timestamp;
                     bool valid = false;
+
+					FrameData() = default;
+
+                    FrameData(const void* left_ptr, size_t left_size,
+                        const void* right_ptr = nullptr, size_t right_size = 0)
+                        : raw_ptr_left(left_ptr)
+                        , raw_ptr_right(right_ptr)
+                        , data_size_left(left_size)
+                        , data_size_right(right_size)
+                    {
+                    }
                 };
 
                 // List of available SN per camera model
                 static std::map<std::string, std::vector<int>> available_zed_cameras = {
                     {"ZED_X",   { 40976320, 41116066, 49123828, 45626933 }},
-                    {"ZED_X_Mini",   { 57890353,55263213,57800035,57706147 }}
+                    {"ZED_XM",   { 57890353,55263213,57800035,57706147 }},
+                    {"ZED_X_4MM",   {}},
+                    {"ZED_XM_4MM",   {  }},
+                    {"ZED_XONE_UHD",   {  }},
+                    {"ZED_XONE_GS",   {  }},
+                    {"ZED_XONE_GS_4MM",   {  }},
+                    { "VIRTUAL_ZED_X",   {109999996, 109999997, 109999998, 109999999} }
                 };
 
                 // List of currently opened cameras
@@ -85,6 +102,7 @@ namespace sl {
                     cudaStream_t m_cudaStream;
                     bool m_cudaStreamNotCreated{ true };
                     bool m_zedStreamerInitStatus{ false };
+					bool m_stereo_camera{ true };
 
                     // Threading members
                     std::thread m_streamingThread;
@@ -117,10 +135,11 @@ namespace sl {
                                 continue;
                             }
 
-                            const size_t data_size_left = current_frame->data_size_left;
-                            const size_t data_size_right = current_frame->data_size_right;
-                            void* const raw_ptr_left = current_frame->raw_ptr_left;
-                            void* const raw_ptr_right = current_frame->raw_ptr_right;
+                            const size_t data_size_left{ current_frame->data_size_left };
+                            const void* raw_ptr_left{ current_frame->raw_ptr_left };
+                            const void* raw_ptr_right{ current_frame->raw_ptr_right };
+                            const size_t data_size_right{ current_frame->data_size_right };
+
                             const double timestamp = current_frame->timestamp;
                             const auto quaternion = current_frame->quaternion;
                             const auto linear_acceleration = current_frame->linear_acceleration;
@@ -149,7 +168,7 @@ namespace sl {
                                 data_ptr_left = std::make_unique<unsigned char[]>(data_size_left);
                                 allocated_size_left = data_size_left;
                             }
-                            if (allocated_size_right < data_size_right) {
+                            if (state.m_stereo_camera && allocated_size_right < data_size_right) {
                                 data_ptr_right = std::make_unique<unsigned char[]>(data_size_right);
                                 allocated_size_right = data_size_right;
                             }
@@ -159,9 +178,14 @@ namespace sl {
                                 raw_ptr_left,
                                 data_size_left, cudaMemcpyDeviceToHost, cudaStream);
 
-                            cudaError_t err_right = cudaMemcpyAsync(data_ptr_right.get(),
-                                raw_ptr_right,
-                                data_size_right, cudaMemcpyDeviceToHost, cudaStream);
+                            cudaError_t err_right = cudaSuccess;
+
+                            if (state.m_stereo_camera) // to avoid issues with mono cameras
+                            {
+                                err_right = cudaMemcpyAsync(data_ptr_right.get(),
+                                    raw_ptr_right,
+                                    data_size_right, cudaMemcpyDeviceToHost, cudaStream);
+                            }
 
                             if (err_left != cudaSuccess || err_right != cudaSuccess) {
                                 //CARB_LOG_ERROR("CUDA memcpy error in streaming thread: %s",
@@ -190,7 +214,6 @@ namespace sl {
                                 static_cast<float>(converted_lin_acc[0]),
                                 static_cast<float>(converted_lin_acc[1]),
                                 static_cast<float>(converted_lin_acc[2]));
-
                         }
 
                         CARB_LOG_INFO("[ZED] Streaming thread stopped");
@@ -277,8 +300,14 @@ public:
                             float warmup = 1.0f;
                             if (db.inputs.simulationTime() < warmup) return true;
 
+                            state.m_stereo_camera = db.inputs.bufferSizeRight() > 0 && reinterpret_cast<void*>(db.inputs.dataPtrRight()) != nullptr;
                             unsigned short port = db.inputs.port();
                             int serial_number = addStreamer(db.inputs.cameraModel());
+
+                            if (!state.m_stereo_camera)
+                            {
+                                CARB_LOG_INFO("[ZED] Opening mono camera");
+                            }
 
                             if (serial_number <= 0)
                             {
@@ -329,30 +358,30 @@ public:
                         else
                         {
                             // Get frame data pointers and sizes
-                            size_t data_size_left = db.inputs.bufferSizeLeft();
-                            void* raw_ptr_left = reinterpret_cast<void*>(db.inputs.dataPtrLeft());
+                            const size_t data_size_left{ db.inputs.bufferSizeLeft() };
+                            const void* raw_ptr_left{ reinterpret_cast<void*>(db.inputs.dataPtrLeft()) };
+                            const size_t data_size_right{ db.inputs.bufferSizeRight() };
+                            const void* raw_ptr_right{ reinterpret_cast<void*>(db.inputs.dataPtrRight()) };
 
-                            size_t data_size_right = db.inputs.bufferSizeRight();
-                            void* raw_ptr_right = reinterpret_cast<void*>(db.inputs.dataPtrRight());
-
-                            if (!raw_ptr_left || !raw_ptr_right)
+                            if (!raw_ptr_left)
                             {
-                                //CARB_LOG_ERROR("Left and Right images are not valid");
+                                CARB_LOG_ERROR("[ZED] Left image is not valid");
                                 return false;
                             }
 
-                            if (data_size_left != data_size_right || data_size_left == 0)
+                            if (state.m_stereo_camera && data_size_left != data_size_right)
                             {
                                 CARB_LOG_ERROR("[ZED] Left and Right images have different sizes");
                                 return false;
                             }
 
                             // Prepare new frame data (just pointers and metadata)
-                            auto new_frame = std::make_shared<FrameData>();
-                            new_frame->raw_ptr_left = raw_ptr_left;
-                            new_frame->raw_ptr_right = raw_ptr_right;
-                            new_frame->data_size_left = data_size_left;
-                            new_frame->data_size_right = data_size_right;
+                            auto new_frame = std::make_shared<FrameData>(
+                                raw_ptr_left, data_size_left,
+                                state.m_stereo_camera ? raw_ptr_right : nullptr,
+                                state.m_stereo_camera ? data_size_right : 0
+                            );
+
                             new_frame->timestamp = db.inputs.simulationTime();
                             new_frame->valid = true;
                             new_frame->quaternion = db.inputs.orientation();
