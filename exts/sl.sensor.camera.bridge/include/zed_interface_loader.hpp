@@ -75,7 +75,7 @@ namespace sl
         LibHandle hLibrary;
     
         typedef int (*GetSDKVersion)(int&, int&, int&);
-        typedef bool (*InitStreamerFunc)(int, struct StreamingParameters*);
+        typedef int (*InitStreamerFunc)(int, struct StreamingParameters*);
         typedef int (*StreamRGBFunc)(int, unsigned char*, unsigned char*, long long, float, float, float, float, float, float, float);
         typedef int (*StreamYUVFunc)(int, unsigned char*, unsigned char*, long long, float, float, float, float, float, float, float);
         typedef void (*CloseStreamerFunc)(int);
@@ -206,10 +206,10 @@ namespace sl
             return false;
         }
     
-        bool initStreamer(int streamer_id, struct StreamingParameters* streaming_params) {
+        int initStreamer(int streamer_id, struct StreamingParameters* streaming_params) {
             if (!loaded || !init_streamer) {
                 std::cerr << "[ZED] Error with init_streamer function call" << std::endl;
-                return false;
+                return -1;
             }
 
             if (streaming_params->transport_layer_mode == 1)
@@ -222,8 +222,8 @@ namespace sl
     
         int stream(sl::INPUT_FORMAT input, int streamer_id, unsigned char* left, unsigned char* right,
                        long long timestamp_ns, float qw, float qx, float qy, float qz, 
-                       float lin_acc_x, float lin_acc_y, float lin_acc_z) {
-
+                       float lin_acc_x, float lin_acc_y, float lin_acc_z) 
+        {
             if (input == sl::INPUT_FORMAT::RGB || input == sl::INPUT_FORMAT::BGR)
             {
                 if (!loaded || !stream_rgb) {

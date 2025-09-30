@@ -67,12 +67,12 @@ namespace sl {
                 // List of available SN per camera model
                 static std::map<std::string, std::vector<int>> available_zed_cameras = {
                     {"ZED_X",   { 40976320, 41116066, 49123828, 45626933 }},
-                    {"ZED_XM",   { 57890353,55263213,57800035,57706147 }},
-                    {"ZED_X_4MM",   {}},
-                    {"ZED_XM_4MM",   {  }},
-                    {"ZED_XONE_UHD",   {  }},
-                    {"ZED_XONE_GS",   {  }},
-                    {"ZED_XONE_GS_4MM",   {  }},
+                    {"ZED_X_4MM", { 47890353,45263213,47800035,47706147 }},
+                    {"ZED_XM",   { 57890353,55263213,57800035,57706147 }},                  
+                    {"ZED_XM_4MM",   { 50179396,52835616,59695059,55043860 }},
+                    {"ZED_XONE_UHD",   { 302852530, 304519419, 309635843, 307276078 }},
+                    {"ZED_XONE_GS",   { 313021359, 318822533, 319625509, 318353328 }},
+                    {"ZED_XONE_GS_4MM",   { 318941621, 317444754, 311210149, 313220022 }},
                     { "VIRTUAL_ZED_X",   {109999996, 109999997, 109999998, 109999999} }
                 };
 
@@ -90,20 +90,19 @@ namespace sl {
                         return serial_number;
                     }
 
-                    CARB_LOG_FATAL("[ZED] Maximum number of camera reached! %d", streamer_id);
+                    CARB_LOG_FATAL("[ZED] Maximum number of camera reached! %d", streamer_id + 1);
                     return -1;
                 }
 
                 class OgnZEDSimCameraNode
                 {
-                    bool m_zed_sdk_compatible{ false };
                     sl::StreamingParameters m_zedStreamerParams;
                     sl::ZedStreamer m_zedStreamer;
                     cudaStream_t m_cudaStream;
                     bool m_cudaStreamNotCreated{ true };
-                    bool m_zedStreamerInitStatus{ false };
+                    int m_zedStreamerInitStatus{ -1 };
 					bool m_stereo_camera{ true };
-
+                    bool m_valid{ false };
                     // Threading members
                     std::thread m_streamingThread;
                     std::atomic<bool> m_shouldStop{ false };
@@ -203,7 +202,7 @@ namespace sl {
                             // Stream the data immediately
                             auto ts_ns = static_cast<long long>(timestamp * 1000000000);
 
-                            state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
+                            int stream_status = state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
                                 data_ptr_left.get(),
                                 data_ptr_right.get(),
                                 ts_ns,
@@ -214,6 +213,7 @@ namespace sl {
                                 static_cast<float>(converted_lin_acc[0]),
                                 static_cast<float>(converted_lin_acc[1]),
                                 static_cast<float>(converted_lin_acc[2]));
+
                         }
 
                         CARB_LOG_INFO("[ZED] Streaming thread stopped");
@@ -243,7 +243,7 @@ public:
 
                         if (m_zedStreamer.load_lib(lib_name) && m_zedStreamer.isZEDSDKCompatible())
                         {
-                            m_zed_sdk_compatible = true;
+                            m_valid = true;
                             CARB_LOG_INFO("[ZED] Successfully found and loaded ZED SDK");
                         }
                         else
@@ -269,11 +269,11 @@ public:
                         }
 
                         // Clean up ZED streamer
-                        if (m_zedStreamerInitStatus) {
+                        if (m_zedStreamerInitStatus == 1) {
                             m_zedStreamer.closeStreamer(0);
                             m_zedStreamer.destroyInstance();
 
-                            m_zedStreamerInitStatus = false;
+                            m_zedStreamerInitStatus = 0;
                         }
 
                         // Clean up CUDA stream if it was created
@@ -283,35 +283,42 @@ public:
                                 CARB_LOG_ERROR("[ZED] Error destroying CUDA stream in destructor: %s", cudaGetErrorString(err));
                             }
                         }
+
+                        CARB_LOG_INFO("[ZED] Unloading ZED SDK instance");
                         m_zedStreamer.unload();
-                        m_zed_sdk_compatible = false;
+                        m_valid = false;
                     }
+
 
                     // called every time a new frame is rendered
                     static bool compute(OgnZEDSimCameraNodeDatabase& db)
                     {
                         auto& state = db.perInstanceState<OgnZEDSimCameraNode>();
 
-                        // Done once, init the streamer and start a stream
-                        if (!db.inputs.stream() || !state.m_zed_sdk_compatible) return true;
+                        if (!state.m_valid || !db.inputs.stream()) return false;
 
-                        if (!state.m_zedStreamerInitStatus)
+                        // Done once, init the streamer and start a stream
+                        if (state.m_zedStreamerInitStatus != 1)
                         {
                             float warmup = 1.0f;
                             if (db.inputs.simulationTime() < warmup) return true;
 
                             state.m_stereo_camera = db.inputs.bufferSizeRight() > 0 && reinterpret_cast<void*>(db.inputs.dataPtrRight()) != nullptr;
-                            unsigned short port = db.inputs.port();
-                            int serial_number = addStreamer(db.inputs.cameraModel());
 
+							std::string camera_model = db.inputs.cameraModel();
                             if (!state.m_stereo_camera)
                             {
-                                CARB_LOG_INFO("[ZED] Opening mono camera");
+                                CARB_LOG_INFO("[ZED] Opening mono camera %s", camera_model.c_str());
                             }
+
+                            unsigned short port = db.inputs.port();
+                            int serial_number = addStreamer(camera_model);
 
                             if (serial_number <= 0)
                             {
-                                CARB_LOG_FATAL("[ZED] Invalid streamer configuration !");
+                                CARB_LOG_FATAL("[ZED] Invalid streamer configuration!");
+                                state.m_valid = false;
+                                return false;
                             }
 
                             CARB_LOG_INFO("[ZED] Opening camera %d : %d", serial_number, port);
@@ -323,7 +330,8 @@ public:
 
                             CARB_LOG_WARN("[ZED] IPC mode is not available on Windows. Switching back to network streaming...");
 #endif
-
+							// Use YUV format for IPC or mono cameras
+                            bool use_yuv = use_ipc || !state.m_stereo_camera;
                             state.m_zedStreamer.load_api();
                             state.m_zedStreamerParams.alpha_channel_included = true;
                             state.m_zedStreamerParams.codec_type = 1;
@@ -332,7 +340,7 @@ public:
                             state.m_zedStreamerParams.image_width = db.inputs.width();
                             state.m_zedStreamerParams.mode = 1;
                             state.m_zedStreamerParams.transport_layer_mode = use_ipc;
-                            state.m_zedStreamerParams.input_format = use_ipc == 1 ? sl::INPUT_FORMAT::YUV : sl::INPUT_FORMAT::BGR;
+                            state.m_zedStreamerParams.input_format = use_yuv ? sl::INPUT_FORMAT::YUV : sl::INPUT_FORMAT::BGR;
                             state.m_zedStreamerParams.serial_number = serial_number;
                             state.m_zedStreamerParams.port = port;
                             state.m_zedStreamerParams.verbose = 0;
@@ -353,6 +361,7 @@ public:
                             }
                             else {
                                 CARB_LOG_ERROR("Error during zed streamer initialization %d", state.m_zedStreamerInitStatus);
+                                return false;
                             }
                         }
                         else

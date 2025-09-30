@@ -42,13 +42,13 @@ def get_focal_length(camera_resolution, is_4mm):
         return f
 
 def is_4mm_camera(camera_model : str):
-    if camera_model in ["ZED_X_4MM", "ZED_XM_4MM ", "ZED_XONE_GS_4MM"]:
+    if camera_model in ["ZED_X_4MM", "ZED_XM_4MM", "ZED_XONE_GS_4MM"]:
         return True
     else:
         return False
 
 def is_stereo_camera(camera_model : str):
-        if camera_model in ["ZED_XONE_UHD", "ZED_XONE_GS ", "ZED_XONE_GS_4MM"]:
+        if camera_model in ["ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM"]:
             return False
         else:
             return True
@@ -74,23 +74,26 @@ class ZEDAnnotator:
 
         """
         Initializes a ZEDAnnotator object.
-        camera_prim can be:
+        camera_prim can be a list of:
           - a single prim (stereo or mono)
-          - a list of two prims (custom stereo made of two monos)
+          - two prims (custom stereo made of two monos)
         """
 
         # Get stage and synthetic data interface
         self.stage = omni.usd.get_context().get_stage()
 
          # Normalize input
-        if isinstance(camera_prim, list):
-            if len(camera_prim) != 2:
-                raise ValueError(f"Expected exactly 2 camera prims for custom stereo, got {len(camera_prim)}")
+        if len(camera_prim) == 1:
+            carb.log_info("Single prim provided, assuming mono or stereo camera based on model.")
+            self.camera_prim_path = camera_prim
+            self.custom_stereo = False
+        elif len(camera_prim) == 2:
+            carb.log_info("Two prims provided, assuming custom stereo setup.")
             self.camera_prim_path = camera_prim
             self.custom_stereo = True
         else:
-            self.camera_prim_path = [camera_prim]
-            self.custom_stereo = False
+            carb.log_error(f"Expected 1 or 2 camera prims, got {len(camera_prim)}")
+            return
 
         self.camera_prim_path = camera_prim
         self.camera_model = camera_model
@@ -114,7 +117,6 @@ class ZEDAnnotator:
 
     def init_camera(self, camera_prim_path : str, resolution, is_4mm):
         result = False
-
         if is_prim_path_valid(camera_prim_path) == True:
                 cam_prim = get_prim_at_path(prim_path=camera_prim_path)
                 pixel_size = 3 * 1e-3
@@ -130,6 +132,8 @@ class ZEDAnnotator:
                 cam_prim.GetAttribute("verticalAperture").Set(vertical_aperture)
                 cam_prim.GetAttribute("fStop").Set(f_stop)
                 result = True
+        else:
+            carb.log_error(f"Camera prim path {camera_prim_path} is not valid.")
         return result
 
     def check_frame_rate(camera_frame_rate: int):
@@ -149,7 +153,6 @@ class ZEDAnnotator:
          # Case 1: user gave 2 prims (custom stereo)
         if self.custom_stereo:
             cam_path = "/base_link/" + self.camera_model + "/Camera"
-
             left_full_path = self.camera_prim_path[0].pathString + cam_path
             right_full_path = self.camera_prim_path[1].pathString + cam_path
 
@@ -172,12 +175,12 @@ class ZEDAnnotator:
                 cams.append(["Right", name_right])
          # Case 2: one prim (mono or stereo)
         else:
-            left_path = "/base_link/" + self.camera_model + "/CameraLeft"
-            right_path = "/base_link/" + self.camera_model + "/CameraRight"
+            if self.is_stereo is True:
+                left_path = "/base_link/" + self.camera_model + "/CameraLeft"
+            else:
+                left_path = "/base_link/" + self.camera_model + "/Camera"          
 
             left_full_path = self.camera_prim_path[0].pathString + left_path
-            right_full_path = self.camera_prim_path[0].pathString + right_path
-
             # Init left camra (or mono camera)
             if self.init_camera(left_full_path, self.resolution, is_4mm):
                 name_left = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_left_rp"
@@ -192,6 +195,8 @@ class ZEDAnnotator:
 
             # Right Camera - Only for stereo cameras
             if self.is_stereo:
+                right_path = "/base_link/" + self.camera_model + "/CameraRight"
+                right_full_path = self.camera_prim_path[0].pathString + right_path
                 if self.init_camera(right_full_path, self.resolution, is_4mm):
                     name_right = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_right_rp"
                     self._right_rp = viewport_manager.get_render_product(right_full_path, self.resolution, False, name_right)
@@ -295,15 +300,14 @@ class ZEDAnnotator:
         self.sys_time.get_attribute("outputs:systemTime").connect(self.zed_.get_attribute("inputs:systemTime"), True)
 
         self.zed_.get_attribute("inputs:stream").set(value=True)
-        self.zed_.get_attribute("inputs:cameraModel").set(self.camera_model)
-
-        imu_path = "/base_link/" + self.camera_model + "/Imu_Sensor"
-        imu_full_path = self.camera_prim_path[0].pathString + imu_path
+        self.zed_.get_attribute("inputs:cameraModel").set("VIRTUAL_ZED_X" if self.custom_stereo else self.camera_model)
 
         # connect sync node to zed node to trigger the stream
         self.sim_gate.get_attribute("outputs:execOut").connect(self.sync_node.get_attribute("inputs:execIn"), True)
         self.sync_node.get_attribute("outputs:execOut").connect(self.imu.get_attribute("inputs:execIn"), True)
 
+        imu_path = "/base_link/" + self.camera_model + "/Imu_Sensor"
+        imu_full_path = self.camera_prim_path[0].pathString + imu_path
         self.imu.get_attribute("inputs:imuPrim").set(imu_full_path)
         self.zed_.get_attribute("inputs:ipc").set(self.ipc)
         self.imu.get_attribute("outputs:orientation").connect(self.zed_.get_attribute("inputs:orientation"), True)

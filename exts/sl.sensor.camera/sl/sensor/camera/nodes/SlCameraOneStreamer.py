@@ -45,8 +45,19 @@ class SlCameraOneStreamer:
                 SlCameraOneStreamer.used_ports.add(port)
                 state.port = port
 
+                cameraPrims = []
+                if (len(db.inputs.leftCameraPrim) > 0):
+                    cameraPrims.append(db.inputs.leftCameraPrim[0])
+
+                if (len(db.inputs.rightCameraPrim) > 0):
+                    cameraPrims.append(db.inputs.rightCameraPrim[0])
+
+                if len(cameraPrims) == 0:
+                    carb.log_error("At least one camera prim must be specified.")
+                    return False
+
                 state.annotator = ZEDAnnotator(
-                    db.inputs.cameraPrim,
+                    cameraPrims,
                     db.inputs.cameraModel,
                     state.port,
                     db.inputs.resolution,

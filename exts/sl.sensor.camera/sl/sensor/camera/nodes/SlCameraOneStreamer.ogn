@@ -33,16 +33,16 @@
                 "allowMultiInputs": "0"
               }
             },
-            "rightCameraPrim": {
-              "type": "target",
-              "description": "(optionnal) Used to create a virtual stereo camera from two monocular.",
-              "metadata": {
-                "uiName": "Right Camera Prim",
-                "literalOnly": "1",
-                "allowMultiInputs": "0"
-              },
-              "optional": true
+          "rightCameraPrim": {
+            "type": "target",
+            "description": "(optionnal) Used to create a virtual stereo camera from two monocular.",
+            "metadata": {
+              "uiName": "Right Camera Prim",
+              "literalOnly": "1",
+              "allowMultiInputs": "0"
             },
+            "optional": true
+          },
             "cameraModel": {
               "type": "token",
               "description": "ZED Mono Camera model.",
