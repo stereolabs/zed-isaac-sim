@@ -39,7 +39,7 @@ namespace sl {
         namespace camera {
             namespace bridge{
 
-                static int streamer_id = -1;
+                static int streamer_id = 0;
 
                 // Data struct shared to the streaming thread
                 struct FrameData {
@@ -72,8 +72,7 @@ namespace sl {
                     {"ZED_XM_4MM",   { 50179396,52835616,59695059,55043860 }},
                     {"ZED_XONE_UHD",   { 302852530, 304519419, 309635843, 307276078 }},
                     {"ZED_XONE_GS",   { 313021359, 318822533, 319625509, 318353328 }},
-                    {"ZED_XONE_GS_4MM",   { 318941621, 317444754, 311210149, 313220022 }},
-                    { "VIRTUAL_ZED_X",   {109999996, 109999997, 109999998, 109999999} }
+                    {"ZED_XONE_GS_4MM",   { 318941621, 317444754, 311210149, 313220022 }}
                 };
 
                 // List of currently opened cameras
@@ -84,13 +83,12 @@ namespace sl {
                 {
                     if (remaining_serial_numbers[camera_model].size() > 0)
                     {
-                        streamer_id += 1;
                         int serial_number = remaining_serial_numbers[camera_model][remaining_serial_numbers[camera_model].size() - 1];
                         remaining_serial_numbers[camera_model].pop_back();
                         return serial_number;
                     }
 
-                    CARB_LOG_FATAL("[ZED] Maximum number of camera reached! %d", streamer_id + 1);
+                    CARB_LOG_FATAL("[ZED] Maximum number of %s camera reached!", camera_model.c_str());
                     return -1;
                 }
 
@@ -107,8 +105,6 @@ namespace sl {
                     std::thread m_streamingThread;
                     std::atomic<bool> m_shouldStop{ false };
                     sl::DoubleBuffer<FrameData> m_frameBuffer;
-
-                    int m_streamer_id = 0;
 
                     static const pxr::GfMatrix4d rotation_matrix;
 
@@ -179,7 +175,7 @@ namespace sl {
 
                             cudaError_t err_right = cudaSuccess;
 
-                            if (state.m_stereo_camera) // to avoid issues with mono cameras
+                            if (state.m_stereo_camera)
                             {
                                 err_right = cudaMemcpyAsync(data_ptr_right.get(),
                                     raw_ptr_right,
@@ -202,7 +198,7 @@ namespace sl {
                             // Stream the data immediately
                             auto ts_ns = static_cast<long long>(timestamp * 1000000000);
 
-                            int stream_status = state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
+                            int stream_status = state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, streamer_id,
                                 data_ptr_left.get(),
                                 data_ptr_right.get(),
                                 ts_ns,
@@ -260,7 +256,7 @@ public:
                     void stop()
                     {
                         remaining_serial_numbers = available_zed_cameras;
-                        streamer_id -= 1;
+
                         // Stop the streaming thread
                         m_shouldStop.store(true, std::memory_order_release);
 
@@ -270,7 +266,7 @@ public:
 
                         // Clean up ZED streamer
                         if (m_zedStreamerInitStatus == 1) {
-                            m_zedStreamer.closeStreamer(0);
+                            m_zedStreamer.closeStreamer(streamer_id);
                             m_zedStreamer.destroyInstance();
 
                             m_zedStreamerInitStatus = 0;
@@ -284,9 +280,10 @@ public:
                             }
                         }
 
-                        CARB_LOG_INFO("[ZED] Unloading ZED SDK instance");
+                        CARB_LOG_INFO("[ZED] Stop streamer %d", streamer_id);
                         m_zedStreamer.unload();
                         m_valid = false;
+                        streamer_id -= 1;
                     }
 
 
@@ -294,7 +291,6 @@ public:
                     static bool compute(OgnZEDSimCameraNodeDatabase& db)
                     {
                         auto& state = db.perInstanceState<OgnZEDSimCameraNode>();
-
                         if (!state.m_valid || !db.inputs.stream()) return false;
 
                         // Done once, init the streamer and start a stream
@@ -312,7 +308,16 @@ public:
                             }
 
                             unsigned short port = db.inputs.port();
-                            int serial_number = addStreamer(camera_model);
+
+                            int serial_number = -1;
+                            if (camera_model == "VIRTUAL_ZED_X")
+                            {
+                                serial_number = std::stoi(db.inputs.serialNumber());
+                            }
+                            else
+                            {
+                                serial_number = addStreamer(camera_model);
+                            }
 
                             if (serial_number <= 0)
                             {
@@ -345,11 +350,11 @@ public:
                             state.m_zedStreamerParams.port = port;
                             state.m_zedStreamerParams.verbose = 0;
 
-                            state.m_streamer_id = streamer_id;
-                            state.m_zedStreamerInitStatus = state.m_zedStreamer.initStreamer(state.m_streamer_id, &state.m_zedStreamerParams);
+                            state.m_zedStreamerInitStatus = state.m_zedStreamer.initStreamer(streamer_id, &state.m_zedStreamerParams);
 
                             if (state.m_zedStreamerInitStatus)
                             {
+                                streamer_id++;
                                 CARB_LOG_INFO("[ZED] Start Streaming at port %d", state.m_zedStreamerParams.port);
 
                                 // Create CUDA stream

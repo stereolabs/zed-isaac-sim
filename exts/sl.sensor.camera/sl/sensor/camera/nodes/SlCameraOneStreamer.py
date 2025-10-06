@@ -58,6 +58,7 @@ class SlCameraOneStreamer:
 
                 state.annotator = ZEDAnnotator(
                     cameraPrims,
+                    db.inputs.serialNumber,
                     db.inputs.cameraModel,
                     state.port,
                     db.inputs.resolution,

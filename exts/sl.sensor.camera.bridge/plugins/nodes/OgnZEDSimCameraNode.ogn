@@ -50,6 +50,11 @@
         "description": "server port",
         "default": 5561
       },
+      "serialNumber": {
+        "type": "string",
+        "description": "Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated",
+        "default": "109999999"
+      },
       "simulationTime": {
         "type": "double",
         "description": "simulation time"

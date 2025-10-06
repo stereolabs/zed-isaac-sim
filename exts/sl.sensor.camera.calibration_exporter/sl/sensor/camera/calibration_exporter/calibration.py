@@ -3,8 +3,10 @@ import omni.usd
 import math
 import configparser
 from pxr import Gf, UsdGeom
-
+import platform
 import carb
+import random
+from typing import Tuple
 
 def quat_to_rodrigues(quat: Gf.Quatd):
     """
@@ -21,7 +23,49 @@ def quat_to_rodrigues(quat: Gf.Quatd):
     rodrigues = axis * (angle / sin_half_angle)
     return rodrigues
 
-def write_stereo_calibration_file(left_prim_path: str, right_prim_path: str, save_path: str):
+def get_calibration_file_path():
+    system = platform.system()
+    
+    if system == "Windows":
+        path = "C:/ProgramData/Stereolabs/settings/"
+    elif system == "Linux":
+        path = "/usr/local/zed/settings/"
+    else:
+        path = ""
+    
+    return path
+
+RANDOM_SN_START_VALUE = 100_000_001
+RANDOM_SN_STOP_VALUE = 109_999_999
+
+def generate_virtual_sn() -> int:
+    """Generate a random serial number within the defined range."""
+    return random.randint(RANDOM_SN_START_VALUE, RANDOM_SN_STOP_VALUE)
+
+
+def get_camera_config(camera_model: str) -> Tuple[str, bool]:
+    """
+    Returns configuration parameters for a given camera model.
+
+    Args:
+        camera_model (str): The name of the camera model.
+
+    Returns:
+        Tuple[int, bool]: (fps, is_small_sensor)
+    """
+    camera_configs = {
+        "ZED_XONE_GS": ("30", False),
+        "ZED_XS_GS_4MM": ("30", True),
+        "ZED_XONE_UHD": ("31", False),
+    }
+
+    if camera_model not in camera_configs:
+        carb.log_warn(f"Unknown camera model '{camera_model}', defaulting to ZED_XONE_GS")
+    
+    # Use get() to gracefully handle unknown models
+    return camera_configs.get(camera_model, camera_configs["ZED_XONE_GS"])
+
+def write_stereo_calibration_file(left_prim_path: str, right_prim_path: str, serial_number: str, camera_model:str):
     """
     Computes the relative transform between left and right camera prims
     and writes a stereo calibration file.
@@ -40,7 +84,6 @@ def write_stereo_calibration_file(left_prim_path: str, right_prim_path: str, sav
     is_camera = False
     if left_prim.IsA(UsdGeom.Camera) and right_prim.IsA(UsdGeom.Camera):
         is_camera = True
-        carb.log_warn("Both prims are cameras")
 
     # Choose conversion matrix based on prim type
     if is_camera:
@@ -91,19 +134,29 @@ def write_stereo_calibration_file(left_prim_path: str, right_prim_path: str, sav
     cfg['STEREO']['CV_FHD'] = f"{rel_rot[1]:.8f}"
     cfg['STEREO']['CV_SVGA'] = f"{rel_rot[1]:.8f}"
     cfg['STEREO']['CV_FHD1200'] = f"{rel_rot[1]:.8f}"
+    cfg['STEREO']['CV_QHDPLUS'] = f"{rel_rot[1]:.8f}"
 
     cfg['STEREO']['RX_FHD'] = f"{rel_rot[0]:.8f}"
     cfg['STEREO']['RX_SVGA'] = f"{rel_rot[0]:.8f}"
     cfg['STEREO']['RX_FHD1200'] = f"{rel_rot[0]:.8f}"
+    cfg['STEREO']['RX_QHDPLUS'] = f"{rel_rot[0]:.8f}"
 
     cfg['STEREO']['RZ_FHD'] = f"{rel_rot[2]:.8f}"
     cfg['STEREO']['RZ_SVGA'] = f"{rel_rot[2]:.8f}"
     cfg['STEREO']['RZ_FHD1200'] = f"{rel_rot[2]:.8f}"
+    cfg['STEREO']['RZ_QHDPLUS'] = f"{rel_rot[2]:.8f}"
 
-    cfg['STEREO']['SIMU'] = "1"
+    # auto detect camera model based on prim path 
+
+    cam_model, is_4mm = get_camera_config(camera_model)
+    cfg['SIM'] = {}
+    cfg['SIM']['is_4mm'] = "1" if is_4mm else "0"
+    cfg['SIM']['camera_model'] = cam_model
 
     # Write to file
-    with open(save_path, 'w') as f:
+    full_path = get_calibration_file_path() + f"SN{serial_number}.conf"
+
+    with open(full_path, 'w') as f:
         cfg.write(f)
 
-    carb.log_warn(f"Stereo calibration file saved to {save_path}")
+    carb.log_warn(f"Stereo calibration file saved to {full_path}")

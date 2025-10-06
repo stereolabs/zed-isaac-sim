@@ -9,49 +9,120 @@ from omni.replicator.core.scripts.utils import viewport_manager
 from isaacsim.core.utils.prims import is_prim_path_valid, get_prim_at_path
 import omni.usd
 from omni.syntheticdata import SyntheticData, SyntheticDataStage
+from typing import Optional, Tuple, List
 
-def get_resolution(camera_resolution: str):
-        """Get the resolution of the camera
+# Camera specifications mapping
+_CAMERA_SPECIFICATIONS = {
+    "HD4K": {
+        "resolution": [3840, 2180],
+        "focal_length": {"standard": 1483.2, "4mm": 2545}
+    },
+    "HD1200": {
+        "resolution": [1920, 1200],
+        "focal_length": {"standard": 741.6, "4mm": 1272.5}
+    },
+    "HD1080": {
+        "resolution": [1920, 1080],
+        "focal_length": {"standard": 741.6, "4mm": 1272.5}
+    },
+    "SVGA": {
+        "resolution": [960, 600],
+        "focal_length": {"standard": 370.8, "4mm": 636.25}
+    }
+}
 
-        Args:
-            camera_resolution (str): the resolution name of the camera
+# Camera configuration mapping
+_CAMERA_CONFIGS = {
+    "ZED_X": {"base_model": "ZED_X", "is_4mm": False, "is_stereo": True},
+    "ZED_X_4MM": {"base_model": "ZED_X", "is_4mm": True, "is_stereo": True},
+    "ZED_XM": {"base_model": "ZED_XM", "is_4mm": False, "is_stereo": True},
+    "ZED_XM_4MM": {"base_model": "ZED_XM", "is_4mm": True, "is_stereo": True},
+    "ZED_XONE_UHD": {"base_model": "ZED_XONE_UHD", "is_4mm": False, "is_stereo": False},
+    "ZED_XONE_GS": {"base_model": "ZED_XONE_GS", "is_4mm": False, "is_stereo": False},
+    "ZED_XONE_GS_4MM": {"base_model": "ZED_XONE_GS", "is_4mm": True, "is_stereo": False},
+}
 
-        Returns:
-            list: the resolution of the camera
-        """
-        if camera_resolution == "HD4K":
-            result = [3840, 2180]
-        elif camera_resolution == "HD1200":
-            result = [1920, 1200]
-        elif camera_resolution == "HD1080":
-            result = [1920, 1080]
-        elif camera_resolution == "SVGA":
-            result = [960, 600]
-        else:
-            result = None
-        return result
+def get_resolution(camera_resolution: str) -> Optional[List[int]]:
+    """Get the resolution of the camera.
 
-def get_focal_length(camera_resolution, is_4mm):
-        f = 741.6
-        if camera_resolution[1] == 2180:
-            f = 2545 if is_4mm else 1483.2
-        elif camera_resolution[1] == 1200 or camera_resolution[1] == 1080:
-            f = 1272.5 if is_4mm else 741.6
-        elif camera_resolution[1] == 600:
-            f = 636.25 if is_4mm else 370.8
-        return f
+    Args:
+        camera_resolution: The resolution name of the camera
 
-def is_4mm_camera(camera_model : str):
-    if camera_model in ["ZED_X_4MM", "ZED_XM_4MM", "ZED_XONE_GS_4MM"]:
-        return True
-    else:
-        return False
+    Returns:
+        The resolution as [width, height] or None if not recognized
+    """
+    spec = _CAMERA_SPECIFICATIONS.get(camera_resolution)
+    return spec["resolution"] if spec else None
 
-def is_stereo_camera(camera_model : str):
-        if camera_model in ["ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM"]:
-            return False
-        else:
-            return True
+def get_focal_length(camera_resolution: List[int], is_4mm: bool) -> float:
+    """Get the focal length for the given resolution and lens type.
+
+    Args:
+        camera_resolution: The camera resolution as [width, height]
+        is_4mm: True if using 4mm lens, False for standard lens
+
+    Returns:
+        The focal length value, defaults to 741.6 if resolution not found
+    """
+    height = camera_resolution[1]
+    
+    # Find the specification by matching height
+    for spec in _CAMERA_SPECIFICATIONS.values():
+        if spec["resolution"][1] == height:
+            return spec["focal_length"]["4mm" if is_4mm else "standard"]
+    
+    # Default fallback
+    return 741.6
+
+def get_camera_specifications(camera_resolution: str) -> Optional[dict]:
+    """Get complete camera specifications for a given resolution.
+
+    Args:
+        camera_resolution: The resolution name of the camera
+
+    Returns:
+        Dictionary containing resolution and focal length data, or None if not found
+    """
+    return _CAMERA_SPECIFICATIONS.get(camera_resolution)
+
+def get_camera_model(camera_model: str) -> str:
+    """Get the base camera model name from the full camera model name.
+    
+    Args:
+        camera_model: The full camera model name
+        
+    Returns:
+        The base camera model, defaults to "ZED_X" if not recognized
+    """
+    config = _CAMERA_CONFIGS.get(camera_model)
+    if config is None:
+        carb.log_warn(f"Camera model {camera_model} not recognized, defaulting to ZED_X.")
+        return "ZED_X"
+    return config["base_model"]
+
+def is_4mm_camera(camera_model: str) -> bool:
+    """Check if the camera model is a 4mm variant.
+    
+    Args:
+        camera_model: The camera model name
+        
+    Returns:
+        True if the camera is a 4mm variant, False otherwise
+    """
+    config = _CAMERA_CONFIGS.get(camera_model)
+    return config["is_4mm"] if config else False
+
+def is_stereo_camera(camera_model: str) -> bool:
+    """Check if the camera model supports stereo vision.
+    
+    Args:
+        camera_model: The camera model name
+        
+    Returns:
+        True if the camera supports stereo vision, False otherwise
+    """
+    config = _CAMERA_CONFIGS.get(camera_model)
+    return config["is_stereo"] if config else True  # Default to stereo for unknown models
 
 class ZEDAnnotator:
     """
@@ -65,6 +136,7 @@ class ZEDAnnotator:
     def __init__(
         self,
         camera_prim,
+        serial_number = None,
         camera_model = "ZED_X",
         streaming_port = 30000,
         resolution = "HD1200",
@@ -96,6 +168,7 @@ class ZEDAnnotator:
             return
 
         self.camera_prim_path = camera_prim
+        self.serial_number = serial_number
         self.camera_model = camera_model
         self.port = streaming_port
         self.resolution = get_resolution(resolution)
@@ -150,9 +223,10 @@ class ZEDAnnotator:
         self.annotators = {}
 
         is_4mm = is_4mm_camera(self.camera_model)
+        base_camera_model = get_camera_model(self.camera_model)
          # Case 1: user gave 2 prims (custom stereo)
         if self.custom_stereo:
-            cam_path = "/base_link/" + self.camera_model + "/Camera"
+            cam_path = "/base_link/" + base_camera_model + "/Camera"
             left_full_path = self.camera_prim_path[0].pathString + cam_path
             right_full_path = self.camera_prim_path[1].pathString + cam_path
 
@@ -176,9 +250,9 @@ class ZEDAnnotator:
          # Case 2: one prim (mono or stereo)
         else:
             if self.is_stereo is True:
-                left_path = "/base_link/" + self.camera_model + "/CameraLeft"
+                left_path = "/base_link/" + base_camera_model + "/CameraLeft"
             else:
-                left_path = "/base_link/" + self.camera_model + "/Camera"          
+                left_path = "/base_link/" + base_camera_model + "/Camera"          
 
             left_full_path = self.camera_prim_path[0].pathString + left_path
             # Init left camra (or mono camera)
@@ -195,7 +269,7 @@ class ZEDAnnotator:
 
             # Right Camera - Only for stereo cameras
             if self.is_stereo:
-                right_path = "/base_link/" + self.camera_model + "/CameraRight"
+                right_path = "/base_link/" + base_camera_model + "/CameraRight"
                 right_full_path = self.camera_prim_path[0].pathString + right_path
                 if self.init_camera(right_full_path, self.resolution, is_4mm):
                     name_right = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_right_rp"
@@ -301,6 +375,7 @@ class ZEDAnnotator:
 
         self.zed_.get_attribute("inputs:stream").set(value=True)
         self.zed_.get_attribute("inputs:cameraModel").set("VIRTUAL_ZED_X" if self.custom_stereo else self.camera_model)
+        self.zed_.get_attribute("inputs:serialNumber").set(self.serial_number if self.serial_number else "-1")
 
         # connect sync node to zed node to trigger the stream
         self.sim_gate.get_attribute("outputs:execOut").connect(self.sync_node.get_attribute("inputs:execIn"), True)

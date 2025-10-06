@@ -20,12 +20,13 @@ import omni.ui as ui
 import omni.usd
 from isaacsim.gui.components.element_wrappers import (
     Button,
+    DropDown,
     CollapsableFrame,
     StringField
 )
 from isaacsim.gui.components.ui_utils import get_style
 
-from .calibration import write_stereo_calibration_file
+from .calibration import write_stereo_calibration_file, generate_virtual_sn
 
 class UIBuilder:
     def __init__(self):
@@ -34,6 +35,8 @@ class UIBuilder:
 
         # UI elements created using a UIElementWrapper from isaacsim.gui.components.element_wrappers
         self.wrapped_ui_elements = []
+        self.serial_number = -1
+        self.camera_model = "ZED_XONE_GS"
 
     ###################################################################################
     #           The Functions Below Are Called Automatically By extension.py
@@ -86,6 +89,7 @@ class UIBuilder:
         Build a custom UI tool to run your extension.
         This function will be called any time the UI window is closed and reopened.
         """
+        self.serial_number = generate_virtual_sn()
         self._create_calibration_frame()
 
     def _create_calibration_frame(self):
@@ -127,15 +131,29 @@ class UIBuilder:
                     ui.Button("Select", clicked_fn=lambda: pick_selected_prim(self.right_cam_field))
                     self.wrapped_ui_elements.append(self.right_cam_field)
 
-                self.save_path_field = StringField(
-                    "Save path",
-                    default_value="",
-                    tooltip="Where the calibration file is saved",
+                with ui.VStack(style=get_style(), spacing=5, height=0):
+                    def dropdown_populate_fn():
+                        return ["ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM"]
+
+                    dropdown = DropDown(
+                        "Camera model",
+                        tooltip= "Camera model used to create a virtual stereo camera",
+                        populate_fn=dropdown_populate_fn,
+                        on_selection_fn=self._on_dropdown_item_selection,
+                    )
+                    self.wrapped_ui_elements.append(dropdown)
+
+                    dropdown.repopulate()  # This does not happen automatically, and it triggers the on_selection_fn
+
+                self.serial_number_field = StringField(
+                    "Serial number",
+                    default_value=str(self.serial_number),
+                    tooltip="Serial number of the stereo camera",
                     read_only=False,
                     multiline_okay=False,
                     use_folder_picker=True
                 )
-                self.wrapped_ui_elements.append(self.save_path_field)
+                self.wrapped_ui_elements.append(self.serial_number_field)
 
                 button = Button(
                     "Generate calibration",
@@ -152,4 +170,7 @@ class UIBuilder:
 
     def _on_button_clicked_fn(self):
         write_stereo_calibration_file(left_prim_path=self.left_cam_field.get_value(), right_prim_path=self.right_cam_field.get_value(),
-            save_path=self.save_path_field.get_value())
+            serial_number=self.serial_number_field.get_value(), camera_model=self.camera_model)
+
+    def _on_dropdown_item_selection(self, item: str):
+        self.camera_model = item
