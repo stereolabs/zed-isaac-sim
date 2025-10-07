@@ -13,6 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-EXTENSION_TITLE = "ZED calibration exporter"
+EXTENSION_TITLE = "ZED Calibration Exporter"
 
-EXTENSION_DESCRIPTION = ""
+EXTENSION_DESCRIPTION = "Tools used to generate stereo calibration for Virtual Stereo cameras by Stereolabs"

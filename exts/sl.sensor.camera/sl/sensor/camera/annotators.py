@@ -11,118 +11,7 @@ import omni.usd
 from omni.syntheticdata import SyntheticData, SyntheticDataStage
 from typing import Optional, Tuple, List
 
-# Camera specifications mapping
-_CAMERA_SPECIFICATIONS = {
-    "HD4K": {
-        "resolution": [3840, 2180],
-        "focal_length": {"standard": 1483.2, "4mm": 2545}
-    },
-    "HD1200": {
-        "resolution": [1920, 1200],
-        "focal_length": {"standard": 741.6, "4mm": 1272.5}
-    },
-    "HD1080": {
-        "resolution": [1920, 1080],
-        "focal_length": {"standard": 741.6, "4mm": 1272.5}
-    },
-    "SVGA": {
-        "resolution": [960, 600],
-        "focal_length": {"standard": 370.8, "4mm": 636.25}
-    }
-}
-
-# Camera configuration mapping
-_CAMERA_CONFIGS = {
-    "ZED_X": {"base_model": "ZED_X", "is_4mm": False, "is_stereo": True},
-    "ZED_X_4MM": {"base_model": "ZED_X", "is_4mm": True, "is_stereo": True},
-    "ZED_XM": {"base_model": "ZED_XM", "is_4mm": False, "is_stereo": True},
-    "ZED_XM_4MM": {"base_model": "ZED_XM", "is_4mm": True, "is_stereo": True},
-    "ZED_XONE_UHD": {"base_model": "ZED_XONE_UHD", "is_4mm": False, "is_stereo": False},
-    "ZED_XONE_GS": {"base_model": "ZED_XONE_GS", "is_4mm": False, "is_stereo": False},
-    "ZED_XONE_GS_4MM": {"base_model": "ZED_XONE_GS", "is_4mm": True, "is_stereo": False},
-}
-
-def get_resolution(camera_resolution: str) -> Optional[List[int]]:
-    """Get the resolution of the camera.
-
-    Args:
-        camera_resolution: The resolution name of the camera
-
-    Returns:
-        The resolution as [width, height] or None if not recognized
-    """
-    spec = _CAMERA_SPECIFICATIONS.get(camera_resolution)
-    return spec["resolution"] if spec else None
-
-def get_focal_length(camera_resolution: List[int], is_4mm: bool) -> float:
-    """Get the focal length for the given resolution and lens type.
-
-    Args:
-        camera_resolution: The camera resolution as [width, height]
-        is_4mm: True if using 4mm lens, False for standard lens
-
-    Returns:
-        The focal length value, defaults to 741.6 if resolution not found
-    """
-    height = camera_resolution[1]
-    
-    # Find the specification by matching height
-    for spec in _CAMERA_SPECIFICATIONS.values():
-        if spec["resolution"][1] == height:
-            return spec["focal_length"]["4mm" if is_4mm else "standard"]
-    
-    # Default fallback
-    return 741.6
-
-def get_camera_specifications(camera_resolution: str) -> Optional[dict]:
-    """Get complete camera specifications for a given resolution.
-
-    Args:
-        camera_resolution: The resolution name of the camera
-
-    Returns:
-        Dictionary containing resolution and focal length data, or None if not found
-    """
-    return _CAMERA_SPECIFICATIONS.get(camera_resolution)
-
-def get_camera_model(camera_model: str) -> str:
-    """Get the base camera model name from the full camera model name.
-    
-    Args:
-        camera_model: The full camera model name
-        
-    Returns:
-        The base camera model, defaults to "ZED_X" if not recognized
-    """
-    config = _CAMERA_CONFIGS.get(camera_model)
-    if config is None:
-        carb.log_warn(f"Camera model {camera_model} not recognized, defaulting to ZED_X.")
-        return "ZED_X"
-    return config["base_model"]
-
-def is_4mm_camera(camera_model: str) -> bool:
-    """Check if the camera model is a 4mm variant.
-    
-    Args:
-        camera_model: The camera model name
-        
-    Returns:
-        True if the camera is a 4mm variant, False otherwise
-    """
-    config = _CAMERA_CONFIGS.get(camera_model)
-    return config["is_4mm"] if config else False
-
-def is_stereo_camera(camera_model: str) -> bool:
-    """Check if the camera model supports stereo vision.
-    
-    Args:
-        camera_model: The camera model name
-        
-    Returns:
-        True if the camera supports stereo vision, False otherwise
-    """
-    config = _CAMERA_CONFIGS.get(camera_model)
-    return config["is_stereo"] if config else True  # Default to stereo for unknown models
+from .utils import get_camera_model, is_stereo_camera, is_4mm_camera, get_resolution, get_focal_length
 
 class ZEDAnnotator:
     """
@@ -136,12 +25,12 @@ class ZEDAnnotator:
     def __init__(
         self,
         camera_prim,
-        serial_number = None,
         camera_model = "ZED_X",
         streaming_port = 30000,
         resolution = "HD1200",
         fps = 30,
-        ipc = True
+        ipc = True,
+        virtual_serial_number = None
         ):
 
         """
@@ -168,10 +57,10 @@ class ZEDAnnotator:
             return
 
         self.camera_prim_path = camera_prim
-        self.serial_number = serial_number
+        self.serial_number = virtual_serial_number
         self.camera_model = camera_model
         self.port = streaming_port
-        self.resolution = get_resolution(resolution)
+        self.resolution = get_resolution(camera_model, resolution)
         self.fps = fps
         self.ipc = ipc
 
@@ -194,7 +83,7 @@ class ZEDAnnotator:
                 cam_prim = get_prim_at_path(prim_path=camera_prim_path)
                 pixel_size = 3 * 1e-3
                 f_stop = 0 # disable focusing
-                f = get_focal_length(resolution, is_4mm)
+                f = get_focal_length(self.camera_model, resolution, is_4mm)
 
                 horizontal_aperture = pixel_size * resolution[0]
                 vertical_aperture = pixel_size * resolution[1]

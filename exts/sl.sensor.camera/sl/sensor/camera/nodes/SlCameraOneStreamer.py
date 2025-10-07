@@ -58,12 +58,12 @@ class SlCameraOneStreamer:
 
                 state.annotator = ZEDAnnotator(
                     cameraPrims,
-                    db.inputs.serialNumber,
                     db.inputs.cameraModel,
                     state.port,
                     db.inputs.resolution,
                     db.inputs.fps,
-                    db.inputs.ipc)
+                    db.inputs.ipc,
+                    db.inputs.serialNumber)
 
                 def on_closed_event(event: carb.events.IEvent):
                     SlCameraOneStreamer.release(db)

@@ -105,6 +105,7 @@ namespace sl {
                     std::thread m_streamingThread;
                     std::atomic<bool> m_shouldStop{ false };
                     sl::DoubleBuffer<FrameData> m_frameBuffer;
+					unsigned int m_streamer_id{ 0 };
 
                     static const pxr::GfMatrix4d rotation_matrix;
 
@@ -198,7 +199,7 @@ namespace sl {
                             // Stream the data immediately
                             auto ts_ns = static_cast<long long>(timestamp * 1000000000);
 
-                            int stream_status = state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, streamer_id,
+                            int stream_status = state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
                                 data_ptr_left.get(),
                                 data_ptr_right.get(),
                                 ts_ns,
@@ -209,6 +210,8 @@ namespace sl {
                                 static_cast<float>(converted_lin_acc[0]),
                                 static_cast<float>(converted_lin_acc[1]),
                                 static_cast<float>(converted_lin_acc[2]));
+
+							//CARB_LOG_WARN(" [ZED] Streamed frame at time %f (status %d)", timestamp, stream_status);
 
                         }
 
@@ -246,6 +249,8 @@ public:
                         {
                             CARB_LOG_ERROR("[ZED] Error while loading ZED SDK. Make sure a compatible version is installed");
                         }
+
+						m_streamer_id = streamer_id;
                     }
 
                     ~OgnZEDSimCameraNode()
@@ -266,7 +271,7 @@ public:
 
                         // Clean up ZED streamer
                         if (m_zedStreamerInitStatus == 1) {
-                            m_zedStreamer.closeStreamer(streamer_id);
+                            m_zedStreamer.closeStreamer(m_streamer_id);
                             m_zedStreamer.destroyInstance();
 
                             m_zedStreamerInitStatus = 0;
@@ -280,7 +285,7 @@ public:
                             }
                         }
 
-                        CARB_LOG_INFO("[ZED] Stop streamer %d", streamer_id);
+                        CARB_LOG_INFO("[ZED] Stop streamer %d", m_streamer_id);
                         m_zedStreamer.unload();
                         m_valid = false;
                         streamer_id -= 1;
@@ -350,7 +355,7 @@ public:
                             state.m_zedStreamerParams.port = port;
                             state.m_zedStreamerParams.verbose = 0;
 
-                            state.m_zedStreamerInitStatus = state.m_zedStreamer.initStreamer(streamer_id, &state.m_zedStreamerParams);
+                            state.m_zedStreamerInitStatus = state.m_zedStreamer.initStreamer(state.m_streamer_id, &state.m_zedStreamerParams);
 
                             if (state.m_zedStreamerInitStatus)
                             {
