@@ -55,7 +55,8 @@
         "serialNumber": {
           "type": "string",
           "description": "Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated",
-          "default": "109999999"
+          "default": "109999999",
+          "uiName": "Serial Number"
         },
         "fps": {
           "type": "uint",
@@ -67,9 +68,9 @@
         },
         "resolution": {
           "type": "token",
-          "description": "Camera stream resolution. Can be either HD1200, HD1080 or SVGA",
+          "description": "Camera stream resolution. Can be either HD4K (ZED X One UHD only), QHDPLUS (ZED X One UHD only), HD1200, HD1080 or SVGA (ZED X One GS only)",
           "metadata": {
-            "allowedTokens": [ "HD4K", "HD1200", "SVGA" ]
+            "allowedTokens": [ "HD4K", "QHDPLUS", "HD1200", "HD1080", "SVGA"]
           },
           "default": "HD1200"
         },

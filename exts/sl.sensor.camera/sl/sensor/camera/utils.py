@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 
+import carb
 from typing import Optional, Tuple, List
 
 # Camera specifications mapping for ZED X, ZED XM and ZED X ONE GS
@@ -21,32 +22,32 @@ _ZEDX_SPECIFICATIONS = {
 
 _ZED_XONE_UHD_SPECIFICATIONS = {
     "HD4K": {
-        "resolution": [3840, 2180],
-        "focal_length": {"standard": 1483.2, "4mm": 2545}
+        "resolution": [3856, 2180],
+        "focal_length": {"standard": 1550}
+    },
+    "QHDPLUS": {
+        "resolution": [3856, 2180],
+        "focal_length": {"standard": 1550}
     },
     "HD1200": {
         "resolution": [1920, 1200],
-        "focal_length": {"standard": 741.6, "4mm": 1272.5}
+        "focal_length": {"standard": 1550}
     },
     "HD1080": {
         "resolution": [1920, 1080],
-        "focal_length": {"standard": 741.6, "4mm": 1272.5}
-    },
-    "SVGA": {
-        "resolution": [960, 600],
-        "focal_length": {"standard": 370.8, "4mm": 636.25}
+        "focal_length": {"standard": 775}
     }
 }
 
 # Camera configuration mapping
 _CAMERA_CONFIGS = {
-    "ZED_X": {"base_model": "ZED_X", "is_4mm": False, "is_stereo": True},
-    "ZED_X_4MM": {"base_model": "ZED_X", "is_4mm": True, "is_stereo": True},
-    "ZED_XM": {"base_model": "ZED_XM", "is_4mm": False, "is_stereo": True},
-    "ZED_XM_4MM": {"base_model": "ZED_XM", "is_4mm": True, "is_stereo": True},
-    "ZED_XONE_UHD": {"base_model": "ZED_XONE_UHD", "is_4mm": False, "is_stereo": False},
-    "ZED_XONE_GS": {"base_model": "ZED_XONE_GS", "is_4mm": False, "is_stereo": False},
-    "ZED_XONE_GS_4MM": {"base_model": "ZED_XONE_GS", "is_4mm": True, "is_stereo": False},
+    "ZED_X": {"base_model": "ZED_X", "is_4mm": False, "is_stereo": True, "pixel_size": 3},
+    "ZED_X_4MM": {"base_model": "ZED_X", "is_4mm": True, "is_stereo": True, "pixel_size": 3},
+    "ZED_XM": {"base_model": "ZED_XM", "is_4mm": False, "is_stereo": True, "pixel_size": 3},
+    "ZED_XM_4MM": {"base_model": "ZED_XM", "is_4mm": True, "is_stereo": True, "pixel_size": 3},
+    "ZED_XONE_UHD": {"base_model": "ZED_XONE_UHD", "is_4mm": False, "is_stereo": False, "pixel_size": 2},
+    "ZED_XONE_GS": {"base_model": "ZED_XONE_GS", "is_4mm": False, "is_stereo": False, "pixel_size": 3},
+    "ZED_XONE_GS_4MM": {"base_model": "ZED_XONE_GS", "is_4mm": True, "is_stereo": False, "pixel_size": 3},
 }
 
 def get_resolution(camera_model: str, camera_resolution: str) -> Optional[List[int]]:
@@ -63,6 +64,8 @@ def get_resolution(camera_model: str, camera_resolution: str) -> Optional[List[i
     else:
         spec = _ZEDX_SPECIFICATIONS.get(camera_resolution)
 
+    if spec is None:
+        carb.log_warn(f"Unknown resolution '{camera_resolution}' for camera model '{camera_model}'")
     return spec["resolution"] if spec else None
 
 def get_focal_length(camera_model: str, camera_resolution: List[int], is_4mm: bool) -> float:
@@ -130,3 +133,16 @@ def is_stereo_camera(camera_model: str) -> bool:
     config = _CAMERA_CONFIGS.get(camera_model)
 
     return config["is_stereo"] if config else True  # Default to stereo for unknown models
+
+def get_pixel_size(camera_model: str) -> bool:
+    """Gets the pixel size of the camera model in micrometers.
+    
+    Args:
+        camera_model: The camera model name
+        
+    Returns:
+        The pixel size in micrometers, defaults to 3 if not recognized
+    """
+    config = _CAMERA_CONFIGS.get(camera_model)
+
+    return config["pixel_size"] if config else 3  # Default to stereo for unknown models

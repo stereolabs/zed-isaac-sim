@@ -20,9 +20,10 @@ class SlCameraOneStreamer:
     @dataclass
     class State:
         initialized: bool = False
-        annotator = None
+        annotator: ZEDAnnotator = None
         port: int = None
-        pass
+        timeline_stop_sub = None
+        app_shutdown_sub = None
 
     @staticmethod
     def internal_state() -> State:
@@ -36,14 +37,8 @@ class SlCameraOneStreamer:
 
                 # Check if the port is already used
                 if port in SlCameraOneStreamer.used_ports:
-                    carb.log_error(f"Port {port} is already used by another instance.")
+                    carb.log_error(f"[ZED] Port {port} is already used by another instance.")
                     return False
-
-                state.initialized = True
-
-                # Mark the port as used
-                SlCameraOneStreamer.used_ports.add(port)
-                state.port = port
 
                 cameraPrims = []
                 if (len(db.inputs.leftCameraPrim) > 0):
@@ -53,9 +48,10 @@ class SlCameraOneStreamer:
                     cameraPrims.append(db.inputs.rightCameraPrim[0])
 
                 if len(cameraPrims) == 0:
-                    carb.log_error("At least one camera prim must be specified.")
+                    carb.log_error("[ZED] At least one camera prim must be specified.")
                     return False
 
+                state.port = port
                 state.annotator = ZEDAnnotator(
                     cameraPrims,
                     db.inputs.cameraModel,
@@ -65,15 +61,23 @@ class SlCameraOneStreamer:
                     db.inputs.ipc,
                     db.inputs.serialNumber)
 
-                def on_closed_event(event: carb.events.IEvent):
+                
+                state.initialized = True
+                # Mark the port as used
+                SlCameraOneStreamer.used_ports.add(port)
+
+                def cleanup(event: carb.events.IEvent):
                     SlCameraOneStreamer.release(db)
 
                 timeline = omni.timeline.get_timeline_interface()
-                db.per_instance_state.timeline_stop_sub = timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
-                    int(omni.timeline.TimelineEventType.STOP),
-                    on_closed_event
-                )
+                app = omni.kit.app.get_app()
 
+                state.timeline_stop_sub = timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
+                    int(omni.timeline.TimelineEventType.STOP), cleanup
+                )
+                
+                state.app_shutdown_sub = app.get_shutdown_event_stream().create_subscription_to_pop(cleanup)
+            
             except Exception as e:
                 print(traceback.format_exc())
                 pass
@@ -95,14 +99,37 @@ class SlCameraOneStreamer:
 
     @staticmethod
     def release(db):
+        """Release all resources for this node instance."""
         try:
             state = db.per_instance_state
-            if state.annotator is not None:
-                state.annotator.destroy()
+            if not state.initialized:
+                return
 
-            SlCameraOneStreamer.used_ports = set()
+            carb.log_info(f"[ZED] Releasing resources for port {state.port}")
+
+            # Destroy annotator if active
+            if state.annotator is not None:
+                try:
+                    state.annotator.destroy()
+                except Exception:
+                    carb.log_error(traceback.format_exc())
+                state.annotator = None
+
+            # Free port reservation
+            if state.port in SlCameraOneStreamer.used_ports:
+                SlCameraOneStreamer.used_ports.remove(state.port)
+                carb.log_info(f"[ZED] Freed port {state.port}")
+
+            # Remove subscriptions
+            for sub in [state.timeline_stop_sub, state.app_shutdown_sub]:
+                if sub is not None:
+                    sub.unsubscribe()
+
+            # Reset state
             state.initialized = False
+            state.port = None
+            state.timeline_stop_sub = None
+            state.app_shutdown_sub = None
 
         except Exception:
-            state = None
-            pass
+            carb.log_error(traceback.format_exc())

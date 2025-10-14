@@ -11,7 +11,7 @@ import omni.usd
 from omni.syntheticdata import SyntheticData, SyntheticDataStage
 from typing import Optional, Tuple, List
 
-from .utils import get_camera_model, is_stereo_camera, is_4mm_camera, get_resolution, get_focal_length
+from .utils import get_camera_model, is_stereo_camera, is_4mm_camera, get_resolution, get_focal_length, get_pixel_size
 
 class ZEDAnnotator:
     """
@@ -81,7 +81,7 @@ class ZEDAnnotator:
         result = False
         if is_prim_path_valid(camera_prim_path) == True:
                 cam_prim = get_prim_at_path(prim_path=camera_prim_path)
-                pixel_size = 3 * 1e-3
+                pixel_size = get_pixel_size(self.camera_model) * 1e-3 
                 f_stop = 0 # disable focusing
                 f = get_focal_length(self.camera_model, resolution, is_4mm)
 
@@ -305,8 +305,4 @@ class ZEDAnnotator:
             self.right_rgb_annot.detach(self.right_rp)
             self._right_rp.destroy()
 
-
-        self._left_rp.destroy()
-        self._right_rp.destroy()
-
-        print(f"[port {self.port}] Annotators destroyed.")
+        #print(f"[port {self.port}] Annotators destroyed.")
