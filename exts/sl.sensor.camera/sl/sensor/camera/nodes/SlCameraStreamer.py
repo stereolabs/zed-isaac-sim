@@ -55,7 +55,7 @@ class SlCameraStreamer:
                     db.inputs.ipc)
 
                 def cleanup(event: carb.events.IEvent):
-                    SlCameraOneStreamer.release(db)
+                    SlCameraStreamer.release(db)
 
                 timeline = omni.timeline.get_timeline_interface()
                 app = omni.kit.app.get_app()
