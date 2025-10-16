@@ -35,7 +35,7 @@
         },
         "rightCameraPrim": {
           "type": "target",
-          "description": "(optionnal) Used to create a virtual stereo camera from two monocular.",
+          "description": "(optional) Used to create a virtual stereo camera from two ZED X Ones.",
           "metadata": {
             "uiName": "Right Camera Prim",
             "literalOnly": "1",
