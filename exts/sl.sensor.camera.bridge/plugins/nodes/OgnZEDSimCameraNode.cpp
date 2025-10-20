@@ -70,8 +70,8 @@ namespace sl {
                     {"ZED_X_4MM", { 47890353,45263213,47800035,47706147 }},
                     {"ZED_XM",   { 57890353,55263213,57800035,57706147 }},                  
                     {"ZED_XM_4MM",   { 50179396,52835616,59695059,55043860 }},
-                    {"ZED_XONE_UHD",   { 305221009, 305952675, 307526942, 307184845 }},
-                    {"ZED_XONE_GS",   { 313021359, 318822533, 319625509, 318353328 }},
+                    {"ZED_XONE_UHD",   { 312015765, 312817871,315177501, 313382320 }},
+                    {"ZED_XONE_GS",   { 305221009, 305952675, 307526942, 307184845 }},
                     {"ZED_XONE_GS_4MM",   {300605725, 302696256, 302485375, 307845777 }}
                 };
 
@@ -153,11 +153,19 @@ namespace sl {
 
                             GfVec3d converted_lin_acc = (rotation_matrix * lin_acc_mat * inv_rotation_matrix).GetOrthonormalized().ExtractTranslation();
 
-                            //CARB_LOG_INFO("%f %f %f %f",
-                            //    converted_quat.GetImaginary()[0],
-                            //    converted_quat.GetImaginary()[1],
-                            //    converted_quat.GetImaginary()[2],
-                            //    converted_quat.GetReal());
+                            //CARB_LOG_WARN("before %f %f %f %f",
+                            //    quat.GetReal(),
+                            //    quat.GetImaginary()[0],
+                            //    quat.GetImaginary()[1],
+                            //    quat.GetImaginary()[2]
+                            //    );
+
+                            //CARB_LOG_WARN("after %f %f %f %f",
+                            //    converted_orientation.GetReal(),
+                            //    converted_orientation.GetImaginary()[0],
+                            //    converted_orientation.GetImaginary()[1],
+                            //    converted_orientation.GetImaginary()[2]
+                            //    );
 
                             // Resize buffers only if needed
                             if (allocated_size_left < data_size_left) {

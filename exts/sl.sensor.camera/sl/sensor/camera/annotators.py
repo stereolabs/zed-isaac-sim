@@ -168,8 +168,8 @@ class ZEDAnnotator:
                     self.right_rgb_annot.attach(self.right_rp)
                     self.annotators["Right"] = self.right_rgb_annot
                     cams.append(["Right", name_right])
-            else:
-                carb.log_warn(f"[{self.camera_prim_path[0].pathString}] Invalid or non existing zed camera, try to re-import your camera prim.")
+                else:
+                    carb.log_warn(f"[{self.camera_prim_path[0].pathString}] Invalid or non existing zed camera, try to re-import your camera prim.")
 
         self.init_graph()
         self.build_graph(cams)

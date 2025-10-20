@@ -55,7 +55,7 @@
         "serialNumber": {
           "type": "string",
           "description": "Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated",
-          "default": "109999999",
+          "default": "119999999",
           "uiName": "Serial Number"
         },
         "fps": {

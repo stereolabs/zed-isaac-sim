@@ -35,8 +35,8 @@ def get_calibration_file_path():
     
     return path
 
-RANDOM_SN_START_VALUE = 100_000_001
-RANDOM_SN_STOP_VALUE = 109_999_999
+RANDOM_SN_START_VALUE = 110_000_001
+RANDOM_SN_STOP_VALUE = 119_999_999
 
 def generate_virtual_sn() -> int:
     """Generate a random serial number within the defined range."""
