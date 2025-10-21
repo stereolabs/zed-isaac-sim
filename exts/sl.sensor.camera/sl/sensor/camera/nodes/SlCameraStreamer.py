@@ -23,7 +23,6 @@ class SlCameraStreamer:
         annotator: ZEDAnnotator = None
         port: int = None
         timeline_stop_sub = None
-        app_shutdown_sub = None
 
     @staticmethod
     def internal_state() -> State:
@@ -54,18 +53,13 @@ class SlCameraStreamer:
                     db.inputs.fps,
                     db.inputs.ipc)
 
-                def cleanup(event: carb.events.IEvent):
-                    SlCameraStreamer.release(db)
+                def cleanup(event, _state=state):
+                    SlCameraStreamer.release(_state)
 
                 timeline = omni.timeline.get_timeline_interface()
-                app = omni.kit.app.get_app()
-
                 state.timeline_stop_sub = timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
                     int(omni.timeline.TimelineEventType.STOP), cleanup
                 )
-                
-                state.app_shutdown_sub = app.get_shutdown_event_stream().create_subscription_to_pop(cleanup)
-  
 
             except Exception as e:
                 print(traceback.format_exc())
@@ -73,24 +67,12 @@ class SlCameraStreamer:
         return True
 
     @staticmethod
-    def release_instance(node, graph_instance_id):
-        try:
-            state = SlCameraStreamer.per_instance_internal_state(node)
-            if state.port in SlCameraStreamer.used_ports:
-                SlCameraStreamer.used_ports.remove(state.port)
-
-        except Exception:
-            state = None
-            pass
-
-        if state is not None:
-            state.reset()
-
-    @staticmethod
-    def release(db):
+    def release(state):
         """Release all resources for this node instance."""
         try:
-            state = db.per_instance_state
+            if not isinstance(state, SlCameraStreamer.State):
+                return
+
             if not state.initialized:
                 return
 
@@ -110,9 +92,8 @@ class SlCameraStreamer:
                 carb.log_info(f"[ZED] Freed port {state.port}")
 
             # Remove subscriptions
-            for sub in [state.timeline_stop_sub, state.app_shutdown_sub]:
-                if sub is not None:
-                    sub.unsubscribe()
+            if state.timeline_stop_sub is not None:
+                state.timeline_stop_sub.unsubscribe()
 
             # Reset state
             state.initialized = False
