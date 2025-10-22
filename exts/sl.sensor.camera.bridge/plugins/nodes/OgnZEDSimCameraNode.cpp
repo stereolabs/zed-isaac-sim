@@ -153,20 +153,6 @@ namespace sl {
 
                             GfVec3d converted_lin_acc = (rotation_matrix * lin_acc_mat * inv_rotation_matrix).GetOrthonormalized().ExtractTranslation();
 
-                            //CARB_LOG_WARN("before %f %f %f %f",
-                            //    quat.GetReal(),
-                            //    quat.GetImaginary()[0],
-                            //    quat.GetImaginary()[1],
-                            //    quat.GetImaginary()[2]
-                            //    );
-
-                            //CARB_LOG_WARN("after %f %f %f %f",
-                            //    converted_orientation.GetReal(),
-                            //    converted_orientation.GetImaginary()[0],
-                            //    converted_orientation.GetImaginary()[1],
-                            //    converted_orientation.GetImaginary()[2]
-                            //    );
-
                             // Resize buffers only if needed
                             if (allocated_size_left < data_size_left) {
                                 data_ptr_left = std::make_unique<unsigned char[]>(data_size_left);
@@ -212,8 +198,8 @@ namespace sl {
                                 data_ptr_right.get(),
                                 ts_ns,
                                 static_cast<float>(converted_orientation.GetReal()),
-                                static_cast<float>(converted_orientation.GetImaginary()[0]),
-                                static_cast<float>(converted_orientation.GetImaginary()[1]),
+                                -static_cast<float>(converted_orientation.GetImaginary()[0]),
+                                -static_cast<float>(converted_orientation.GetImaginary()[1]),
                                 static_cast<float>(converted_orientation.GetImaginary()[2]),
                                 static_cast<float>(converted_lin_acc[0]),
                                 static_cast<float>(converted_lin_acc[1]),
@@ -312,6 +298,8 @@ public:
                             float warmup = 1.0f;
                             if (db.inputs.simulationTime() < warmup) return true;
 
+                            state.m_zedStreamer.load_api();
+
                             state.m_stereo_camera = db.inputs.bufferSizeRight() > 0 && reinterpret_cast<void*>(db.inputs.dataPtrRight()) != nullptr;
 
 							std::string camera_model = db.inputs.cameraModel();
@@ -332,10 +320,11 @@ public:
                                 serial_number = addStreamer(camera_model);
                             }
 
-                            if (serial_number <= 0)
+                            if (serial_number <= 0 || !state.m_zedStreamer.isSNValid(serial_number))
                             {
-                                CARB_LOG_FATAL("[ZED] Invalid streamer configuration!");
                                 state.m_valid = false;
+                                CARB_LOG_FATAL("[ZED] Invalid streamer configuration %d ! For virtual ZED X, make sure the SN starts with 11XXXXXXX",
+                                    serial_number);
                                 return false;
                             }
 
@@ -350,7 +339,6 @@ public:
 #endif
 							// Use YUV format for IPC or mono cameras
                             bool use_yuv = use_ipc || !state.m_stereo_camera;
-                            state.m_zedStreamer.load_api();
                             state.m_zedStreamerParams.alpha_channel_included = true;
                             state.m_zedStreamerParams.codec_type = 1;
                             state.m_zedStreamerParams.fps = db.inputs.fps();
