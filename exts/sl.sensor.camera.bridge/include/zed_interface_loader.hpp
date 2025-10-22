@@ -273,7 +273,7 @@ namespace sl
             return get_virtual_camera_identifiers(size_out);
         }
 
-        bool isSNValid(int serial_number) {
+        bool isSNValid(int serial_number) const {
             if (!loaded || !is_sn_valid) {
                 std::cerr << "[ZED] Error with is_sn_valid function call" << std::endl;
                 return false;
