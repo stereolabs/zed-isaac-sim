@@ -287,7 +287,7 @@ class ZEDAnnotator:
         This method detaches all annotators from the render product,
         destroys OGN nodes if they were created, and destroys the render product.
         """
-        self.zed_.get_attribute("inputs:stream").set(value=False)
+        #self.zed_.get_attribute("inputs:stream").set(value=False)
         for node in self.nodes:
             try:
                 if node.is_valid():

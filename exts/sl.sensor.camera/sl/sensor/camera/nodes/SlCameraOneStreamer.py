@@ -79,6 +79,20 @@ class SlCameraOneStreamer:
         return True
 
     @staticmethod
+    def release_instance(node, graph_instance_id):
+        try:
+            state = SlCameraOneStreamer.per_instance_internal_state(node)
+            if state.port in SlCameraOneStreamer.used_ports:
+                SlCameraOneStreamer.used_ports.remove(state.port)
+
+        except Exception:
+            state = None
+            pass
+
+        if state is not None:
+            state.reset()
+
+    @staticmethod
     def release(state):
         """Release all resources for this node instance."""
         try:
@@ -111,7 +125,6 @@ class SlCameraOneStreamer:
             state.initialized = False
             state.port = None
             state.timeline_stop_sub = None
-            state.app_shutdown_sub = None
 
         except Exception:
             carb.log_error(traceback.format_exc())

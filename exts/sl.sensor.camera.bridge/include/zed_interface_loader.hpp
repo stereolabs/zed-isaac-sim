@@ -82,7 +82,8 @@ namespace sl
         typedef void (*DestroyInstanceFunc)();
         typedef int* (*GetVirtualCameraIdentifiersFunc)(int*);
         typedef int (*IngestImuFunc)(int, long long, float, float, float, float, float, float, float, float, float, float);
-    
+        typedef bool (*IsSNValidFunc)(int);
+
         GetSDKVersion get_sdk_version;
         InitStreamerFunc init_streamer;
         StreamRGBFunc stream_rgb;
@@ -91,7 +92,8 @@ namespace sl
         DestroyInstanceFunc destroy_instance;
         GetVirtualCameraIdentifiersFunc get_virtual_camera_identifiers;
         IngestImuFunc ingest_imu;
-    
+        IsSNValidFunc is_sn_valid;
+
         bool loaded;
 
     public:
@@ -104,6 +106,7 @@ namespace sl
             destroy_instance = nullptr;
             get_virtual_camera_identifiers = nullptr;
             ingest_imu = nullptr;
+            is_sn_valid = nullptr;
         }
     
         ~ZedStreamer() {
@@ -134,6 +137,7 @@ namespace sl
             destroy_instance = (DestroyInstanceFunc)GetFunc(hLibrary, "destroy_instance");
             get_virtual_camera_identifiers = (GetVirtualCameraIdentifiersFunc)GetFunc(hLibrary, "get_virtual_camera_identifiers");
             ingest_imu = (IngestImuFunc)GetFunc(hLibrary, "ingest_imu");
+            is_sn_valid = (IsSNValidFunc)GetFunc(hLibrary, "is_sn_valid");
                 
             loaded = true;
             return true;
@@ -155,6 +159,7 @@ namespace sl
             destroy_instance = nullptr;
             get_virtual_camera_identifiers = nullptr;
             ingest_imu = nullptr;
+            is_sn_valid = nullptr;
         }
     
         bool isLoaded() const {
@@ -266,6 +271,14 @@ namespace sl
                 return nullptr;
             }
             return get_virtual_camera_identifiers(size_out);
+        }
+
+        bool isSNValid(int serial_number) {
+            if (!loaded || !is_sn_valid) {
+                std::cerr << "[ZED] Error with is_sn_valid function call" << std::endl;
+                return false;
+            }
+            return is_sn_valid(serial_number);
         }
     
         int ingestIMU(int streamer_id, long long timestamp_ns, float vx, float vy, float vz, 
