@@ -75,14 +75,15 @@ namespace sl
         LibHandle hLibrary;
     
         typedef int (*GetSDKVersion)(int&, int&, int&);
-        typedef bool (*InitStreamerFunc)(int, struct StreamingParameters*);
+        typedef int (*InitStreamerFunc)(int, struct StreamingParameters*);
         typedef int (*StreamRGBFunc)(int, unsigned char*, unsigned char*, long long, float, float, float, float, float, float, float);
         typedef int (*StreamYUVFunc)(int, unsigned char*, unsigned char*, long long, float, float, float, float, float, float, float);
         typedef void (*CloseStreamerFunc)(int);
         typedef void (*DestroyInstanceFunc)();
         typedef int* (*GetVirtualCameraIdentifiersFunc)(int*);
         typedef int (*IngestImuFunc)(int, long long, float, float, float, float, float, float, float, float, float, float);
-    
+        typedef bool (*IsSNValidFunc)(int);
+
         GetSDKVersion get_sdk_version;
         InitStreamerFunc init_streamer;
         StreamRGBFunc stream_rgb;
@@ -91,7 +92,8 @@ namespace sl
         DestroyInstanceFunc destroy_instance;
         GetVirtualCameraIdentifiersFunc get_virtual_camera_identifiers;
         IngestImuFunc ingest_imu;
-    
+        IsSNValidFunc is_sn_valid;
+
         bool loaded;
 
     public:
@@ -104,6 +106,7 @@ namespace sl
             destroy_instance = nullptr;
             get_virtual_camera_identifiers = nullptr;
             ingest_imu = nullptr;
+            is_sn_valid = nullptr;
         }
     
         ~ZedStreamer() {
@@ -134,6 +137,7 @@ namespace sl
             destroy_instance = (DestroyInstanceFunc)GetFunc(hLibrary, "destroy_instance");
             get_virtual_camera_identifiers = (GetVirtualCameraIdentifiersFunc)GetFunc(hLibrary, "get_virtual_camera_identifiers");
             ingest_imu = (IngestImuFunc)GetFunc(hLibrary, "ingest_imu");
+            is_sn_valid = (IsSNValidFunc)GetFunc(hLibrary, "is_sn_valid");
                 
             loaded = true;
             return true;
@@ -155,6 +159,7 @@ namespace sl
             destroy_instance = nullptr;
             get_virtual_camera_identifiers = nullptr;
             ingest_imu = nullptr;
+            is_sn_valid = nullptr;
         }
     
         bool isLoaded() const {
@@ -206,10 +211,10 @@ namespace sl
             return false;
         }
     
-        bool initStreamer(int streamer_id, struct StreamingParameters* streaming_params) {
+        int initStreamer(int streamer_id, struct StreamingParameters* streaming_params) {
             if (!loaded || !init_streamer) {
                 std::cerr << "[ZED] Error with init_streamer function call" << std::endl;
-                return false;
+                return -1;
             }
 
             if (streaming_params->transport_layer_mode == 1)
@@ -222,8 +227,8 @@ namespace sl
     
         int stream(sl::INPUT_FORMAT input, int streamer_id, unsigned char* left, unsigned char* right,
                        long long timestamp_ns, float qw, float qx, float qy, float qz, 
-                       float lin_acc_x, float lin_acc_y, float lin_acc_z) {
-
+                       float lin_acc_x, float lin_acc_y, float lin_acc_z) 
+        {
             if (input == sl::INPUT_FORMAT::RGB || input == sl::INPUT_FORMAT::BGR)
             {
                 if (!loaded || !stream_rgb) {
@@ -266,6 +271,14 @@ namespace sl
                 return nullptr;
             }
             return get_virtual_camera_identifiers(size_out);
+        }
+
+        bool isSNValid(int serial_number) {
+            if (!loaded || !is_sn_valid) {
+                std::cerr << "[ZED] Error with is_sn_valid function call" << std::endl;
+                return false;
+            }
+            return is_sn_valid(serial_number);
         }
     
         int ingestIMU(int streamer_id, long long timestamp_ns, float vx, float vy, float vz, 

@@ -24,46 +24,48 @@
                     "uiName": "IPC"
                 }
             },
-            "cameraPrim": {
-                "type": "target",
-                "description": "ZED Camera prim used to stream data",
-                "metadata": {
-                    "uiName": "ZED Camera prim"
-                }
+          "cameraPrim": {
+            "type": "target",
+            "description": "ZED Camera prim used to stream data.",
+            "metadata": {
+              "uiName": "ZED Camera prim",
+              "literalOnly": "1",
+              "allowMultiInputs": "0"
+            }
             },
             "cameraModel": {
-                "type": "token",
-                "description": "ZED Camera model. Can be either ZED_X, ZED_X_Mini",
-                "default": "ZED_X",
-                "metadata": {
-                    "uiName": "Camera Model",
-                    "allowedTokens": ["ZED_X", "ZED_X_Mini"]
-                }
+              "type": "token",
+              "description": "ZED Camera model. Can be either ZED_X, ZED_XM",
+              "default": "ZED_X",
+              "metadata": {
+                "uiName": "Camera Model",
+                "allowedTokens": [ "ZED_X", "ZED_XM", "ZED_X_4MM", "ZED_XM_4MM"]
+              }
             },
             "fps": {
-                "type" : "uint",
-                "description": "Camera stream frame rate. Can be either 60, 30 or 15.",
-                "metadata": {
-                    "uiName": "FPS"
-                },
-                "default": 30
+              "type": "uint",
+              "description": "Camera stream frame rate. Can be either 60, 30 or 15.",
+              "metadata": {
+                "uiName": "FPS"
+              },
+              "default": 30
             },
             "resolution": {
-                "type" : "token",
-                "description": "Camera stream resolution. Can be either HD1200, HD1080 or SVGA",
-                "metadata": {
-                    "allowedTokens": ["HD1200", "HD1080", "SVGA"]
-                },
-                "default" : "HD1200"
+              "type": "token",
+              "description": "Camera stream resolution. Can be either HD1200, HD1080 or SVGA",
+              "metadata": {
+                "allowedTokens": [ "HD1200", "HD1080", "SVGA" ]
+              },
+              "default": "HD1200"
             },
             "streamingPort": {
-                "type": "uint",
-                "description": "Streaming port - unique per camera",
-                "metadata": {
-                    "uiName": "Streaming port"
-                },
-                "default" : 30000
+              "type": "uint",
+              "description": "Streaming port - unique per camera",
+              "metadata": {
+                "uiName": "Streaming port"
+              },
+              "default": 30000
             }
-        }
+          }
     }
 }

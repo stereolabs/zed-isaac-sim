@@ -36,15 +36,22 @@ The ZED camera extension streams your virtual ZED camera data to the ZED SDK.
 
 Then, In your scene,
 
-1. Add a ZED Camera
+1. Add a ZED Camera (mono or stereo)
 
 <img src="imgs/zed_x_usd.png">
+<br><br>
 
 2. Create a new Action Graph similar to this :
 
 <img src="imgs/action_graph_zed.png">
 
 <img src="imgs/zed_x_prim.png">
+<br><br>
+
+- To stream a monocular camera (ZED X One cameras), use the **ZED One Camera Helper** Node instead:
+Note : the **serial number** input is only used for Virtual stereo cameras
+<img src="imgs/zed_camera_one_helper.png">
+
 
 ### Using IPC
 
@@ -77,3 +84,26 @@ For example, in ZED Explorer:
 - On the top-left corner, the streaming mode will be displayed:
 
 <img src="imgs/stream_ipc_zed_explorer.png">
+
+
+## Create a Virtual stereo Camera
+
+It is also possible to create what we call "Virtual stereo cameras" by pairing two ZED X One cameras together.
+In order to do that, a calibration step is required.
+
+- First, open the Extension windows and enable the `ZED Calibration Exporter` extension in the Third-Party tab.
+- In the top Menu bar, Click `ZED` -> `ZED Calibration Exporter`. A new window will open.
+- Set the left and right cameras by selecting each prim in the Stage and click `Select`.
+- Select the Camera model.
+- Change the Serial Number if necessary.
+- Click on Generate. A calibration file (.conf) will be generated and saved on your machine.
+
+<br><br>
+<img src="imgs/zed_calibration_full.gif">
+<br><br>
+
+
+- Then, in your action graph, add a `ZED Camera One Helper` and set the left and right cameras.
+- You also need to set the serial number chosen during the calibration process.
+
+<img src="imgs/virtual_stereo_graph.gif">

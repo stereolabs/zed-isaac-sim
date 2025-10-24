@@ -2,6 +2,9 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [4.1.0] - 2025-10-27
+- Add support for new camera models (ZED X One GS, ZED X One UHD) and virtual ZED X cameras.
+
 ## [4.0.0] - 2025-07-22
 - Add new extension rework for Isaac Sim 5.0
 

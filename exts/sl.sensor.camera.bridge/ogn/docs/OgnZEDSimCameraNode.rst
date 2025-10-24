@@ -47,6 +47,7 @@ Inputs
     "Linear Acceleration (*inputs:linearAcceleration*)", "``vectord[3]``", "imu acceleration", "[0.0, 0.0, 0.0]"
     "Orientation (*inputs:orientation*)", "``quatd[4]``", "imu orientation", "[0.0, 0.0, 0.0, 1.0]"
     "Port (*inputs:port*)", "``uint``", "server port", "5561"
+    "Serial Number (*inputs:serialNumber*)", "``string``", "Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated", "109999999"
     "Simulation Time (*inputs:simulationTime*)", "``double``", "simulation time", "0.0"
     "Stream (*inputs:stream*)", "``bool``", "stream", "False"
     "System Time (*inputs:systemTime*)", "``double``", "system time", "0.0"
