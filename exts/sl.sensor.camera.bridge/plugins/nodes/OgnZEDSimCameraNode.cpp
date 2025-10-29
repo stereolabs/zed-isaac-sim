@@ -39,24 +39,40 @@ namespace sl {
         namespace camera {
             namespace bridge{
 
-                static int streamer_id = -1;
+                static int streamer_id = 0;
 
                 // Data struct shared to the streaming thread
                 struct FrameData {
-                    void* raw_ptr_left;
-                    void* raw_ptr_right;
-                    size_t data_size_left;
-                    size_t data_size_right;
+                    const void* raw_ptr_left{ nullptr };
+                    const void* raw_ptr_right{ nullptr };
+                    const size_t data_size_left{ 0 };
+                    const size_t data_size_right{ 0 };
                     GfQuatd quaternion;
                     GfVec3d linear_acceleration;
                     double timestamp;
                     bool valid = false;
+
+					FrameData() = default;
+
+                    FrameData(const void* left_ptr, size_t left_size,
+                        const void* right_ptr = nullptr, size_t right_size = 0)
+                        : raw_ptr_left(left_ptr)
+                        , raw_ptr_right(right_ptr)
+                        , data_size_left(left_size)
+                        , data_size_right(right_size)
+                    {
+                    }
                 };
 
                 // List of available SN per camera model
                 static std::map<std::string, std::vector<int>> available_zed_cameras = {
                     {"ZED_X",   { 40976320, 41116066, 49123828, 45626933 }},
-                    {"ZED_X_Mini",   { 57890353,55263213,57800035,57706147 }}
+                    {"ZED_X_4MM", { 47890353,45263213,47800035,47706147 }},
+                    {"ZED_XM",   { 57890353,55263213,57800035,57706147 }},                  
+                    {"ZED_XM_4MM",   { 50179396,52835616,59695059,55043860 }},
+                    {"ZED_XONE_UHD",   { 312015765, 312817871,315177501, 313382320 }},
+                    {"ZED_XONE_GS",   { 305221009, 305952675, 307526942, 307184845 }},
+                    {"ZED_XONE_GS_4MM",   {300605725, 302696256, 302485375, 307845777 }}
                 };
 
                 // List of currently opened cameras
@@ -67,31 +83,29 @@ namespace sl {
                 {
                     if (remaining_serial_numbers[camera_model].size() > 0)
                     {
-                        streamer_id += 1;
                         int serial_number = remaining_serial_numbers[camera_model][remaining_serial_numbers[camera_model].size() - 1];
                         remaining_serial_numbers[camera_model].pop_back();
                         return serial_number;
                     }
 
-                    CARB_LOG_FATAL("[ZED] Maximum number of camera reached! %d", streamer_id);
+                    CARB_LOG_FATAL("[ZED] Maximum number of %s camera reached!", camera_model.c_str());
                     return -1;
                 }
 
                 class OgnZEDSimCameraNode
                 {
-                    bool m_zed_sdk_compatible{ false };
                     sl::StreamingParameters m_zedStreamerParams;
                     sl::ZedStreamer m_zedStreamer;
                     cudaStream_t m_cudaStream;
                     bool m_cudaStreamNotCreated{ true };
-                    bool m_zedStreamerInitStatus{ false };
-
+                    int m_zedStreamerInitStatus{ -1 };
+					bool m_stereo_camera{ true };
+                    bool m_valid{ false };
                     // Threading members
                     std::thread m_streamingThread;
                     std::atomic<bool> m_shouldStop{ false };
                     sl::DoubleBuffer<FrameData> m_frameBuffer;
-
-                    int m_streamer_id = 0;
+					unsigned int m_streamer_id{ 0 };
 
                     static const pxr::GfMatrix4d rotation_matrix;
 
@@ -117,10 +131,11 @@ namespace sl {
                                 continue;
                             }
 
-                            const size_t data_size_left = current_frame->data_size_left;
-                            const size_t data_size_right = current_frame->data_size_right;
-                            void* const raw_ptr_left = current_frame->raw_ptr_left;
-                            void* const raw_ptr_right = current_frame->raw_ptr_right;
+                            const size_t data_size_left{ current_frame->data_size_left };
+                            const void* raw_ptr_left{ current_frame->raw_ptr_left };
+                            const void* raw_ptr_right{ current_frame->raw_ptr_right };
+                            const size_t data_size_right{ current_frame->data_size_right };
+
                             const double timestamp = current_frame->timestamp;
                             const auto quaternion = current_frame->quaternion;
                             const auto linear_acceleration = current_frame->linear_acceleration;
@@ -138,18 +153,12 @@ namespace sl {
 
                             GfVec3d converted_lin_acc = (rotation_matrix * lin_acc_mat * inv_rotation_matrix).GetOrthonormalized().ExtractTranslation();
 
-                            //CARB_LOG_INFO("%f %f %f %f",
-                            //    converted_quat.GetImaginary()[0],
-                            //    converted_quat.GetImaginary()[1],
-                            //    converted_quat.GetImaginary()[2],
-                            //    converted_quat.GetReal());
-
                             // Resize buffers only if needed
                             if (allocated_size_left < data_size_left) {
                                 data_ptr_left = std::make_unique<unsigned char[]>(data_size_left);
                                 allocated_size_left = data_size_left;
                             }
-                            if (allocated_size_right < data_size_right) {
+                            if (state.m_stereo_camera && allocated_size_right < data_size_right) {
                                 data_ptr_right = std::make_unique<unsigned char[]>(data_size_right);
                                 allocated_size_right = data_size_right;
                             }
@@ -159,9 +168,14 @@ namespace sl {
                                 raw_ptr_left,
                                 data_size_left, cudaMemcpyDeviceToHost, cudaStream);
 
-                            cudaError_t err_right = cudaMemcpyAsync(data_ptr_right.get(),
-                                raw_ptr_right,
-                                data_size_right, cudaMemcpyDeviceToHost, cudaStream);
+                            cudaError_t err_right = cudaSuccess;
+
+                            if (state.m_stereo_camera)
+                            {
+                                err_right = cudaMemcpyAsync(data_ptr_right.get(),
+                                    raw_ptr_right,
+                                    data_size_right, cudaMemcpyDeviceToHost, cudaStream);
+                            }
 
                             if (err_left != cudaSuccess || err_right != cudaSuccess) {
                                 //CARB_LOG_ERROR("CUDA memcpy error in streaming thread: %s",
@@ -179,17 +193,19 @@ namespace sl {
                             // Stream the data immediately
                             auto ts_ns = static_cast<long long>(timestamp * 1000000000);
 
-                            state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
+                            int stream_status = state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
                                 data_ptr_left.get(),
                                 data_ptr_right.get(),
                                 ts_ns,
                                 static_cast<float>(converted_orientation.GetReal()),
-                                static_cast<float>(converted_orientation.GetImaginary()[0]),
-                                static_cast<float>(converted_orientation.GetImaginary()[1]),
+                                -static_cast<float>(converted_orientation.GetImaginary()[0]),
+                                -static_cast<float>(converted_orientation.GetImaginary()[1]),
                                 static_cast<float>(converted_orientation.GetImaginary()[2]),
                                 static_cast<float>(converted_lin_acc[0]),
                                 static_cast<float>(converted_lin_acc[1]),
                                 static_cast<float>(converted_lin_acc[2]));
+
+							//CARB_LOG_WARN(" [ZED] Streamed frame at time %f (status %d)", timestamp, stream_status);
 
                         }
 
@@ -220,13 +236,15 @@ public:
 
                         if (m_zedStreamer.load_lib(lib_name) && m_zedStreamer.isZEDSDKCompatible())
                         {
-                            m_zed_sdk_compatible = true;
+                            m_valid = true;
                             CARB_LOG_INFO("[ZED] Successfully found and loaded ZED SDK");
                         }
                         else
                         {
                             CARB_LOG_ERROR("[ZED] Error while loading ZED SDK. Make sure a compatible version is installed");
                         }
+
+						m_streamer_id = streamer_id;
                     }
 
                     ~OgnZEDSimCameraNode()
@@ -237,7 +255,7 @@ public:
                     void stop()
                     {
                         remaining_serial_numbers = available_zed_cameras;
-                        streamer_id -= 1;
+
                         // Stop the streaming thread
                         m_shouldStop.store(true, std::memory_order_release);
 
@@ -246,11 +264,11 @@ public:
                         }
 
                         // Clean up ZED streamer
-                        if (m_zedStreamerInitStatus) {
-                            m_zedStreamer.closeStreamer(0);
+                        if (m_zedStreamerInitStatus == 1) {
+                            m_zedStreamer.closeStreamer(m_streamer_id);
                             m_zedStreamer.destroyInstance();
 
-                            m_zedStreamerInitStatus = false;
+                            m_zedStreamerInitStatus = 0;
                         }
 
                         // Clean up CUDA stream if it was created
@@ -260,29 +278,54 @@ public:
                                 CARB_LOG_ERROR("[ZED] Error destroying CUDA stream in destructor: %s", cudaGetErrorString(err));
                             }
                         }
+
+                        CARB_LOG_INFO("[ZED] Stop streamer %d", m_streamer_id);
                         m_zedStreamer.unload();
-                        m_zed_sdk_compatible = false;
+                        m_valid = false;
+                        streamer_id -= 1;
                     }
+
 
                     // called every time a new frame is rendered
                     static bool compute(OgnZEDSimCameraNodeDatabase& db)
                     {
                         auto& state = db.perInstanceState<OgnZEDSimCameraNode>();
+                        if (!state.m_valid || !db.inputs.stream()) return false;
 
                         // Done once, init the streamer and start a stream
-                        if (!db.inputs.stream() || !state.m_zed_sdk_compatible) return true;
-
-                        if (!state.m_zedStreamerInitStatus)
+                        if (state.m_zedStreamerInitStatus != 1)
                         {
                             float warmup = 1.0f;
                             if (db.inputs.simulationTime() < warmup) return true;
 
-                            unsigned short port = db.inputs.port();
-                            int serial_number = addStreamer(db.inputs.cameraModel());
+                            state.m_zedStreamer.load_api();
 
-                            if (serial_number <= 0)
+                            state.m_stereo_camera = db.inputs.bufferSizeRight() > 0 && reinterpret_cast<void*>(db.inputs.dataPtrRight()) != nullptr;
+
+							std::string camera_model = db.inputs.cameraModel();
+                            if (!state.m_stereo_camera)
                             {
-                                CARB_LOG_FATAL("[ZED] Invalid streamer configuration !");
+                                CARB_LOG_INFO("[ZED] Opening mono camera %s", camera_model.c_str());
+                            }
+
+                            unsigned short port = db.inputs.port();
+
+                            int serial_number = -1;
+                            if (camera_model == "VIRTUAL_ZED_X")
+                            {
+                                serial_number = std::stoi(db.inputs.serialNumber());
+                            }
+                            else
+                            {
+                                serial_number = addStreamer(camera_model);
+                            }
+
+                            if (serial_number <= 0 || !state.m_zedStreamer.isSNValid(serial_number))
+                            {
+                                state.m_valid = false;
+                                CARB_LOG_FATAL("[ZED] Invalid streamer configuration %d ! For virtual ZED X, make sure the SN starts with 11XXXXXXX",
+                                    serial_number);
+                                return false;
                             }
 
                             CARB_LOG_INFO("[ZED] Opening camera %d : %d", serial_number, port);
@@ -294,8 +337,8 @@ public:
 
                             CARB_LOG_WARN("[ZED] IPC mode is not available on Windows. Switching back to network streaming...");
 #endif
-
-                            state.m_zedStreamer.load_api();
+							// Use YUV format for IPC or mono cameras
+                            bool use_yuv = use_ipc || !state.m_stereo_camera;
                             state.m_zedStreamerParams.alpha_channel_included = true;
                             state.m_zedStreamerParams.codec_type = 1;
                             state.m_zedStreamerParams.fps = db.inputs.fps();
@@ -303,16 +346,16 @@ public:
                             state.m_zedStreamerParams.image_width = db.inputs.width();
                             state.m_zedStreamerParams.mode = 1;
                             state.m_zedStreamerParams.transport_layer_mode = use_ipc;
-                            state.m_zedStreamerParams.input_format = use_ipc == 1 ? sl::INPUT_FORMAT::YUV : sl::INPUT_FORMAT::BGR;
+                            state.m_zedStreamerParams.input_format = use_yuv ? sl::INPUT_FORMAT::YUV : sl::INPUT_FORMAT::BGR;
                             state.m_zedStreamerParams.serial_number = serial_number;
                             state.m_zedStreamerParams.port = port;
                             state.m_zedStreamerParams.verbose = 0;
 
-                            state.m_streamer_id = streamer_id;
                             state.m_zedStreamerInitStatus = state.m_zedStreamer.initStreamer(state.m_streamer_id, &state.m_zedStreamerParams);
 
                             if (state.m_zedStreamerInitStatus)
                             {
+                                streamer_id++;
                                 CARB_LOG_INFO("[ZED] Start Streaming at port %d", state.m_zedStreamerParams.port);
 
                                 // Create CUDA stream
@@ -324,35 +367,36 @@ public:
                             }
                             else {
                                 CARB_LOG_ERROR("Error during zed streamer initialization %d", state.m_zedStreamerInitStatus);
+                                return false;
                             }
                         }
                         else
                         {
                             // Get frame data pointers and sizes
-                            size_t data_size_left = db.inputs.bufferSizeLeft();
-                            void* raw_ptr_left = reinterpret_cast<void*>(db.inputs.dataPtrLeft());
+                            const size_t data_size_left{ db.inputs.bufferSizeLeft() };
+                            const void* raw_ptr_left{ reinterpret_cast<void*>(db.inputs.dataPtrLeft()) };
+                            const size_t data_size_right{ db.inputs.bufferSizeRight() };
+                            const void* raw_ptr_right{ reinterpret_cast<void*>(db.inputs.dataPtrRight()) };
 
-                            size_t data_size_right = db.inputs.bufferSizeRight();
-                            void* raw_ptr_right = reinterpret_cast<void*>(db.inputs.dataPtrRight());
-
-                            if (!raw_ptr_left || !raw_ptr_right)
+                            if (!raw_ptr_left)
                             {
-                                //CARB_LOG_ERROR("Left and Right images are not valid");
+                                CARB_LOG_ERROR("[ZED] Left image is not valid");
                                 return false;
                             }
 
-                            if (data_size_left != data_size_right || data_size_left == 0)
+                            if (state.m_stereo_camera && data_size_left != data_size_right)
                             {
                                 CARB_LOG_ERROR("[ZED] Left and Right images have different sizes");
                                 return false;
                             }
 
                             // Prepare new frame data (just pointers and metadata)
-                            auto new_frame = std::make_shared<FrameData>();
-                            new_frame->raw_ptr_left = raw_ptr_left;
-                            new_frame->raw_ptr_right = raw_ptr_right;
-                            new_frame->data_size_left = data_size_left;
-                            new_frame->data_size_right = data_size_right;
+                            auto new_frame = std::make_shared<FrameData>(
+                                raw_ptr_left, data_size_left,
+                                state.m_stereo_camera ? raw_ptr_right : nullptr,
+                                state.m_stereo_camera ? data_size_right : 0
+                            );
+
                             new_frame->timestamp = db.inputs.simulationTime();
                             new_frame->valid = true;
                             new_frame->quaternion = db.inputs.orientation();

@@ -20,9 +20,9 @@ class SlCameraStreamer:
     @dataclass
     class State:
         initialized: bool = False
-        annotator = None
+        annotator: ZEDAnnotator = None
         port: int = None
-        pass
+        timeline_stop_sub = None
 
     @staticmethod
     def internal_state() -> State:
@@ -36,7 +36,7 @@ class SlCameraStreamer:
 
                 # Check if the port is already used
                 if port in SlCameraStreamer.used_ports:
-                    carb.log_error(f"Port {port} is already used by another instance.")
+                    carb.log_error(f"[ZED] Port {port} is already used by another instance.")
                     return False
 
                 state.initialized = True
@@ -53,13 +53,12 @@ class SlCameraStreamer:
                     db.inputs.fps,
                     db.inputs.ipc)
 
-                def on_closed_event(event: carb.events.IEvent):
-                    SlCameraStreamer.release(db)
+                def cleanup(event, _state=state):
+                    SlCameraStreamer.release(_state)
 
                 timeline = omni.timeline.get_timeline_interface()
-                db.per_instance_state.timeline_stop_sub = timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
-                    int(omni.timeline.TimelineEventType.STOP),
-                    on_closed_event
+                state.timeline_stop_sub = timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
+                    int(omni.timeline.TimelineEventType.STOP), cleanup
                 )
 
             except Exception as e:
@@ -82,15 +81,38 @@ class SlCameraStreamer:
             state.reset()
 
     @staticmethod
-    def release(db):
+    def release(state):
+        """Release all resources for this node instance."""
         try:
-            state = db.per_instance_state
-            if state.annotator is not None:
-                state.annotator.destroy()
+            if not isinstance(state, SlCameraStreamer.State):
+                return
 
-            SlCameraStreamer.used_ports = set()
+            if not state.initialized:
+                return
+
+            carb.log_info(f"[ZED] Releasing resources for port {state.port}")
+
+            # Destroy annotator if active
+            if state.annotator is not None:
+                try:
+                    state.annotator.destroy()
+                except Exception:
+                    carb.log_error(traceback.format_exc())
+                state.annotator = None
+
+            # Free port reservation
+            if state.port in SlCameraStreamer.used_ports:
+                SlCameraStreamer.used_ports.remove(state.port)
+                carb.log_info(f"[ZED] Freed port {state.port}")
+
+            # Remove subscriptions
+            if state.timeline_stop_sub is not None:
+                state.timeline_stop_sub.unsubscribe()
+
+            # Reset state
             state.initialized = False
+            state.port = None
+            state.timeline_stop_sub = None
 
         except Exception:
-            state = None
-            pass
+            carb.log_error(traceback.format_exc())
