@@ -78,7 +78,7 @@ namespace sl
          * @brief Defines whether the streamer should print status information
          *
          */
-        bool verbose = false;
+        bool verbose = true;
         /**
          * @brief Defines the transport layer mode
          * 0 = RTP only, 1 = IPC only, 2 = both
