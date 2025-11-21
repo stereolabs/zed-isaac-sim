@@ -116,26 +116,110 @@ namespace sl {
                     int m_zedStreamerInitStatus{ -1 };
 					bool m_stereo_camera{ true };
                     bool m_valid{ false };
+                    double previous_timestamp{ 0.0f };
+
                     // Threading members
                     std::thread m_streamingThread;
                     std::atomic<bool> m_shouldStop{ false };
                     sl::DoubleBuffer<FrameData> m_frameBuffer;
 					unsigned int m_streamer_id{ 0 };
 
-                    static const pxr::GfMatrix4d rotation_matrix;
+                    size_t allocated_size_left{0};
+                    size_t allocated_size_right{0};
+                    std::unique_ptr<unsigned char[]> data_ptr_left{nullptr};
+                    std::unique_ptr<unsigned char[]> data_ptr_right{nullptr};
 
+                    static const pxr::GfMatrix4d rotation_matrix;
                     static const pxr::GfMatrix4d inv_rotation_matrix;
 
+                    static void streamFrame(OgnZEDSimCameraNode& state, const std::shared_ptr<FrameData>& current_frame)
+                    {
+                        if (!current_frame || !current_frame->valid)
+                            return;
+
+                        // Avoid streaming the same frame multiple times
+                        if (current_frame->timestamp <= state.previous_timestamp)
+                            return;
+
+                        state.previous_timestamp = current_frame->timestamp;
+
+                        const size_t data_size_left{ current_frame->data_size_left };
+
+                        const void* raw_ptr_left{ current_frame->raw_ptr_left };
+                        const void* raw_ptr_right{ current_frame->raw_ptr_right };
+                        const size_t data_size_right{ current_frame->data_size_right };
+
+                        const double timestamp = current_frame->timestamp;
+                        const auto quaternion = current_frame->quaternion;
+                        const auto linear_acceleration = current_frame->linear_acceleration;
+                        const auto cudaStream = state.m_cudaStream;
+
+                        GfQuatd quat = quaternion.GetNormalized();
+
+                        pxr::GfMatrix4d orientation_mat;
+                        orientation_mat.SetRotate(quat);
+
+                        pxr::GfMatrix4d lin_acc_mat;
+                        lin_acc_mat.SetTranslate(linear_acceleration);
+
+                        GfQuatd converted_orientation = (rotation_matrix * orientation_mat * inv_rotation_matrix).GetOrthonormalized().ExtractRotationQuat();
+
+                        GfVec3d converted_lin_acc = (rotation_matrix * lin_acc_mat * inv_rotation_matrix).GetOrthonormalized().ExtractTranslation();
+
+                        // Resize buffers only if needed
+                        if (state.data_ptr_left == nullptr || state.allocated_size_left < data_size_left) {
+                            state.data_ptr_left = std::make_unique<unsigned char[]>(data_size_left);
+                            state.allocated_size_left = data_size_left;
+                        }
+                        if (state.m_stereo_camera && (state.data_ptr_right == nullptr || state.allocated_size_right < data_size_right)) {
+                            state.data_ptr_right = std::make_unique<unsigned char[]>(data_size_right);
+                            state.allocated_size_right = data_size_right;
+                        }
+
+                        // Copy data from GPU to CPU
+                        cudaError_t err_left = cudaMemcpyAsync(state.data_ptr_left.get(),
+                            raw_ptr_left,
+                            data_size_left, cudaMemcpyDeviceToHost, cudaStream);
+
+                        cudaError_t err_right = cudaSuccess;
+
+                        if (state.m_stereo_camera)
+                        {
+                            err_right = cudaMemcpyAsync(state.data_ptr_right.get(),
+                                raw_ptr_right,
+                                data_size_right, cudaMemcpyDeviceToHost, cudaStream);
+                        }
+
+                        if (err_left != cudaSuccess || err_right != cudaSuccess) {
+                            CARB_LOG_ERROR("CUDA memcpy error in streaming thread: %s",
+                               cudaGetErrorString(err_left != cudaSuccess ? err_left : err_right));
+                            return;
+                        }
+
+                        // Wait for GPU operations to complete
+                        cudaError_t sync_err = cudaStreamSynchronize(cudaStream);
+                        if (sync_err != cudaSuccess) {
+                            CARB_LOG_ERROR("[ZED] CUDA stream synchronization error: %s", cudaGetErrorString(sync_err));
+                            return;
+                        }
+
+                        // Stream the data immediately
+                        unsigned long long ts_ns = static_cast<unsigned long long>(timestamp * 1000000000);
+
+                        int stream_status = state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
+                            state.data_ptr_left.get(),
+                            state.data_ptr_right.get(),
+                            ts_ns,
+                            static_cast<float>(converted_orientation.GetReal()),
+                            -static_cast<float>(converted_orientation.GetImaginary()[0]),
+                            -static_cast<float>(converted_orientation.GetImaginary()[1]),
+                            static_cast<float>(converted_orientation.GetImaginary()[2]),
+                            static_cast<float>(converted_lin_acc[0]),
+                            static_cast<float>(converted_lin_acc[1]),
+                            static_cast<float>(converted_lin_acc[2]));
+                    }
+
                     static void streamingThreadFunc(OgnZEDSimCameraNode& state) {
-                        CARB_LOG_WARN("Starting streaming thread - will stream on new data arrival");
-
-                        std::unique_ptr<unsigned char[]> data_ptr_left;
-                        std::unique_ptr<unsigned char[]> data_ptr_right;
-                        size_t allocated_size_left = 0;
-                        size_t allocated_size_right = 0;
-
-                        FrameData current_frame;
-
                         int frame_index = -1;
 
                         while (!state.m_shouldStop.load())
@@ -145,98 +229,15 @@ namespace sl {
                             {
                                 continue;
                             }
-                            CARB_LOG_WARN("New frame received %d", frame_index);
 
-                            const size_t data_size_left{ current_frame->data_size_left };
-                            const void* raw_ptr_left{ current_frame->raw_ptr_left };
-                            const void* raw_ptr_right{ current_frame->raw_ptr_right };
-                            const size_t data_size_right{ current_frame->data_size_right };
-
-                            const double timestamp = current_frame->timestamp;
-                            const auto quaternion = current_frame->quaternion;
-                            const auto linear_acceleration = current_frame->linear_acceleration;
-                            const auto cudaStream = state.m_cudaStream;
-
-                            GfQuatd quat = quaternion.GetNormalized();
-
-                            pxr::GfMatrix4d orientation_mat;
-                            orientation_mat.SetRotate(quat);
-
-                            pxr::GfMatrix4d lin_acc_mat;
-                            lin_acc_mat.SetTranslate(linear_acceleration);
-
-                            GfQuatd converted_orientation = (rotation_matrix * orientation_mat * inv_rotation_matrix).GetOrthonormalized().ExtractRotationQuat();
-
-                            GfVec3d converted_lin_acc = (rotation_matrix * lin_acc_mat * inv_rotation_matrix).GetOrthonormalized().ExtractTranslation();
-
-                            // Resize buffers only if needed
-                            if (allocated_size_left < data_size_left) {
-                                data_ptr_left = std::make_unique<unsigned char[]>(data_size_left);
-                                allocated_size_left = data_size_left;
-                            }
-                            if (state.m_stereo_camera && allocated_size_right < data_size_right) {
-                                data_ptr_right = std::make_unique<unsigned char[]>(data_size_right);
-                                allocated_size_right = data_size_right;
-                            }
-                            CARB_LOG_WARN("Allocated buffers");
-
-                            // Copy data from GPU to CPU
-                            cudaError_t err_left = cudaMemcpyAsync(data_ptr_left.get(),
-                                raw_ptr_left,
-                                data_size_left, cudaMemcpyDeviceToHost, cudaStream);
-
-                            cudaError_t err_right = cudaSuccess;
-
-                            if (state.m_stereo_camera)
-                            {
-                                err_right = cudaMemcpyAsync(data_ptr_right.get(),
-                                    raw_ptr_right,
-                                    data_size_right, cudaMemcpyDeviceToHost, cudaStream);
-                            }
-
-                            CARB_LOG_WARN("Copied data to CPU");
-
-                            if (err_left != cudaSuccess || err_right != cudaSuccess) {
-                                //CARB_LOG_ERROR("CUDA memcpy error in streaming thread: %s",
-                                //    cudaGetErrorString(err_left != cudaSuccess ? err_left : err_right));
-                                continue;
-                            }
-
-                            // Wait for GPU operations to complete
-                            cudaError_t sync_err = cudaStreamSynchronize(cudaStream);
-                            if (sync_err != cudaSuccess) {
-                                CARB_LOG_ERROR("[ZED] CUDA stream synchronization error: %s", cudaGetErrorString(sync_err));
-                                continue;
-                            }
-                            CARB_LOG_WARN("CUDA stream synchronized");
-
-                            // Stream the data immediately
-                            unsigned long long ts_ns = static_cast<unsigned long long>(timestamp * 1000000000);
-
-                            int stream_status = state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
-                                data_ptr_left.get(),
-                                data_ptr_right.get(),
-                                ts_ns,
-                                static_cast<float>(converted_orientation.GetReal()),
-                                -static_cast<float>(converted_orientation.GetImaginary()[0]),
-                                -static_cast<float>(converted_orientation.GetImaginary()[1]),
-                                static_cast<float>(converted_orientation.GetImaginary()[2]),
-                                static_cast<float>(converted_lin_acc[0]),
-                                static_cast<float>(converted_lin_acc[1]),
-                                static_cast<float>(converted_lin_acc[2]));
-
-							CARB_LOG_WARN(" [ZED][%d] Streamed frame at time %llu (status %d)", state.m_zedStreamerParams.port, ts_ns, stream_status);
-
+                            streamFrame(state, current_frame);
                         }
-
-                        CARB_LOG_INFO("[ZED] Streaming thread stopped");
                     }
 
 public:
 
                     OgnZEDSimCameraNode()
                     {
-                        CARB_LOG_WARN("Create node");
                         m_zedStreamerInitStatus = 0;
                         m_cudaStreamNotCreated = true;
                         m_shouldStop = false;
@@ -263,8 +264,6 @@ public:
                         {
                             CARB_LOG_ERROR("[ZED] Error while loading ZED SDK. Make sure a compatible version is installed");
                         }
-
-                        CARB_LOG_WARN("end create node %d", m_streamer_id);
                     }
 
                     ~OgnZEDSimCameraNode()
@@ -309,7 +308,6 @@ public:
                     // called every time a new frame is rendered
                     static bool compute(OgnZEDSimCameraNodeDatabase& db)
                     {
-                        CARB_LOG_WARN("[ZED] Start compute port %d", db.inputs.port());
                         auto& state = db.perInstanceState<OgnZEDSimCameraNode>();
                         if (!state.m_valid || !db.inputs.stream()) {
                             CARB_LOG_WARN("INVALID STATE OR STREAMING DISABLED");
@@ -319,7 +317,6 @@ public:
                         // Done once, init the streamer and start a stream
                         if (state.m_zedStreamerInitStatus != 1)
                         {
-                            CARB_LOG_WARN("INIT CAMERA");
                             float warmup = 1.0f;
                             if (db.inputs.simulationTime() < warmup) return true;
 
@@ -331,6 +328,8 @@ public:
                             if (!state.m_stereo_camera)
                             {
                                 CARB_LOG_WARN("[ZED] Opening mono camera %s", camera_model.c_str());
+                            } else {
+                                CARB_LOG_WARN("[ZED] Opening stereo camera %s", camera_model.c_str());
                             }
 
                             unsigned short port = db.inputs.port();
@@ -357,8 +356,6 @@ public:
                                 return false;
                             }
 
-                            CARB_LOG_WARN("[ZED] Opening camera %d : %d", serial_number, port);
-
                             bool use_ipc = db.inputs.ipc();
 
 #ifdef _WIN32
@@ -380,11 +377,8 @@ public:
                             state.m_zedStreamerParams.port = port;
                             state.m_zedStreamerParams.verbose = 0;
                             state.m_streamer_id = streamer_id++;
-                            CARB_LOG_WARN("[ZED] Initializing ZED Streamer with SN %d on port %d (IPC=%d, YUV=%d)", serial_number, port, use_ipc ? 1 : 0, use_yuv ? 1 : 0);
-
                             state.m_zedStreamerInitStatus = state.m_zedStreamer.initStreamer(state.m_streamer_id, &state.m_zedStreamerParams);
 
-                            CARB_LOG_WARN("Stream status %d", state.m_zedStreamerInitStatus);
                             if (state.m_zedStreamerInitStatus > 0)
                             {
                                 CARB_LOG_WARN("[ZED] ZED Streamer initialized successfully with ID %d", state.m_streamer_id);
@@ -397,18 +391,16 @@ public:
                                 CARB_LOG_WARN("[ZED] CUDA stream created");
 
                                 // Start streaming thread
-                                state.m_streamingThread = std::thread(&OgnZEDSimCameraNode::streamingThreadFunc, std::ref(state));
+                                // state.m_streamingThread = std::thread(&OgnZEDSimCameraNode::streamingThreadFunc, std::ref(state));
                             }
                             else {
                                 CARB_LOG_ERROR("Error during zed streamer initialization %d", state.m_zedStreamerInitStatus);
                                 removeStreamer(camera_model, serial_number);
                                 return false;
                             }
-                            CARB_LOG_WARN("[ZED] Camera initialized");
                         }
                         else
                         {
-                            CARB_LOG_WARN("[ZED] Get frame pointers");
                             // Get frame data pointers and sizes
                             const size_t data_size_left{ db.inputs.bufferSizeLeft() };
                             const void* raw_ptr_left{ reinterpret_cast<void*>(db.inputs.dataPtrLeft()) };
@@ -440,9 +432,7 @@ public:
                             new_frame->linear_acceleration = db.inputs.linearAcceleration();
 
                             // Write frame to the double buffer
-                            state.m_frameBuffer.write(std::move(new_frame));
-
-                            CARB_LOG_WARN("[ZED] Finish frame pointers");
+                            streamFrame(state, new_frame);
                         }
                         return true;
                     }
