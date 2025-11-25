@@ -105,8 +105,6 @@ class ZEDAnnotator:
         return camera_frame_rate
 
     def build_annotators(self) -> None:
-        print("Start build annotators")
-
         # Set device based on mode (CUDA for OGN nodes)
         device = "cuda"
         cams = []
@@ -173,16 +171,12 @@ class ZEDAnnotator:
                     carb.log_warn(f"[{self.camera_prim_path[0].pathString}] Invalid or non existing zed camera, try to re-import your camera prim.")
 
 
-        print("Start init graph")
         self.init_graph()
-        print("End init graph")
-        print("Start build graph")
         self.build_graph(cams)
-        print("End build annotators")
 
     def init_graph(self) -> None:
 
-        # we are extanding the already existing synthetic data data graph
+        # we are extending the already existing synthetic data data graph
         self._graph_path = SyntheticData._get_graph_path(SyntheticDataStage.ON_DEMAND)
         self.graph = None
         if omni.usd.get_context().get_stage().GetPrimAtPath(self._graph_path):
@@ -294,6 +288,16 @@ class ZEDAnnotator:
         destroys OGN nodes if they were created, and destroys the render product.
         """
 
+        for node in self.nodes:
+            print("Destroying node:", node)
+            try:
+                if node.is_valid():
+                    _p = node.get_prim_path()
+                    self.graph.destroy_node(_p, True)
+            except:
+                carb.log_warn("Node {} not found".format(node))
+        self.nodes = []
+
         if hasattr(self, "left_rgb_annot"):
             self.left_rgb_annot.detach(self.left_rp)
             self._left_rp.destroy()
@@ -302,13 +306,5 @@ class ZEDAnnotator:
             self.right_rgb_annot.detach(self.right_rp)
             self._right_rp.destroy()
 
-        for node in self.nodes:
-            try:
-                if node.is_valid():
-                    _p = node.get_prim_path()
-                    self.graph.destroy_node(_p, True)
-            except:
-                carb.log_warn("Node {} not found".format(node))
-        self.nodes = []
 
         carb.log_info(f"[ZED][port {self.port}] Annotators destroyed.")

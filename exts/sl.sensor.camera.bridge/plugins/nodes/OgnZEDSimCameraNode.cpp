@@ -298,7 +298,6 @@ public:
                             }
                         }
 
-                        CARB_LOG_INFO("[ZED] Stop streamer %d", m_streamer_id);
                         m_zedStreamer.unload();
                         m_valid = false;
                         streamer_id -= 1;
@@ -327,9 +326,9 @@ public:
 							std::string camera_model = db.inputs.cameraModel();
                             if (!state.m_stereo_camera)
                             {
-                                CARB_LOG_WARN("[ZED] Opening mono camera %s", camera_model.c_str());
+                                CARB_LOG_INFO("[ZED] Opening mono camera %s", camera_model.c_str());
                             } else {
-                                CARB_LOG_WARN("[ZED] Opening stereo camera %s", camera_model.c_str());
+                                CARB_LOG_INFO("[ZED] Opening stereo camera %s", camera_model.c_str());
                             }
 
                             unsigned short port = db.inputs.port();
@@ -381,14 +380,11 @@ public:
 
                             if (state.m_zedStreamerInitStatus > 0)
                             {
-                                CARB_LOG_WARN("[ZED] ZED Streamer initialized successfully with ID %d", state.m_streamer_id);
-                                CARB_LOG_WARN("[ZED] Start Streaming at port %d", state.m_zedStreamerParams.port);
+                                CARB_LOG_INFO("[ZED] ZED Streamer initialized successfully with ID %d", state.m_streamer_id);
 
                                 // Create CUDA stream
                                 CUDA_CHECK(cudaStreamCreate(&state.m_cudaStream));
                                 state.m_cudaStreamNotCreated = false;
-
-                                CARB_LOG_WARN("[ZED] CUDA stream created");
 
                                 // Start streaming thread
                                 // state.m_streamingThread = std::thread(&OgnZEDSimCameraNode::streamingThreadFunc, std::ref(state));
