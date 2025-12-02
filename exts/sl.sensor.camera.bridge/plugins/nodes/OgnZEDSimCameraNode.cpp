@@ -348,8 +348,17 @@ public:
                                 return false;
                             } else if (!state.m_zedStreamer.isSNValid(serial_number)) {
                                 state.m_valid = false;
-                                CARB_LOG_FATAL("[ZED] Invalid streamer configuration %d ! For virtual ZED X, make sure the SN starts with 11XXXXXXX",
-                                    serial_number);
+
+                                if (camera_model == "VIRTUAL_ZED_X")
+                                {
+                                    CARB_LOG_FATAL("[ZED] Invalid streamer configuration %d ! Make sure the SN starts with 11XXXXXXX",
+                                        serial_number);
+                                }
+                                else
+                                {
+                                    CARB_LOG_FATAL("[ZED] Invalid streamer configuration %d !",
+                                        serial_number);
+                                }
 
                                 removeStreamer(camera_model, serial_number);
                                 return false;
