@@ -81,7 +81,7 @@ class ZEDAnnotator:
         result = False
         if is_prim_path_valid(camera_prim_path) == True:
                 cam_prim = get_prim_at_path(prim_path=camera_prim_path)
-                pixel_size = get_pixel_size(self.camera_model) * 1e-3 
+                pixel_size = get_pixel_size(self.camera_model) * 1e-3
                 f_stop = 0 # disable focusing
                 f = get_focal_length(self.camera_model, resolution, is_4mm)
 
@@ -105,10 +105,9 @@ class ZEDAnnotator:
         return camera_frame_rate
 
     def build_annotators(self) -> None:
-
         # Set device based on mode (CUDA for OGN nodes)
         device = "cuda"
-        cams = []     
+        cams = []
         self.annotators = {}
 
         is_4mm = is_4mm_camera(self.camera_model)
@@ -141,7 +140,7 @@ class ZEDAnnotator:
             if self.is_stereo is True:
                 left_path = "/base_link/" + base_camera_model + "/CameraLeft"
             else:
-                left_path = "/base_link/" + base_camera_model + "/Camera"          
+                left_path = "/base_link/" + base_camera_model + "/Camera"
 
             left_full_path = self.camera_prim_path[0].pathString + left_path
             # Init left camra (or mono camera)
@@ -171,12 +170,13 @@ class ZEDAnnotator:
                 else:
                     carb.log_warn(f"[{self.camera_prim_path[0].pathString}] Invalid or non existing zed camera, try to re-import your camera prim.")
 
+
         self.init_graph()
         self.build_graph(cams)
 
     def init_graph(self) -> None:
 
-        # we are extanding the already existing synthetic data data graph
+        # we are extending the already existing synthetic data data graph
         self._graph_path = SyntheticData._get_graph_path(SyntheticDataStage.ON_DEMAND)
         self.graph = None
         if omni.usd.get_context().get_stage().GetPrimAtPath(self._graph_path):
@@ -287,8 +287,9 @@ class ZEDAnnotator:
         This method detaches all annotators from the render product,
         destroys OGN nodes if they were created, and destroys the render product.
         """
-        #self.zed_.get_attribute("inputs:stream").set(value=False)
+
         for node in self.nodes:
+            print("Destroying node:", node)
             try:
                 if node.is_valid():
                     _p = node.get_prim_path()
@@ -305,4 +306,5 @@ class ZEDAnnotator:
             self.right_rgb_annot.detach(self.right_rp)
             self._right_rp.destroy()
 
-        #print(f"[port {self.port}] Annotators destroyed.")
+
+        carb.log_info(f"[ZED][port {self.port}] Annotators destroyed.")
