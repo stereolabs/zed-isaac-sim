@@ -16,12 +16,13 @@
             "uiName": "ExecIn"
           }
         },
-        "ipc": {
-          "type": "bool",
-          "description": "Stream data using IPC (Only available on Linux). This improve streaming performances when streaming to the same machine",
-          "default": true,
+        "transportLayerMode": {
+          "type": "token",
+          "description": "Communication protocol used to send data to the ZED SDK. IPC (Only available on Linux)improves streaming performances when streaming to the same machine",
+          "default": "BOTH",
           "metadata": {
-            "uiName": "IPC"
+            "uiName": "Transport layer mode",
+            "allowedTokens": [ "BOTH", "NETWORK", "IPC" ]
           }
         },
         "leftCameraPrim": {
@@ -70,7 +71,7 @@
           "type": "token",
           "description": "Camera stream resolution. Can be either HD4K (ZED X One UHD only), QHDPLUS (ZED X One UHD only), HD1200, HD1080 or SVGA (ZED X One GS only)",
           "metadata": {
-            "allowedTokens": [ "HD4K", "QHDPLUS", "HD1200", "HD1080", "SVGA"]
+            "allowedTokens": [ "HD4K", "QHDPLUS", "HD1200", "HD1080", "SVGA" ]
           },
           "default": "HD1200"
         },
