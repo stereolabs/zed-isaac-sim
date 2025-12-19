@@ -85,6 +85,16 @@ namespace sl
          *
          */
         int transport_layer_mode = 0;
+        /**
+         * @brief Bitrate in Kbps
+         *
+         */
+        int bitrate = 8000; // in Kbps
+        /**
+         * @brief Size of each chunk in bytes
+         *
+         */
+        unsigned short chunk_size = 4096; // in bytes
     };
 
 }

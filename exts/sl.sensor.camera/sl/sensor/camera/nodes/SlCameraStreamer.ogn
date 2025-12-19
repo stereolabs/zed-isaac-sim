@@ -1,71 +1,90 @@
 {
-    "ZED_Camera": {
-        "version": 2,
-        "categories": {"Stereolabs": "Nodes used with the Stereolabs ZED SDK"},
-        "description": "Streams ZED camera data to the ZED SDK",
-        "language": "Python",
+  "ZED_Camera": {
+    "version": 2,
+    "categories": {
+      "Stereolabs": "Nodes used with the Stereolabs ZED SDK"
+    },
+    "description": "Streams ZED camera data to the ZED SDK",
+    "language": "Python",
+    "metadata": {
+      "uiName": "ZED Camera Helper"
+    },
+    "inputs": {
+      "execIn": {
+        "type": "execution",
+        "description": "Triggers execution",
+        "default": 0,
         "metadata": {
-            "uiName": "ZED Camera Helper"
-        },
-        "inputs": {
-            "execIn": {
-                "type": "execution",
-                "description": "Triggers execution",
-                "default": 0,
-                "metadata": {
-                    "uiName": "ExecIn"
-                }
-            },
-            "ipc": {
-                "type": "bool",
-                "description": "Stream data using IPC (Only available on Linux). This improve streaming performances when streaming to the same machine",
-                "default": true,
-                "metadata": {
-                    "uiName": "IPC"
-                }
-            },
-          "cameraPrim": {
-            "type": "target",
-            "description": "ZED Camera prim used to stream data.",
-            "metadata": {
-              "uiName": "ZED Camera prim",
-              "literalOnly": "1",
-              "allowMultiInputs": "0"
-            }
-            },
-            "cameraModel": {
-              "type": "token",
-              "description": "ZED Camera model. Can be either ZED_X, ZED_XM",
-              "default": "ZED_X",
-              "metadata": {
-                "uiName": "Camera Model",
-                "allowedTokens": [ "ZED_X", "ZED_XM", "ZED_X_4MM", "ZED_XM_4MM"]
-              }
-            },
-            "fps": {
-              "type": "uint",
-              "description": "Camera stream frame rate. Can be either 60, 30 or 15.",
-              "metadata": {
-                "uiName": "FPS"
-              },
-              "default": 30
-            },
-            "resolution": {
-              "type": "token",
-              "description": "Camera stream resolution. Can be either HD1200, HD1080 or SVGA",
-              "metadata": {
-                "allowedTokens": [ "HD1200", "HD1080", "SVGA" ]
-              },
-              "default": "HD1200"
-            },
-            "streamingPort": {
-              "type": "uint",
-              "description": "Streaming port - unique per camera",
-              "metadata": {
-                "uiName": "Streaming port"
-              },
-              "default": 30000
-            }
-          }
+          "uiName": "ExecIn"
+        }
+      },
+      "cameraPrim": {
+        "type": "target",
+        "description": "ZED Camera prim used to stream data.",
+        "metadata": {
+          "uiName": "ZED Camera Prim",
+          "literalOnly": "1",
+          "allowMultiInputs": "0"
+        }
+      },
+      "cameraModel": {
+        "type": "token",
+        "description": "ZED Camera model.",
+        "default": "ZED_X",
+        "metadata": {
+          "uiName": "Camera Model",
+          "allowedTokens": [ "ZED_X", "ZED_XM", "ZED_X_4MM", "ZED_XM_4MM" ]
+        }
+      },
+      "resolution": {
+        "type": "token",
+        "description": "Camera stream resolution.",
+        "default": "HD1200",
+        "metadata": {
+          "uiName": "Resolution",
+          "allowedTokens": [ "HD1200", "HD1080", "SVGA" ]
+        }
+      },
+      "fps": {
+        "type": "uint",
+        "description": "Camera stream frame rate.",
+        "default": 30,
+        "metadata": {
+          "uiName": "FPS"
+        }
+      },
+      "ipc": {
+        "type": "bool",
+        "description": "Stream data using IPC (Linux only). Improves performance on the same machine.",
+        "default": true,
+        "metadata": {
+          "uiName": "Use IPC"
+        }
+      },
+      "streamingPort": {
+        "type": "uint",
+        "description": "Unique port per camera.",
+        "default": 30000,
+        "metadata": {
+          "uiName": "Streaming Port",
+        }
+      },
+      "bitrate": {
+        "type": "uint",
+        "description": "Bitrate in Kbps. (Used only if IPC is disabled)",
+        "default": 8000,
+        "metadata": {
+          "uiName": "Bitrate"
+        }
+      },
+      "chunkSize": {
+        "type": "uint",
+        "description": "Chunk size in bytes. (Used only if IPC is disabled)",
+        "default": 4096,
+        "metadata": {
+          "uiName": "Chunk Size"
+        }
+      }
     }
+  }
 }

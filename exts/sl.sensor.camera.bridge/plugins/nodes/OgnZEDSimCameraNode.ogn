@@ -25,6 +25,16 @@
         "description": "sream data using IPC (only available on Linux)",
         "default": false
       },
+      "bitrate": {
+        "type": "uint",
+        "description": "streaming bitrate (in Kbps). Only used for network transport layer mode (not IPC)",
+        "default": 8000
+      },
+      "chunkSize": {
+        "type": "uint",
+        "description": "streaming chunk size (in bytes). Only used for network transport layer mode (not IPC)",
+        "default": 4096
+      },
       "cameraModel": {
         "type": "string",
         "description": "ZED Camera model. Can be either ZED_X, ZED_X_Mini",

@@ -30,6 +30,8 @@ class ZEDAnnotator:
         resolution = "HD1200",
         fps = 30,
         ipc = True,
+        bitrate = 10000,
+        chunk_size = 4096,
         virtual_serial_number = None
         ):
 
@@ -63,6 +65,8 @@ class ZEDAnnotator:
         self.resolution = get_resolution(camera_model, resolution)
         self.fps = fps
         self.ipc = ipc
+        self.bitrate = bitrate
+        self.chunk_size = chunk_size
 
         # Stereo if model is stereo OR user provides 2 prims
         self.is_stereo = is_stereo_camera(camera_model) or self.custom_stereo
@@ -75,7 +79,6 @@ class ZEDAnnotator:
             f"[Port: {self.port}] Constructed annotator for "
             f"{'custom stereo' if self.custom_stereo else ('stereo' if self.is_stereo else 'mono')} camera."
         )
-
 
     def init_camera(self, camera_prim_path : str, resolution, is_4mm):
         result = False
@@ -135,7 +138,7 @@ class ZEDAnnotator:
                 self.right_rgb_annot.attach(self.right_rp)
                 self.annotators["Right"] = self.right_rgb_annot
                 cams.append(["Right", name_right])
-         # Case 2: one prim (mono or stereo)
+        # Case 2: one prim (mono or stereo)
         else:
             if self.is_stereo is True:
                 left_path = "/base_link/" + base_camera_model + "/CameraLeft"
@@ -274,6 +277,8 @@ class ZEDAnnotator:
         imu_full_path = self.camera_prim_path[0].pathString + imu_path
         self.imu.get_attribute("inputs:imuPrim").set(imu_full_path)
         self.zed_.get_attribute("inputs:ipc").set(self.ipc)
+        self.zed_.get_attribute("inputs:bitrate").set(self.bitrate)
+        self.zed_.get_attribute("inputs:chunkSize").set(self.chunk_size)
         self.imu.get_attribute("outputs:orientation").connect(self.zed_.get_attribute("inputs:orientation"), True)
         self.imu.get_attribute("outputs:linAcc").connect(self.zed_.get_attribute("inputs:linearAcceleration"), True)
         self.imu.get_attribute("outputs:execOut").connect(self.zed_.get_attribute("inputs:execIn"), True)

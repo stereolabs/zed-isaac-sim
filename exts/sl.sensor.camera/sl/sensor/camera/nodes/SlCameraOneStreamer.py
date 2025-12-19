@@ -58,6 +58,8 @@ class SlCameraOneStreamer:
                     db.inputs.resolution,
                     db.inputs.fps,
                     db.inputs.ipc,
+                    db.inputs.bitrate,
+                    db.inputs.chunkSize,
                     db.inputs.serialNumber)
          
                 state.initialized = True
