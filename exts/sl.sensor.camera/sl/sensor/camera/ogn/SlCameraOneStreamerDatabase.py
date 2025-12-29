@@ -29,13 +29,16 @@ class SlCameraOneStreamerDatabase(og.Database):
 
     Attribute Value Properties:
         Inputs:
+            inputs.bitrate
             inputs.cameraModel
+            inputs.chunkSize
             inputs.execIn
             inputs.fps
             inputs.ipc
             inputs.leftCameraPrim
             inputs.resolution
             inputs.rightCameraPrim
+            inputs.serialNumber
             inputs.streamingPort
 
     Predefined Tokens:
@@ -43,7 +46,9 @@ class SlCameraOneStreamerDatabase(og.Database):
         tokens.ZED_XONE_GS
         tokens.ZED_XONE_GS_4MM
         tokens.HD4K
+        tokens.QHDPLUS
         tokens.HD1200
+        tokens.HD1080
         tokens.SVGA
     """
 
@@ -60,14 +65,17 @@ class SlCameraOneStreamerDatabase(og.Database):
     #     Is_Required, DefaultValue, Is_Deprecated, DeprecationMsg
     # You should not need to access any of this data directly, use the defined database interfaces
     INTERFACE = og.Database._get_interface([
-        ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Mono Camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_XONE_UHD,ZED_XONE_GS,ZED_XONE_GS_4MM', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM"]', ogn.MetadataKeys.DEFAULT: '"ZED_XONE_UHD"'}, True, "ZED_XONE_UHD", False, ''),
+        ('inputs:bitrate', 'uint', 0, 'Bitrate', 'Streaming bitrate (Kbps).', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '8000'}, True, 8000, False, ''),
+        ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Mono Camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_XONE_UHD,ZED_XONE_GS,ZED_XONE_GS_4MM', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM"]', ogn.MetadataKeys.DEFAULT: '"ZED_XONE_GS"'}, True, "ZED_XONE_GS", False, ''),
+        ('inputs:chunkSize', 'uint', 0, 'Chunk Size', 'Streaming chunk size (bytes).', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '4096'}, True, 4096, False, ''),
         ('inputs:execIn', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
-        ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate. Can be either 60, 30 or 15.', {ogn.MetadataKeys.DEFAULT: '30'}, True, 30, False, ''),
-        ('inputs:ipc', 'bool', 0, 'IPC', 'Stream data using IPC (Only available on Linux). This improve streaming performances when streaming to the same machine', {ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
-        ('inputs:leftCameraPrim', 'target', 0, 'Left Camera Prim', 'Main monocular camera', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0'}, True, None, False, ''),
-        ('inputs:resolution', 'token', 0, None, 'Camera stream resolution. Can be either HD1200, HD1080 or SVGA', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD4K,HD1200,SVGA', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD4K", "HD1200", "SVGA"]', ogn.MetadataKeys.DEFAULT: '"HD1200"'}, True, "HD1200", False, ''),
-        ('inputs:rightCameraPrim', 'target', 0, 'Right Camera Prim', '(optionnal) Used to create a virtual stereo camera from two monocular.', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0'}, False, None, False, ''),
-        ('inputs:streamingPort', 'uint', 0, 'Streaming port', 'Streaming port - unique per camera', {ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
+        ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate.', {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: '30'}, True, 30, False, ''),
+        ('inputs:ipc', 'bool', 0, 'Use IPC', 'Stream data using IPC (Linux only).', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
+        ('inputs:leftCameraPrim', 'target', 0, 'Left Camera Prim', 'Main monocular camera', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0', 'uiGroup': 'Camera Selection'}, True, None, False, ''),
+        ('inputs:resolution', 'token', 0, 'Resolution', 'Camera stream resolution.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD4K,QHDPLUS,HD1200,HD1080,SVGA', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD4K", "QHDPLUS", "HD1200", "HD1080", "SVGA"]', ogn.MetadataKeys.DEFAULT: '"HD1200"'}, True, "HD1200", False, ''),
+        ('inputs:rightCameraPrim', 'target', 0, 'Right Camera Prim (Optional)', '(optional) Used to create a virtual stereo camera from two ZED X Ones.', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0', 'uiGroup': 'Camera Selection'}, False, None, False, ''),
+        ('inputs:serialNumber', 'string', 0, 'Serial Number', 'Serial number of the stereo cam. Only used for virtual ZED X cameras.', {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: '"119999999"'}, True, "119999999", False, ''),
+        ('inputs:streamingPort', 'uint', 0, 'Streaming Port', 'Unique port per camera.', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
     ])
 
     class tokens:
@@ -75,7 +83,9 @@ class SlCameraOneStreamerDatabase(og.Database):
         ZED_XONE_GS = "ZED_XONE_GS"
         ZED_XONE_GS_4MM = "ZED_XONE_GS_4MM"
         HD4K = "HD4K"
+        QHDPLUS = "QHDPLUS"
         HD1200 = "HD1200"
+        HD1080 = "HD1080"
         SVGA = "SVGA"
 
     @classmethod
@@ -85,17 +95,18 @@ class SlCameraOneStreamerDatabase(og.Database):
         role_data.inputs.execIn = og.AttributeRole.EXECUTION
         role_data.inputs.leftCameraPrim = og.AttributeRole.TARGET
         role_data.inputs.rightCameraPrim = og.AttributeRole.TARGET
+        role_data.inputs.serialNumber = og.AttributeRole.TEXT
         return role_data
 
     class ValuesForInputs(og.DynamicAttributeAccess):
-        LOCAL_PROPERTY_NAMES = {"cameraModel", "execIn", "fps", "ipc", "resolution", "streamingPort", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
+        LOCAL_PROPERTY_NAMES = {"bitrate", "cameraModel", "chunkSize", "execIn", "fps", "ipc", "resolution", "serialNumber", "streamingPort", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
         """Helper class that creates natural hierarchical access to input attributes"""
         def __init__(self, node: og.Node, attributes, dynamic_attributes: og.DynamicAttributeInterface):
             """Initialize simplified access for the attribute data"""
             context = node.get_graph().get_default_graph_context()
             super().__init__(context, node, attributes, dynamic_attributes)
-            self._batchedReadAttributes = [self._attributes.cameraModel, self._attributes.execIn, self._attributes.fps, self._attributes.ipc, self._attributes.resolution, self._attributes.streamingPort]
-            self._batchedReadValues = ["ZED_XONE_UHD", 0, 30, True, "HD1200", 30000]
+            self._batchedReadAttributes = [self._attributes.bitrate, self._attributes.cameraModel, self._attributes.chunkSize, self._attributes.execIn, self._attributes.fps, self._attributes.ipc, self._attributes.resolution, self._attributes.serialNumber, self._attributes.streamingPort]
+            self._batchedReadValues = [8000, "ZED_XONE_GS", 4096, 0, 30, True, "HD1200", "119999999", 30000]
 
         @property
         def leftCameraPrim(self):
@@ -124,52 +135,76 @@ class SlCameraOneStreamerDatabase(og.Database):
             self.rightCameraPrim_size = data_view.get_array_size()
 
         @property
-        def cameraModel(self):
+        def bitrate(self):
             return self._batchedReadValues[0]
 
-        @cameraModel.setter
-        def cameraModel(self, value):
+        @bitrate.setter
+        def bitrate(self, value):
             self._batchedReadValues[0] = value
 
         @property
-        def execIn(self):
+        def cameraModel(self):
             return self._batchedReadValues[1]
 
-        @execIn.setter
-        def execIn(self, value):
+        @cameraModel.setter
+        def cameraModel(self, value):
             self._batchedReadValues[1] = value
 
         @property
-        def fps(self):
+        def chunkSize(self):
             return self._batchedReadValues[2]
 
-        @fps.setter
-        def fps(self, value):
+        @chunkSize.setter
+        def chunkSize(self, value):
             self._batchedReadValues[2] = value
 
         @property
-        def ipc(self):
+        def execIn(self):
             return self._batchedReadValues[3]
 
-        @ipc.setter
-        def ipc(self, value):
+        @execIn.setter
+        def execIn(self, value):
             self._batchedReadValues[3] = value
 
         @property
-        def resolution(self):
+        def fps(self):
             return self._batchedReadValues[4]
 
-        @resolution.setter
-        def resolution(self, value):
+        @fps.setter
+        def fps(self, value):
             self._batchedReadValues[4] = value
 
         @property
-        def streamingPort(self):
+        def ipc(self):
             return self._batchedReadValues[5]
+
+        @ipc.setter
+        def ipc(self, value):
+            self._batchedReadValues[5] = value
+
+        @property
+        def resolution(self):
+            return self._batchedReadValues[6]
+
+        @resolution.setter
+        def resolution(self, value):
+            self._batchedReadValues[6] = value
+
+        @property
+        def serialNumber(self):
+            return self._batchedReadValues[7]
+
+        @serialNumber.setter
+        def serialNumber(self, value):
+            self._batchedReadValues[7] = value
+
+        @property
+        def streamingPort(self):
+            return self._batchedReadValues[8]
 
         @streamingPort.setter
         def streamingPort(self, value):
-            self._batchedReadValues[5] = value
+            self._batchedReadValues[8] = value
 
         def __getattr__(self, item: str):
             if item in self.LOCAL_PROPERTY_NAMES:
