@@ -1,0 +1,1 @@
+# Stereolabs sensor namespace package

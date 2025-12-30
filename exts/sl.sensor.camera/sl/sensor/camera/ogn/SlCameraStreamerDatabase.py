@@ -320,7 +320,7 @@ class SlCameraStreamerDatabase(og.Database):
     @staticmethod
     def register(node_type_class):
         SlCameraStreamerDatabase.NODE_TYPE_CLASS = node_type_class
-        og.register_node_type(SlCameraStreamerDatabase.abi, 2)
+        og.register_node_type(SlCameraStreamerDatabase.abi, 1)
 
     @staticmethod
     def deregister():

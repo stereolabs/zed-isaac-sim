@@ -233,7 +233,7 @@ class ZEDAnnotator:
         )
 
         # create ZED node
-        self.zed_ = self.graph.create_node(self._graph_path + f"/zed_{self.port}", "sl.sensor.camera.bridge.OgnZEDSimCameraNode", True)
+        self.zed_ = self.graph.create_node(self._graph_path + f"/zed_{self.port}", "sl.sensor.camera.OgnZEDSimCameraNode", True)
         self.zed_.get_attribute("inputs:port").set(self.port)
         self.zed_.get_attribute("inputs:width").set(self.resolution[0])
         self.zed_.get_attribute("inputs:height").set(self.resolution[1])

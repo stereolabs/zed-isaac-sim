@@ -1,6 +1,6 @@
 {
     "ZED_Camera_One": {
-        "version": 2,
+        "version": 1,
         "categories": {"Stereolabs": "Nodes used with the Stereolabs ZED SDK"},
         "description": "Streams ZED mono camera data to the ZED SDK",
         "language": "Python",

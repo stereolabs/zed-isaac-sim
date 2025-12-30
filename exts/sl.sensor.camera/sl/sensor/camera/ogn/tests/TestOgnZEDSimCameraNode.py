@@ -17,7 +17,7 @@ class TestOgn(ogts.OmniGraphTestCase):
             self.assertTrue(False, f"{usd_path} not found for loading test")
         (result, error) = await ogts.load_test_file(usd_path)
         self.assertTrue(result, f'{error} on {usd_path}')
-        test_node = og.Controller.node("/TestGraph/Template_sl_sensor_camera_bridge_OgnZEDSimCameraNode")
+        test_node = og.Controller.node("/TestGraph/Template_sl_sensor_camera_OgnZEDSimCameraNode")
         self.assertTrue(test_node.is_valid())
         node_type_name = test_node.get_type_name()
         self.assertEqual(og.GraphRegistry().get_node_type_version(node_type_name), 1)
@@ -108,6 +108,13 @@ class TestOgn(ogts.OmniGraphTestCase):
         attribute = test_node.get_attribute("inputs:port")
         self.assertTrue(attribute.is_valid())
         expected_value = 5561
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:serialNumber"))
+        attribute = test_node.get_attribute("inputs:serialNumber")
+        self.assertTrue(attribute.is_valid())
+        expected_value = "109999999"
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
 

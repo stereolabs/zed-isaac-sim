@@ -11,15 +11,15 @@ from omni.graph.core.tests.omnigraph_test_utils import _test_verify_scene
 class TestOgn(ogts.OmniGraphTestCase):
 
     async def test_data_access(self):
-        from sl.sensor.camera.ogn.SlCameraStreamerDatabase import SlCameraStreamerDatabase
-        test_file_name = "SlCameraStreamerTemplate.usda"
+        from sl.sensor.camera.ogn.SlCameraOneStreamerDatabase import SlCameraOneStreamerDatabase
+        test_file_name = "SlCameraOneStreamerTemplate.usda"
         usd_path = os.path.join(os.path.dirname(__file__), "usd", test_file_name)
         if not os.path.exists(usd_path):  # pragma: no cover
             self.assertTrue(False, f"{usd_path} not found for loading test")
         (result, error) = await ogts.load_test_file(usd_path)
         self.assertTrue(result, f'{error} on {usd_path}')
-        test_node = og.Controller.node("/TestGraph/Template_sl_sensor_camera_ZED_Camera")
-        database = SlCameraStreamerDatabase(test_node)
+        test_node = og.Controller.node("/TestGraph/Template_sl_sensor_camera_ZED_Camera_One")
+        database = SlCameraOneStreamerDatabase(test_node)
         self.assertTrue(test_node.is_valid())
         node_type_name = test_node.get_type_name()
         self.assertEqual(og.GraphRegistry().get_node_type_version(node_type_name), 1)
@@ -34,15 +34,10 @@ class TestOgn(ogts.OmniGraphTestCase):
         self.assertTrue(attribute.is_valid())
         db_value = database.inputs.cameraModel
         database.inputs.cameraModel = db_value
-        expected_value = "ZED_X"
+        expected_value = "ZED_XONE_GS"
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
-
-        self.assertTrue(test_node.get_attribute_exists("inputs:cameraPrim"))
-        attribute = test_node.get_attribute("inputs:cameraPrim")
-        self.assertTrue(attribute.is_valid())
-        db_value = database.inputs.cameraPrim
 
         self.assertTrue(test_node.get_attribute_exists("inputs:execIn"))
         attribute = test_node.get_attribute("inputs:execIn")
@@ -74,12 +69,27 @@ class TestOgn(ogts.OmniGraphTestCase):
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
 
+        self.assertTrue(test_node.get_attribute_exists("inputs:leftCameraPrim"))
+        attribute = test_node.get_attribute("inputs:leftCameraPrim")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.leftCameraPrim
+
         self.assertTrue(test_node.get_attribute_exists("inputs:resolution"))
         attribute = test_node.get_attribute("inputs:resolution")
         self.assertTrue(attribute.is_valid())
         db_value = database.inputs.resolution
         database.inputs.resolution = db_value
         expected_value = "HD1200"
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:serialNumber"))
+        attribute = test_node.get_attribute("inputs:serialNumber")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.serialNumber
+        database.inputs.serialNumber = db_value
+        expected_value = "119999999"
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))

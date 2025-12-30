@@ -1,54 +1,47 @@
-
 [package]
-# Semantic Versioning is used: https://semver.org/
-version = "4.1.1"
+version = "4.2.0" # Semantic Versioning is used: https://semver.org/
 
-# Lists people or organizations that are considered the "authors" of the package.
-authors = ["Stereolabs"]
-
-# The title and description fields are primarly for displaying extension info in UI
-title = "ZED Camera Extension"
-description="Streams virtual ZED camera data to the ZED SDK. "
-
-# Path (relative to the root) or content of readme markdown file for UI.
-readme  = "docs/README.md"
-
-# Path (relative to the root) or content of changelog markdown file for UI.
-changelog  = "docs/CHANGELOG.md"
-
-# URL of the extension source repository.
-repository="https://github.com/stereolabs/zed-isaac-sim"
-
-# One of categories for UI.
-category = "simulation"
-
-# Keywords for the extension
-keywords = ["kit", "omnigraph", "Camera", "ZED", "Stereolabs", "Sensor"]
-
-# Preview image and icon. Folder named "data" automatically goes in git lfs (see .gitattributes file).
-# Preview image is shown in "Overview" of Extensions window. Screenshot of an extension might be a good preview image.
-preview_image = "data/preview.png"
-
-# Icon is shown in Extensions window, it is recommended to be square, of size 256x256.
+# These fields are used primarily for display in the extension browser UI.
+title = "Stereolabs ZED Camera"
+description = "Integration of Stereolabs ZED cameras in Isaac Sim. Provides OmniGraph nodes for camera streaming and data capture with native ZED SDK support."
+category = "Stereolabs"
+keywords = ["Stereolabs", "ZED", "Camera", "Sensor", "OmniGraph", "Node", "Streaming"]
 icon = "data/icon.png"
-
-[package.target]
-platform = ["windows-x86_64", "linux-x86_64"]
-kit = ["107.3"]
+preview_image = ""
+changelog = "docs/CHANGELOG.md"
+readme  = "docs/README.md"
+authors = ["Stereolabs"]
+repository = "https://github.com/stereolabs/zed-isaac-sim"
 
 # Watch the .ogn files for hot reloading (only works for Python files)
 [fswatcher.patterns]
 include = ["*.ogn", "*.py"]
 exclude = ["Ogn*Database.py"]
 
+[package.target]
+platform = ["windows-x86_64", "linux-x86_64"]
+kit = ["107.3"]
+
 [package.writeTarget]
 kit = true
 
 [dependencies]
-"sl.sensor.camera.bridge" = {}
+"omni.graph.core" = {}
 "omni.replicator.core" = {}
-"omni.graph" = {}
+"omni.graph.tools" = {}
 
-# Main python module this extension provides, it will be publicly available as "sl.sensor.camera".
 [[python.module]]
 name = "sl.sensor.camera"
+
+[[native.plugin]]
+path = "bin/*.plugin"
+
+[[native.library]]
+"filter:platform"."linux-x86_64".path = "bin/${lib_prefix}sl_zed${lib_ext}"
+"filter:platform"."windows-x86_64".path = "bin/${lib_prefix}sl_zed64${lib_ext}"
+
+[documentation]
+pages = [
+    "docs/Overview.md",
+    "docs/CHANGELOG.md",
+]

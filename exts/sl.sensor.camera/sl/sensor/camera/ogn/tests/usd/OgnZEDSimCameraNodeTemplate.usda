@@ -11,14 +11,14 @@ def OmniGraph "TestGraph"
     token flatCacheBacking = "Shared"
     token pipelineStage = "pipelineStageSimulation"
 
-    def OmniGraphNode "Template_sl_sensor_camera_bridge_OgnZEDSimCameraNode" (
+    def OmniGraphNode "Template_sl_sensor_camera_OgnZEDSimCameraNode" (
         docs="""No documentation provided"""
     )
     {
-        token node:type = "sl.sensor.camera.bridge.OgnZEDSimCameraNode"
+        token node:type = "sl.sensor.camera.OgnZEDSimCameraNode"
         int node:typeVersion = 1
 
-        # 16 attributes
+        # 17 attributes
         custom uint64 inputs:bufferSizeLeft = 0 (
             docs="""Size (in bytes) of the buffer (0 if the input is a texture)"""
         )
@@ -46,14 +46,17 @@ def OmniGraph "TestGraph"
         custom bool inputs:ipc = false (
             docs="""sream data using IPC (only available on Linux)"""
         )
-        custom float3 inputs:linearAcceleration = (0.0, 0.0, 0.0) (
+        custom vector3d inputs:linearAcceleration = (0.0, 0.0, 0.0) (
             docs="""imu acceleration"""
         )
-        custom float4 inputs:orientation = (0.0, 0.0, 0.0, 1.0) (
+        custom quatd inputs:orientation = (1.0, 0.0, 0.0, 0.0) (
             docs="""imu orientation"""
         )
         custom uint inputs:port = 5561 (
             docs="""server port"""
+        )
+        custom string inputs:serialNumber = "109999999" (
+            docs="""Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated"""
         )
         custom double inputs:simulationTime = 0.0 (
             docs="""simulation time"""

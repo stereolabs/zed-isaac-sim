@@ -37,5 +37,5 @@ _compiler
 .vscode/
 source/
 
-exts/sl.sensor.camera.bridge/bin/libsl.sensor.camera.bridge.plugin.so
-exts/sl.sensor.camera.bridge/bin/sl.sensor.camera.bridge.plugin.dll
+exts/sl.sensor.camera/bin/libsl.sensor.camera.plugin.so
+exts/sl.sensor.camera/bin/sl.sensor.camera.plugin.dll

@@ -5,20 +5,24 @@ project_ext(ext)
 
 -- --------------------------------------------------------------------------------------------------------------
 -- Helper variable containing standard configuration information for projects containing OGN files.
-local ogn = get_ogn_project_information(ext, "sl/sensor/camera/bridge")
+local ogn = get_ogn_project_information(ext, "sl/sensor/camera/")
 
 
 -- --------------------------------------------------------------------------------------------------------------
 -- Link folders that should be packaged with the extension.
 repo_build.prebuild_link {
     { "data", ext.target_dir.."/data" },
-    { "docs", ext.target_dir.."/docs" },
+    { "docs", ext.target_dir.."/docs" }
 }
 
-
+-- --------------------------------------------------------------------------------------------------------------
+repo_build.prebuild_link {
+    { "sl/sensor/camera/ogn", ext.target_dir.."/sl/sensor/camera/ogn" },
+    { "sl/sensor/camera/nodes", ext.target_dir.."/sl/sensor/camera/nodes" }
+}
 -- --------------------------------------------------------------------------------------------------------------
 repo_build.prebuild_copy {
-    { "sl/sensor/camera/bridge/__init__.py", ogn.python_target_path }
+    { "sl/sensor/camera/__init__.py", ogn.python_target_path }
 }
 -- --------------------------------------------------------------------------------------------------------------
 -- Breaking this out as a separate project ensures the .ogn files are processed before their results are needed.
@@ -36,11 +40,17 @@ project_ext_plugin(ext, ogn.plugin_project)
 
     includedirs { "include/"}
 
-	filter "system:windows"
-        includedirs"%{target_deps}/cuda"
-	    libdirs{"%{target_deps}/cuda/lib/x64/"}
-        links{"cudart"} --, "cuda"}
+    filter "system:linux"
+        includedirs { "%{target_deps}/cuda/include" }
+        libdirs     { "%{target_deps}/cuda/lib64" }
+        -- Even if nvcc does this by default, being explicit prevents
+        -- errors if you change compiler settings later.
+        links       { "cudart_static", "pthread", "dl", "rt"}
 
+    filter "system:windows"
+        includedirs { "%{target_deps}/cuda/include" }
+        libdirs     { "%{target_deps}/cuda/lib/x64" }
+        links       { "cudart_static" }
     filter {}
 
     -- Add the standard dependencies all OGN projects have; includes, libraries to link, and required compiler flags

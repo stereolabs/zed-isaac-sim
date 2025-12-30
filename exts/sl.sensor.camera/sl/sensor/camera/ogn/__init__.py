@@ -33,4 +33,3 @@ class SlSensorCameraExtension(omni.ext.IExt):
             RemovePrimSpecCommand(layer_identifier=stage.GetRootLayer().realPath, prim_spec_path=[Sdf.Path(path)]).do()
         except:
             pass
-

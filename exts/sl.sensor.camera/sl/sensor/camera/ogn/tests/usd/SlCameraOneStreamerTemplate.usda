@@ -1,0 +1,50 @@
+#usda 1.0
+(
+    doc ="""Generated from node description file SlCameraOneStreamer.ogn
+Contains templates for node types found in that file."""
+)
+
+def OmniGraph "TestGraph"
+{
+    token evaluator:type = "push"
+    int2 fileFormatVersion = (1, 3)
+    token flatCacheBacking = "Shared"
+    token pipelineStage = "pipelineStageSimulation"
+
+    def OmniGraphNode "Template_sl_sensor_camera_ZED_Camera_One" (
+        docs="""Streams ZED mono camera data to the ZED SDK"""
+    )
+    {
+        token node:type = "sl.sensor.camera.ZED_Camera_One"
+        int node:typeVersion = 1
+
+        # 9 attributes
+        custom token inputs:cameraModel = "ZED_XONE_GS" (
+            docs="""ZED Mono Camera model."""
+        )
+        custom uint inputs:execIn = 0 (
+            docs="""Triggers execution"""
+        )
+        custom uint inputs:fps = 30 (
+            docs="""Camera stream frame rate. Can be either 60, 30 or 15."""
+        )
+        custom bool inputs:ipc = true (
+            docs="""Stream data using IPC (Only available on Linux). This improve streaming performances when streaming to the same machine"""
+        )
+        custom rel inputs:leftCameraPrim (
+            docs="""Main monocular camera"""
+        )
+        custom token inputs:resolution = "HD1200" (
+            docs="""Camera stream resolution. Can be either HD4K (ZED X One UHD only), QHDPLUS (ZED X One UHD only), HD1200, HD1080 or SVGA (ZED X One GS only)"""
+        )
+        custom rel inputs:rightCameraPrim (
+            docs="""(optional) Used to create a virtual stereo camera from two ZED X Ones."""
+        )
+        custom string inputs:serialNumber = "119999999" (
+            docs="""Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated"""
+        )
+        custom uint inputs:streamingPort = 30000 (
+            docs="""Streaming port - unique per camera"""
+        )
+    }
+}
