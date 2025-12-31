@@ -33,9 +33,9 @@ class SlCameraStreamerDatabase(og.Database):
             inputs.cameraPrim
             inputs.execIn
             inputs.fps
-            inputs.ipc
             inputs.resolution
             inputs.streamingPort
+            inputs.transportLayerMode
 
     Predefined Tokens:
         tokens.ZED_X
@@ -45,11 +45,14 @@ class SlCameraStreamerDatabase(og.Database):
         tokens.HD1200
         tokens.HD1080
         tokens.SVGA
+        tokens.BOTH
+        tokens.NETWORK
+        tokens.IPC
     """
 
     # Imprint the generator and target ABI versions in the file for JIT generation
     GENERATOR_VERSION = (1, 79, 2)
-    TARGET_VERSION = (0, 0, 0)
+    TARGET_VERSION = (2, 184, 5)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}
@@ -64,9 +67,9 @@ class SlCameraStreamerDatabase(og.Database):
         ('inputs:cameraPrim', 'target', 0, 'ZED Camera prim', 'ZED Camera prim used to stream data.', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0'}, True, None, False, ''),
         ('inputs:execIn', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate. Can be either 60, 30 or 15.', {ogn.MetadataKeys.DEFAULT: '30'}, True, 30, False, ''),
-        ('inputs:ipc', 'bool', 0, 'IPC', 'Stream data using IPC (Only available on Linux). This improve streaming performances when streaming to the same machine', {ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:resolution', 'token', 0, None, 'Camera stream resolution. Can be either HD1200, HD1080 or SVGA', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD1200,HD1080,SVGA', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD1200", "HD1080", "SVGA"]', ogn.MetadataKeys.DEFAULT: '"HD1200"'}, True, "HD1200", False, ''),
         ('inputs:streamingPort', 'uint', 0, 'Streaming port', 'Streaming port - unique per camera', {ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
+        ('inputs:transportLayerMode', 'token', 0, 'Transport layer mode', 'Communication protocol used to send data to the ZED SDK. IPC (Only available on Linux)improves streaming performances when streaming to the same machine', {ogn.MetadataKeys.ALLOWED_TOKENS: 'BOTH,NETWORK,IPC', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["BOTH", "NETWORK", "IPC"]', ogn.MetadataKeys.DEFAULT: '"BOTH"'}, True, "BOTH", False, ''),
     ])
 
     class tokens:
@@ -77,6 +80,9 @@ class SlCameraStreamerDatabase(og.Database):
         HD1200 = "HD1200"
         HD1080 = "HD1080"
         SVGA = "SVGA"
+        BOTH = "BOTH"
+        NETWORK = "NETWORK"
+        IPC = "IPC"
 
     @classmethod
     def _populate_role_data(cls):
@@ -87,14 +93,14 @@ class SlCameraStreamerDatabase(og.Database):
         return role_data
 
     class ValuesForInputs(og.DynamicAttributeAccess):
-        LOCAL_PROPERTY_NAMES = {"cameraModel", "execIn", "fps", "ipc", "resolution", "streamingPort", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
+        LOCAL_PROPERTY_NAMES = {"cameraModel", "execIn", "fps", "resolution", "streamingPort", "transportLayerMode", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
         """Helper class that creates natural hierarchical access to input attributes"""
         def __init__(self, node: og.Node, attributes, dynamic_attributes: og.DynamicAttributeInterface):
             """Initialize simplified access for the attribute data"""
             context = node.get_graph().get_default_graph_context()
             super().__init__(context, node, attributes, dynamic_attributes)
-            self._batchedReadAttributes = [self._attributes.cameraModel, self._attributes.execIn, self._attributes.fps, self._attributes.ipc, self._attributes.resolution, self._attributes.streamingPort]
-            self._batchedReadValues = ["ZED_X", 0, 30, True, "HD1200", 30000]
+            self._batchedReadAttributes = [self._attributes.cameraModel, self._attributes.execIn, self._attributes.fps, self._attributes.resolution, self._attributes.streamingPort, self._attributes.transportLayerMode]
+            self._batchedReadValues = ["ZED_X", 0, 30, "HD1200", 30000, "BOTH"]
 
         @property
         def cameraPrim(self):
@@ -134,27 +140,27 @@ class SlCameraStreamerDatabase(og.Database):
             self._batchedReadValues[2] = value
 
         @property
-        def ipc(self):
-            return self._batchedReadValues[3]
-
-        @ipc.setter
-        def ipc(self, value):
-            self._batchedReadValues[3] = value
-
-        @property
         def resolution(self):
-            return self._batchedReadValues[4]
+            return self._batchedReadValues[3]
 
         @resolution.setter
         def resolution(self, value):
-            self._batchedReadValues[4] = value
+            self._batchedReadValues[3] = value
 
         @property
         def streamingPort(self):
-            return self._batchedReadValues[5]
+            return self._batchedReadValues[4]
 
         @streamingPort.setter
         def streamingPort(self, value):
+            self._batchedReadValues[4] = value
+
+        @property
+        def transportLayerMode(self):
+            return self._batchedReadValues[5]
+
+        @transportLayerMode.setter
+        def transportLayerMode(self, value):
             self._batchedReadValues[5] = value
 
         def __getattr__(self, item: str):

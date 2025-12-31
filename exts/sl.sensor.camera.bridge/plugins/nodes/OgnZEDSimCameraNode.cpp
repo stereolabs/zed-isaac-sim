@@ -107,6 +107,21 @@ namespace sl {
                     return 0;
                 }
 
+                static int transportLayerModeToInt(const std::string& mode_str)
+                {
+                    if (mode_str == "NETWORK")
+                        return 0;
+                    else if (mode_str == "IPC")
+                        return 1;
+                    else if (mode_str == "BOTH")
+                        return 2;
+                    else
+                    {
+                        CARB_LOG_WARN("[ZED] Invalid transport layer mode string %s, defaulting to RTP_ONLY", mode_str.c_str());
+                        return 0;
+                    }
+				}
+
                 class OgnZEDSimCameraNode
                 {
                     sl::StreamingParameters m_zedStreamerParams;
@@ -364,22 +379,23 @@ public:
                                 return false;
                             }
 
-                            bool use_ipc = db.inputs.ipc();
+                            int transport_layer_mode = transportLayerModeToInt(db.tokenToString(db.inputs.transportLayerMode()));
 
 #ifdef _WIN32
-                            use_ipc = false;
+							// 0 = Network, 1 = IPC, 2 = Both
+                            transport_layer_mode = 0;
 
                             CARB_LOG_WARN("[ZED] IPC mode is not available on Windows. Switching back to network streaming...");
 #endif
 							// Use YUV format for IPC or mono cameras
-                            bool use_yuv = use_ipc || !state.m_stereo_camera;
+                            bool use_yuv = transport_layer_mode > 0 || !state.m_stereo_camera;
                             state.m_zedStreamerParams.alpha_channel_included = true;
                             state.m_zedStreamerParams.codec_type = 1;
                             state.m_zedStreamerParams.fps = db.inputs.fps();
                             state.m_zedStreamerParams.image_height = db.inputs.height();
                             state.m_zedStreamerParams.image_width = db.inputs.width();
                             state.m_zedStreamerParams.mode = 1;
-                            state.m_zedStreamerParams.transport_layer_mode = use_ipc;
+                            state.m_zedStreamerParams.transport_layer_mode = transport_layer_mode;
                             state.m_zedStreamerParams.input_format = use_yuv ? sl::INPUT_FORMAT::YUV : sl::INPUT_FORMAT::BGR;
                             state.m_zedStreamerParams.serial_number = serial_number;
                             state.m_zedStreamerParams.port = port;
