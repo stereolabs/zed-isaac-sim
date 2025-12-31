@@ -1,1 +1,0 @@
-# Stereolabs namespace package
