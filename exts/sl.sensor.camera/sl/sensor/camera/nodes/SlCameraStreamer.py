@@ -51,9 +51,9 @@ class SlCameraStreamer:
                     state.port,
                     db.inputs.resolution,
                     db.inputs.fps,
-                    db.inputs.ipc,
                     db.inputs.bitrate,
                     db.inputs.chunkSize)
+                    db.inputs.transportLayerMode)
 
                 def cleanup(event, _state=state):
                     SlCameraStreamer.release(_state)

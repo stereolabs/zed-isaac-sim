@@ -20,10 +20,14 @@
         "description": "stream",
         "default": false
       },
-      "ipc": {
-        "type": "bool",
-        "description": "sream data using IPC (only available on Linux)",
-        "default": false
+      "transportLayerMode": {
+        "type": "token",
+        "description": "Communication protocol used to send data to the ZED SDK.",
+        "default": "BOTH",
+        "metadata": {
+          "uiName": "Transport layer mode",
+          "allowedTokens": [ "BOTH", "NETWORK", "IPC" ]
+        }
       },
       "bitrate": {
         "type": "uint",

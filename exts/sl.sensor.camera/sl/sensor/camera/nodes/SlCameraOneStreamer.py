@@ -57,9 +57,9 @@ class SlCameraOneStreamer:
                     state.port,
                     db.inputs.resolution,
                     db.inputs.fps,
-                    db.inputs.ipc,
                     db.inputs.bitrate,
                     db.inputs.chunkSize,
+                    db.inputs.transport_layer_mode,
                     db.inputs.serialNumber)
          
                 state.initialized = True

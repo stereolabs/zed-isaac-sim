@@ -49,6 +49,15 @@
           "uiGroup": "Configuration"
         }
       },
+      "transportLayerMode": {
+        "type": "token",
+        "description": "Communication protocol used to send data to the ZED SDK. IPC (Only available on Linux)improves streaming performances when streaming to the same machine",
+        "default": "BOTH",
+        "metadata": {
+          "uiName": "Transport layer mode",
+          "allowedTokens": [ "BOTH", "NETWORK", "IPC" ]
+        }
+      },
       "resolution": {
         "type": "token",
         "description": "Camera stream resolution.",
@@ -75,15 +84,6 @@
         "metadata": {
           "uiName": "Serial Number",
           "uiGroup": "Configuration"
-        }
-      },
-      "ipc": {
-        "type": "bool",
-        "description": "Stream data using IPC (Linux only).",
-        "default": true,
-        "metadata": {
-          "uiName": "Use IPC",
-          "uiGroup": "Streaming"
         }
       },
       "streamingPort": {

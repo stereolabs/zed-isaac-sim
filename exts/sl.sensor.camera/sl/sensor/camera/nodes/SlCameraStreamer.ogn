@@ -53,12 +53,13 @@
           "uiName": "FPS"
         }
       },
-      "ipc": {
-        "type": "bool",
-        "description": "Stream data using IPC (Linux only). Improves performance on the same machine.",
-        "default": true,
+      "transportLayerMode": {
+        "type": "token",
+        "description": "Communication protocol used to send data to the ZED SDK. IPC (Only available on Linux)improves streaming performances when streaming to the same machine",
+        "default": "BOTH",
         "metadata": {
-          "uiName": "Use IPC"
+          "uiName": "Transport layer mode",
+          "allowedTokens": [ "BOTH", "NETWORK", "IPC" ]
         }
       },
       "streamingPort": {

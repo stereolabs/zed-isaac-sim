@@ -29,9 +29,9 @@ class ZEDAnnotator:
         streaming_port = 30000,
         resolution = "HD1200",
         fps = 30,
-        ipc = True,
         bitrate = 10000,
         chunk_size = 4096,
+        transport_layer_mode = "BOTH",
         virtual_serial_number = None
         ):
 
@@ -64,9 +64,9 @@ class ZEDAnnotator:
         self.port = streaming_port
         self.resolution = get_resolution(camera_model, resolution)
         self.fps = fps
-        self.ipc = ipc
         self.bitrate = bitrate
         self.chunk_size = chunk_size
+        self.transport_layer_mode = transport_layer_mode
 
         # Stereo if model is stereo OR user provides 2 prims
         self.is_stereo = is_stereo_camera(camera_model) or self.custom_stereo
@@ -276,9 +276,9 @@ class ZEDAnnotator:
         imu_path = "/base_link/" + self.camera_model + "/Imu_Sensor"
         imu_full_path = self.camera_prim_path[0].pathString + imu_path
         self.imu.get_attribute("inputs:imuPrim").set(imu_full_path)
-        self.zed_.get_attribute("inputs:ipc").set(self.ipc)
         self.zed_.get_attribute("inputs:bitrate").set(self.bitrate)
         self.zed_.get_attribute("inputs:chunkSize").set(self.chunk_size)
+        self.zed_.get_attribute("inputs:transportLayerMode").set(self.transport_layer_mode)
         self.imu.get_attribute("outputs:orientation").connect(self.zed_.get_attribute("inputs:orientation"), True)
         self.imu.get_attribute("outputs:linAcc").connect(self.zed_.get_attribute("inputs:linearAcceleration"), True)
         self.imu.get_attribute("outputs:execOut").connect(self.zed_.get_attribute("inputs:execIn"), True)
