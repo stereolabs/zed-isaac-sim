@@ -17,13 +17,9 @@ repo_build.prebuild_link {
 
 -- --------------------------------------------------------------------------------------------------------------
 repo_build.prebuild_link {
-    { "sl/sensor/camera/ogn", ext.target_dir.."/sl/sensor/camera/ogn" },
-    { "sl/sensor/camera/nodes", ext.target_dir.."/sl/sensor/camera/nodes" }
+    { "sl/sensor/camera/", ext.target_dir.."/sl/sensor/camera/" },
 }
 -- --------------------------------------------------------------------------------------------------------------
-repo_build.prebuild_copy {
-    { "sl/sensor/camera/__init__.py", ogn.python_target_path }
-}
 -- --------------------------------------------------------------------------------------------------------------
 -- Breaking this out as a separate project ensures the .ogn files are processed before their results are needed.
 project_ext_ogn( ext, ogn )
