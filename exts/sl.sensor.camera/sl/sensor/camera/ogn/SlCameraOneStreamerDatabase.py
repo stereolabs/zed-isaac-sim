@@ -1,4 +1,4 @@
-r"""Support for simplified access to data on nodes of type sl.sensor.camera.ZED_Camera_One
+"""Support for simplified access to data on nodes of type sl.sensor.camera.ZED_Camera_One
 
  __   ___ .  .  ___  __       ___  ___  __      __   __   __   ___
 / _` |__  |\ | |__  |__)  /\   |  |__  |  \    /  ` /  \ |  \ |__
@@ -56,7 +56,7 @@ class SlCameraOneStreamerDatabase(og.Database):
     """
 
     # Imprint the generator and target ABI versions in the file for JIT generation
-    GENERATOR_VERSION = (1, 79, 2)
+    GENERATOR_VERSION = (1, 79, 1)
     TARGET_VERSION = (2, 181, 8)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
