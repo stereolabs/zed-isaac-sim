@@ -75,7 +75,7 @@
         "description": "Bitrate in Kbps. (Used only if IPC is disabled)",
         "default": 8000,
         "metadata": {
-          "uiName": "Bitrate"
+          "uiName": "Streaming Bitrate"
         }
       },
       "chunkSize": {
@@ -83,7 +83,7 @@
         "description": "Chunk size in bytes. (Used only if IPC is disabled)",
         "default": 4096,
         "metadata": {
-          "uiName": "Chunk Size"
+          "uiName": "Streaming Chunk Size"
         }
       }
     }

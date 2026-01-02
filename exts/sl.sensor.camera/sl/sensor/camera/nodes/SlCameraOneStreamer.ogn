@@ -100,7 +100,7 @@
         "description": "Streaming bitrate (Kbps).",
         "default": 8000,
         "metadata": {
-          "uiName": "Bitrate",
+          "uiName": "Streaming Bitrate",
           "uiGroup": "Streaming"
         }
       },
@@ -109,7 +109,7 @@
         "description": "Streaming chunk size (bytes).",
         "default": 4096,
         "metadata": {
-          "uiName": "Chunk Size",
+          "uiName": "Streaming Chunk Size",
           "uiGroup": "Streaming"
         }
       }
