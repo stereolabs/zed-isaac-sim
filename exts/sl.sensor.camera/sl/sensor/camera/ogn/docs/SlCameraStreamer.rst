@@ -35,15 +35,20 @@ Inputs
     :header: "Name", "Type", "Descripton", "Default"
     :widths: 20, 20, 50, 10
 
-    "Camera Model (*inputs:cameraModel*)", "``token``", "ZED Camera model. Can be either ZED_X, ZED_X_Mini", "ZED_X"
-    "", "Metadata", "*allowedTokens* = ZED_X,ZED_X_Mini", ""
-    "ZED Camera prim (*inputs:cameraPrim*)", "``target``", "ZED Camera prim used to stream data", "None"
+    "Streaming Bitrate (*inputs:bitrate*)", "``uint``", "Bitrate in Kbps. (Used only if IPC is disabled)", "8000"
+    "Camera Model (*inputs:cameraModel*)", "``token``", "ZED Camera model.", "ZED_X"
+    "", "Metadata", "*allowedTokens* = ZED_X,ZED_XM,ZED_X_4MM,ZED_XM_4MM", ""
+    "ZED Camera Prim (*inputs:cameraPrim*)", "``target``", "ZED Camera prim used to stream data.", "None"
+    "", "Metadata", "*literalOnly* = 1", ""
+    "", "Metadata", "*allowMultiInputs* = 0", ""
+    "Streaming Chunk Size (*inputs:chunkSize*)", "``uint``", "Chunk size in bytes. (Used only if IPC is disabled)", "4096"
     "ExecIn (*inputs:execIn*)", "``execution``", "Triggers execution", "0"
-    "FPS (*inputs:fps*)", "``uint``", "Camera stream frame rate. Can be either 60, 30 or 15.", "30"
-    "IPC (*inputs:ipc*)", "``bool``", "Stream data using IPC (Only available on Linux). This improve streaming performances when streaming to the same machine", "True"
-    "Resolution (*inputs:resolution*)", "``token``", "Camera stream resolution. Can be either HD1200, HD1080 or SVGA", "HD1200"
+    "FPS (*inputs:fps*)", "``uint``", "Camera stream frame rate.", "30"
+    "Resolution (*inputs:resolution*)", "``token``", "Camera stream resolution.", "HD1200"
     "", "Metadata", "*allowedTokens* = HD1200,HD1080,SVGA", ""
-    "Streaming port (*inputs:streamingPort*)", "``uint``", "Streaming port - unique per camera", "30000"
+    "Streaming Port (*inputs:streamingPort*)", "``uint``", "Unique port per camera.", "30000"
+    "Transport layer mode (*inputs:transportLayerMode*)", "``token``", "Communication protocol used to send data to the ZED SDK. IPC (Only available on Linux)improves streaming performances when streaming to the same machine", "BOTH"
+    "", "Metadata", "*allowedTokens* = BOTH,NETWORK,IPC", ""
 
 
 Metadata

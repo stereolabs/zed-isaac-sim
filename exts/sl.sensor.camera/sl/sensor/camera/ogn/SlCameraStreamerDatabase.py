@@ -1,4 +1,4 @@
-r"""Support for simplified access to data on nodes of type sl.sensor.camera.ZED_Camera
+"""Support for simplified access to data on nodes of type sl.sensor.camera.ZED_Camera
 
  __   ___ .  .  ___  __       ___  ___  __      __   __   __   ___
 / _` |__  |\ | |__  |__)  /\   |  |__  |  \    /  ` /  \ |  \ |__
@@ -53,8 +53,8 @@ class SlCameraStreamerDatabase(og.Database):
     """
 
     # Imprint the generator and target ABI versions in the file for JIT generation
-    GENERATOR_VERSION = (1, 79, 2)
-    TARGET_VERSION = (0, 0, 0)
+    GENERATOR_VERSION = (1, 77, 0)
+    TARGET_VERSION = (2, 170, 0)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}
@@ -65,10 +65,10 @@ class SlCameraStreamerDatabase(og.Database):
     #     Is_Required, DefaultValue, Is_Deprecated, DeprecationMsg
     # You should not need to access any of this data directly, use the defined database interfaces
     INTERFACE = og.Database._get_interface([
-        ('inputs:bitrate', 'uint', 0, 'Bitrate', 'Bitrate in Kbps. (Used only if IPC is disabled)', {ogn.MetadataKeys.DEFAULT: '8000'}, True, 8000, False, ''),
+        ('inputs:bitrate', 'uint', 0, 'Streaming Bitrate', 'Bitrate in Kbps. (Used only if IPC is disabled)', {ogn.MetadataKeys.DEFAULT: '8000'}, True, 8000, False, ''),
         ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_X,ZED_XM,ZED_X_4MM,ZED_XM_4MM', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_X", "ZED_XM", "ZED_X_4MM", "ZED_XM_4MM"]', ogn.MetadataKeys.DEFAULT: '"ZED_X"'}, True, "ZED_X", False, ''),
         ('inputs:cameraPrim', 'target', 0, 'ZED Camera Prim', 'ZED Camera prim used to stream data.', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0'}, True, None, False, ''),
-        ('inputs:chunkSize', 'uint', 0, 'Chunk Size', 'Chunk size in bytes. (Used only if IPC is disabled)', {ogn.MetadataKeys.DEFAULT: '4096'}, True, 4096, False, ''),
+        ('inputs:chunkSize', 'uint', 0, 'Streaming Chunk Size', 'Chunk size in bytes. (Used only if IPC is disabled)', {ogn.MetadataKeys.DEFAULT: '4096'}, True, 4096, False, ''),
         ('inputs:execIn', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate.', {ogn.MetadataKeys.DEFAULT: '30'}, True, 30, False, ''),
         ('inputs:resolution', 'token', 0, 'Resolution', 'Camera stream resolution.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD1200,HD1080,SVGA', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD1200", "HD1080", "SVGA"]', ogn.MetadataKeys.DEFAULT: '"HD1200"'}, True, "HD1200", False, ''),
@@ -287,11 +287,6 @@ class SlCameraStreamerDatabase(og.Database):
 
             node.register_on_connected_callback(on_connection_or_disconnection)
             node.register_on_disconnected_callback(on_connection_or_disconnection)
-
-        @staticmethod
-        def initialize_nodes(context, nodes):
-            for n in nodes:
-                SlCameraStreamerDatabase.abi.initialize(context, n)
 
         @staticmethod
         def release(node):
