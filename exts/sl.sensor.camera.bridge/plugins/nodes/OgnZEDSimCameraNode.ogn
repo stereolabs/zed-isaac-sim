@@ -29,6 +29,22 @@
           "allowedTokens": [ "BOTH", "NETWORK", "IPC" ]
         }
       },
+      "bitrate": {
+        "type": "uint",
+        "description": "streaming bitrate (in Kbps). Only used for network transport layer mode (not IPC)",
+        "default": 8000,
+        "metadata": {
+          "uiName": "Streaming Bitrate"
+        }
+      },
+      "chunkSize": {
+        "type": "uint",
+        "description": "streaming chunk size (in bytes). Only used for network transport layer mode (not IPC)",
+        "default": 4096,
+        "metadata": {
+          "uiName": "Streaming Chunk Size"
+        }
+      },
       "cameraModel": {
         "type": "string",
         "description": "ZED Camera model. Can be either ZED_X, ZED_X_Mini",
@@ -52,7 +68,10 @@
       "port": {
         "type": "uint",
         "description": "server port",
-        "default": 5561
+        "default": 5561,
+        "metadata": {
+          "uiName": "Streaming Port"
+        }
       },
       "serialNumber": {
         "type": "string",

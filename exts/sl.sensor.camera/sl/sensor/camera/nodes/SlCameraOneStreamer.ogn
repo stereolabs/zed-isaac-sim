@@ -1,88 +1,118 @@
 {
-    "ZED_Camera_One": {
-        "version": 2,
-        "categories": {"Stereolabs": "Nodes used with the Stereolabs ZED SDK"},
-        "description": "Streams ZED mono camera data to the ZED SDK",
-        "language": "Python",
+  "ZED_Camera_One": {
+    "version": 2,
+    "categories": {
+      "Stereolabs": "Nodes used with the Stereolabs ZED SDK"
+    },
+    "description": "Streams ZED mono camera data to the ZED SDK",
+    "language": "Python",
+    "metadata": {
+      "uiName": "ZED Camera One Helper"
+    },
+    "inputs": {
+      "execIn": {
+        "type": "execution",
+        "description": "Triggers execution",
+        "default": 0,
         "metadata": {
-            "uiName": "ZED Camera One Helper"
+          "uiName": "ExecIn"
+        }
+      },
+      "leftCameraPrim": {
+        "type": "target",
+        "description": "Main monocular camera",
+        "metadata": {
+          "uiName": "Left Camera Prim",
+          "literalOnly": "1",
+          "allowMultiInputs": "0",
+          "uiGroup": "Camera Selection"
+        }
+      },
+      "rightCameraPrim": {
+        "type": "target",
+        "description": "(optional) Used to create a virtual stereo camera from two ZED X Ones.",
+        "metadata": {
+          "uiName": "Right Camera Prim (Optional)",
+          "literalOnly": "1",
+          "allowMultiInputs": "0",
+          "uiGroup": "Camera Selection"
         },
-      "inputs": {
-        "execIn": {
-          "type": "execution",
-          "description": "Triggers execution",
-          "default": 0,
-          "metadata": {
-            "uiName": "ExecIn"
-          }
-        },
-        "transportLayerMode": {
-          "type": "token",
-          "description": "Communication protocol used to send data to the ZED SDK. IPC (Only available on Linux)improves streaming performances when streaming to the same machine",
-          "default": "BOTH",
-          "metadata": {
-            "uiName": "Transport layer mode",
-            "allowedTokens": [ "BOTH", "NETWORK", "IPC" ]
-          }
-        },
-        "leftCameraPrim": {
-          "type": "target",
-          "description": "Main monocular camera",
-          "metadata": {
-            "uiName": "Left Camera Prim",
-            "literalOnly": "1",
-            "allowMultiInputs": "0"
-          }
-        },
-        "rightCameraPrim": {
-          "type": "target",
-          "description": "(optional) Used to create a virtual stereo camera from two ZED X Ones.",
-          "metadata": {
-            "uiName": "Right Camera Prim",
-            "literalOnly": "1",
-            "allowMultiInputs": "0"
-          },
-          "optional": true
-        },
-        "cameraModel": {
-          "type": "token",
-          "description": "ZED Mono Camera model.",
-          "default": "ZED_XONE_GS",
-          "metadata": {
-            "uiName": "Camera Model",
-            "allowedTokens": [ "ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM" ]
-          }
-        },
-        "serialNumber": {
-          "type": "string",
-          "description": "Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated",
-          "default": "119999999",
-          "uiName": "Serial Number"
-        },
-        "fps": {
-          "type": "uint",
-          "description": "Camera stream frame rate. Can be either 60, 30 or 15.",
-          "metadata": {
-            "uiName": "FPS"
-          },
-          "default": 30
-        },
-        "resolution": {
-          "type": "token",
-          "description": "Camera stream resolution. Can be either HD4K (ZED X One UHD only), QHDPLUS (ZED X One UHD only), HD1200, HD1080 or SVGA (ZED X One GS only)",
-          "metadata": {
-            "allowedTokens": [ "HD4K", "QHDPLUS", "HD1200", "HD1080", "SVGA" ]
-          },
-          "default": "HD1200"
-        },
-        "streamingPort": {
-          "type": "uint",
-          "description": "Streaming port - unique per camera",
-          "metadata": {
-            "uiName": "Streaming port"
-          },
-          "default": 30000
+        "optional": true
+      },
+      "cameraModel": {
+        "type": "token",
+        "description": "ZED Mono Camera model.",
+        "default": "ZED_XONE_GS",
+        "metadata": {
+          "uiName": "Camera Model",
+          "allowedTokens": [ "ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM" ],
+          "uiGroup": "Configuration"
+        }
+      },
+      "transportLayerMode": {
+        "type": "token",
+        "description": "Communication protocol used to send data to the ZED SDK. IPC (Only available on Linux)improves streaming performances when streaming to the same machine",
+        "default": "BOTH",
+        "metadata": {
+          "uiName": "Transport layer mode",
+          "allowedTokens": [ "BOTH", "NETWORK", "IPC" ]
+        }
+      },
+      "resolution": {
+        "type": "token",
+        "description": "Camera stream resolution.",
+        "default": "HD1200",
+        "metadata": {
+          "allowedTokens": [ "HD4K", "QHDPLUS", "HD1200", "HD1080", "SVGA" ],
+          "uiName": "Resolution",
+          "uiGroup": "Configuration"
+        }
+      },
+      "fps": {
+        "type": "uint",
+        "description": "Camera stream frame rate.",
+        "default": 30,
+        "metadata": {
+          "uiName": "FPS",
+          "uiGroup": "Configuration"
+        }
+      },
+      "serialNumber": {
+        "type": "string",
+        "description": "Serial number of the stereo cam. Only used for virtual ZED X cameras.",
+        "default": "119999999",
+        "metadata": {
+          "uiName": "Serial Number",
+          "uiGroup": "Configuration"
+        }
+      },
+      "streamingPort": {
+        "type": "uint",
+        "description": "Unique port per camera.",
+        "default": 30000,
+        "metadata": {
+          "uiName": "Streaming Port",
+          "uiGroup": "Streaming"
+        }
+      },
+      "bitrate": {
+        "type": "uint",
+        "description": "Streaming bitrate (Kbps).",
+        "default": 8000,
+        "metadata": {
+          "uiName": "Streaming Bitrate",
+          "uiGroup": "Streaming"
+        }
+      },
+      "chunkSize": {
+        "type": "uint",
+        "description": "Streaming chunk size (bytes).",
+        "default": 4096,
+        "metadata": {
+          "uiName": "Streaming Chunk Size",
+          "uiGroup": "Streaming"
         }
       }
     }
+  }
 }

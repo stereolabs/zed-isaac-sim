@@ -394,6 +394,8 @@ public:
                             state.m_zedStreamerParams.fps = db.inputs.fps();
                             state.m_zedStreamerParams.image_height = db.inputs.height();
                             state.m_zedStreamerParams.image_width = db.inputs.width();
+                            state.m_zedStreamerParams.bitrate = db.inputs.bitrate();
+                            state.m_zedStreamerParams.chunk_size = db.inputs.chunkSize();
                             state.m_zedStreamerParams.mode = 1;
                             state.m_zedStreamerParams.transport_layer_mode = transport_layer_mode;
                             state.m_zedStreamerParams.input_format = use_yuv ? sl::INPUT_FORMAT::YUV : sl::INPUT_FORMAT::BGR;
