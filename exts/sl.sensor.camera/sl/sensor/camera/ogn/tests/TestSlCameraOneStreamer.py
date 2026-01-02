@@ -22,12 +22,22 @@ class TestOgn(ogts.OmniGraphTestCase):
         database = SlCameraOneStreamerDatabase(test_node)
         self.assertTrue(test_node.is_valid())
         node_type_name = test_node.get_type_name()
-        self.assertEqual(og.GraphRegistry().get_node_type_version(node_type_name), 1)
+        self.assertEqual(og.GraphRegistry().get_node_type_version(node_type_name), 2)
 
         def _attr_error(attribute: og.Attribute, usd_test: bool) -> str:  # pragma no cover
             test_type = "USD Load" if usd_test else "Database Access"
             return f"{node_type_name} {test_type} Test - {attribute.get_name()} value error"
 
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:bitrate"))
+        attribute = test_node.get_attribute("inputs:bitrate")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.bitrate
+        database.inputs.bitrate = db_value
+        expected_value = 8000
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
 
         self.assertTrue(test_node.get_attribute_exists("inputs:cameraModel"))
         attribute = test_node.get_attribute("inputs:cameraModel")
@@ -35,6 +45,16 @@ class TestOgn(ogts.OmniGraphTestCase):
         db_value = database.inputs.cameraModel
         database.inputs.cameraModel = db_value
         expected_value = "ZED_XONE_GS"
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:chunkSize"))
+        attribute = test_node.get_attribute("inputs:chunkSize")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.chunkSize
+        database.inputs.chunkSize = db_value
+        expected_value = 4096
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
@@ -55,16 +75,6 @@ class TestOgn(ogts.OmniGraphTestCase):
         db_value = database.inputs.fps
         database.inputs.fps = db_value
         expected_value = 30
-        actual_value = og.Controller.get(attribute)
-        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
-        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
-
-        self.assertTrue(test_node.get_attribute_exists("inputs:ipc"))
-        attribute = test_node.get_attribute("inputs:ipc")
-        self.assertTrue(attribute.is_valid())
-        db_value = database.inputs.ipc
-        database.inputs.ipc = db_value
-        expected_value = True
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
@@ -100,6 +110,16 @@ class TestOgn(ogts.OmniGraphTestCase):
         db_value = database.inputs.streamingPort
         database.inputs.streamingPort = db_value
         expected_value = 30000
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:transportLayerMode"))
+        attribute = test_node.get_attribute("inputs:transportLayerMode")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.transportLayerMode
+        database.inputs.transportLayerMode = db_value
+        expected_value = "BOTH"
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))

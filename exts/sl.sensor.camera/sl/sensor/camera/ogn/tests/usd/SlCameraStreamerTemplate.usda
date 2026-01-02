@@ -16,29 +16,35 @@ def OmniGraph "TestGraph"
     )
     {
         token node:type = "sl.sensor.camera.ZED_Camera"
-        int node:typeVersion = 1
+        int node:typeVersion = 2
 
-        # 7 attributes
+        # 9 attributes
+        custom uint inputs:bitrate = 8000 (
+            docs="""Bitrate in Kbps. (Used only if IPC is disabled)"""
+        )
         custom token inputs:cameraModel = "ZED_X" (
-            docs="""ZED Camera model. Can be either ZED_X, ZED_XM"""
+            docs="""ZED Camera model."""
         )
         custom rel inputs:cameraPrim (
             docs="""ZED Camera prim used to stream data."""
+        )
+        custom uint inputs:chunkSize = 4096 (
+            docs="""Chunk size in bytes. (Used only if IPC is disabled)"""
         )
         custom uint inputs:execIn = 0 (
             docs="""Triggers execution"""
         )
         custom uint inputs:fps = 30 (
-            docs="""Camera stream frame rate. Can be either 60, 30 or 15."""
-        )
-        custom bool inputs:ipc = true (
-            docs="""Stream data using IPC (Only available on Linux). This improve streaming performances when streaming to the same machine"""
+            docs="""Camera stream frame rate."""
         )
         custom token inputs:resolution = "HD1200" (
-            docs="""Camera stream resolution. Can be either HD1200, HD1080 or SVGA"""
+            docs="""Camera stream resolution."""
         )
         custom uint inputs:streamingPort = 30000 (
-            docs="""Streaming port - unique per camera"""
+            docs="""Unique port per camera."""
+        )
+        custom token inputs:transportLayerMode = "BOTH" (
+            docs="""Communication protocol used to send data to the ZED SDK. IPC (Only available on Linux)improves streaming performances when streaming to the same machine"""
         )
     }
 }

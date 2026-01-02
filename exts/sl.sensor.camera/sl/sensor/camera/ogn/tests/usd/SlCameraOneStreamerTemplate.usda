@@ -16,35 +16,41 @@ def OmniGraph "TestGraph"
     )
     {
         token node:type = "sl.sensor.camera.ZED_Camera_One"
-        int node:typeVersion = 1
+        int node:typeVersion = 2
 
-        # 9 attributes
+        # 11 attributes
+        custom uint inputs:bitrate = 8000 (
+            docs="""Streaming bitrate (Kbps)."""
+        )
         custom token inputs:cameraModel = "ZED_XONE_GS" (
             docs="""ZED Mono Camera model."""
+        )
+        custom uint inputs:chunkSize = 4096 (
+            docs="""Streaming chunk size (bytes)."""
         )
         custom uint inputs:execIn = 0 (
             docs="""Triggers execution"""
         )
         custom uint inputs:fps = 30 (
-            docs="""Camera stream frame rate. Can be either 60, 30 or 15."""
-        )
-        custom bool inputs:ipc = true (
-            docs="""Stream data using IPC (Only available on Linux). This improve streaming performances when streaming to the same machine"""
+            docs="""Camera stream frame rate."""
         )
         custom rel inputs:leftCameraPrim (
             docs="""Main monocular camera"""
         )
         custom token inputs:resolution = "HD1200" (
-            docs="""Camera stream resolution. Can be either HD4K (ZED X One UHD only), QHDPLUS (ZED X One UHD only), HD1200, HD1080 or SVGA (ZED X One GS only)"""
+            docs="""Camera stream resolution."""
         )
         custom rel inputs:rightCameraPrim (
             docs="""(optional) Used to create a virtual stereo camera from two ZED X Ones."""
         )
         custom string inputs:serialNumber = "119999999" (
-            docs="""Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated"""
+            docs="""Serial number of the stereo cam. Only used for virtual ZED X cameras."""
         )
         custom uint inputs:streamingPort = 30000 (
-            docs="""Streaming port - unique per camera"""
+            docs="""Unique port per camera."""
+        )
+        custom token inputs:transportLayerMode = "BOTH" (
+            docs="""Communication protocol used to send data to the ZED SDK. IPC (Only available on Linux)improves streaming performances when streaming to the same machine"""
         )
     }
 }

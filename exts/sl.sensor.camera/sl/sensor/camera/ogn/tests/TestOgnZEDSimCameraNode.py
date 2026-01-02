@@ -27,6 +27,13 @@ class TestOgn(ogts.OmniGraphTestCase):
             return f"{node_type_name} {test_type} Test - {attribute.get_name()} value error"
 
 
+        self.assertTrue(test_node.get_attribute_exists("inputs:bitrate"))
+        attribute = test_node.get_attribute("inputs:bitrate")
+        self.assertTrue(attribute.is_valid())
+        expected_value = 8000
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+
         self.assertTrue(test_node.get_attribute_exists("inputs:bufferSizeLeft"))
         attribute = test_node.get_attribute("inputs:bufferSizeLeft")
         self.assertTrue(attribute.is_valid())
@@ -45,6 +52,13 @@ class TestOgn(ogts.OmniGraphTestCase):
         attribute = test_node.get_attribute("inputs:cameraModel")
         self.assertTrue(attribute.is_valid())
         expected_value = "ZED_X"
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:chunkSize"))
+        attribute = test_node.get_attribute("inputs:chunkSize")
+        self.assertTrue(attribute.is_valid())
+        expected_value = 4096
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
 
@@ -80,13 +94,6 @@ class TestOgn(ogts.OmniGraphTestCase):
         attribute = test_node.get_attribute("inputs:height")
         self.assertTrue(attribute.is_valid())
         expected_value = 1200
-        actual_value = og.Controller.get(attribute)
-        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
-
-        self.assertTrue(test_node.get_attribute_exists("inputs:ipc"))
-        attribute = test_node.get_attribute("inputs:ipc")
-        self.assertTrue(attribute.is_valid())
-        expected_value = False
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
 
@@ -136,6 +143,13 @@ class TestOgn(ogts.OmniGraphTestCase):
         attribute = test_node.get_attribute("inputs:systemTime")
         self.assertTrue(attribute.is_valid())
         expected_value = 0.0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:transportLayerMode"))
+        attribute = test_node.get_attribute("inputs:transportLayerMode")
+        self.assertTrue(attribute.is_valid())
+        expected_value = "BOTH"
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
 
