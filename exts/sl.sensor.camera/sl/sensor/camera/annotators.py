@@ -293,7 +293,6 @@ class ZEDAnnotator:
         """
 
         for node in self.nodes:
-            print("Destroying node:", node)
             try:
                 if node.is_valid():
                     _p = node.get_prim_path()
