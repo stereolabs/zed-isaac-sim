@@ -17,7 +17,7 @@ class TestOgn(ogts.OmniGraphTestCase):
             self.assertTrue(False, f"{usd_path} not found for loading test")
         (result, error) = await ogts.load_test_file(usd_path)
         self.assertTrue(result, f'{error} on {usd_path}')
-        test_node = og.Controller.node("/TestGraph/Template_sl_sensor_camera_bridge_OgnZEDSimCameraNode")
+        test_node = og.Controller.node("/TestGraph/Template_sl_sensor_camera_OgnZEDSimCameraNode")
         self.assertTrue(test_node.is_valid())
         node_type_name = test_node.get_type_name()
         self.assertEqual(og.GraphRegistry().get_node_type_version(node_type_name), 1)
@@ -26,6 +26,13 @@ class TestOgn(ogts.OmniGraphTestCase):
             test_type = "USD Load" if usd_test else "Database Access"
             return f"{node_type_name} {test_type} Test - {attribute.get_name()} value error"
 
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:bitrate"))
+        attribute = test_node.get_attribute("inputs:bitrate")
+        self.assertTrue(attribute.is_valid())
+        expected_value = 8000
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
 
         self.assertTrue(test_node.get_attribute_exists("inputs:bufferSizeLeft"))
         attribute = test_node.get_attribute("inputs:bufferSizeLeft")
@@ -45,6 +52,13 @@ class TestOgn(ogts.OmniGraphTestCase):
         attribute = test_node.get_attribute("inputs:cameraModel")
         self.assertTrue(attribute.is_valid())
         expected_value = "ZED_X"
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:chunkSize"))
+        attribute = test_node.get_attribute("inputs:chunkSize")
+        self.assertTrue(attribute.is_valid())
+        expected_value = 4096
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
 
@@ -83,13 +97,6 @@ class TestOgn(ogts.OmniGraphTestCase):
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
 
-        self.assertTrue(test_node.get_attribute_exists("inputs:ipc"))
-        attribute = test_node.get_attribute("inputs:ipc")
-        self.assertTrue(attribute.is_valid())
-        expected_value = False
-        actual_value = og.Controller.get(attribute)
-        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
-
         self.assertTrue(test_node.get_attribute_exists("inputs:linearAcceleration"))
         attribute = test_node.get_attribute("inputs:linearAcceleration")
         self.assertTrue(attribute.is_valid())
@@ -111,6 +118,13 @@ class TestOgn(ogts.OmniGraphTestCase):
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
 
+        self.assertTrue(test_node.get_attribute_exists("inputs:serialNumber"))
+        attribute = test_node.get_attribute("inputs:serialNumber")
+        self.assertTrue(attribute.is_valid())
+        expected_value = "109999999"
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+
         self.assertTrue(test_node.get_attribute_exists("inputs:simulationTime"))
         attribute = test_node.get_attribute("inputs:simulationTime")
         self.assertTrue(attribute.is_valid())
@@ -129,6 +143,13 @@ class TestOgn(ogts.OmniGraphTestCase):
         attribute = test_node.get_attribute("inputs:systemTime")
         self.assertTrue(attribute.is_valid())
         expected_value = 0.0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:transportLayerMode"))
+        attribute = test_node.get_attribute("inputs:transportLayerMode")
+        self.assertTrue(attribute.is_valid())
+        expected_value = "BOTH"
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
 

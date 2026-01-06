@@ -73,7 +73,7 @@ class Extension(omni.ext.IExt):
             MenuItemDescription(name=EXTENSION_TITLE, onclick_action=(ext_id, f"CreateUIExtension:{EXTENSION_TITLE}"))
         ]
 
-        add_menu_items(self._menu_items, "ZED")
+        add_menu_items(self._menu_items, "Stereolabs")
 
         # Filled in with User Functions
         self.ui_builder = UIBuilder()

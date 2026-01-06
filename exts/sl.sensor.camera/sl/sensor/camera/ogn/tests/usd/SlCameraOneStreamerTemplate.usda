@@ -1,6 +1,6 @@
 #usda 1.0
 (
-    doc ="""Generated from node description file SlCameraStreamer.ogn
+    doc ="""Generated from node description file SlCameraOneStreamer.ogn
 Contains templates for node types found in that file."""
 )
 
@@ -11,25 +11,22 @@ def OmniGraph "TestGraph"
     token flatCacheBacking = "Shared"
     token pipelineStage = "pipelineStageSimulation"
 
-    def OmniGraphNode "Template_sl_sensor_camera_ZED_Camera" (
-        docs="""Streams ZED camera data to the ZED SDK"""
+    def OmniGraphNode "Template_sl_sensor_camera_ZED_Camera_One" (
+        docs="""Streams ZED mono camera data to the ZED SDK"""
     )
     {
-        token node:type = "sl.sensor.camera.ZED_Camera"
+        token node:type = "sl.sensor.camera.ZED_Camera_One"
         int node:typeVersion = 2
 
-        # 9 attributes
+        # 11 attributes
         custom uint inputs:bitrate = 8000 (
-            docs="""Bitrate in Kbps. (Used only if IPC is disabled)"""
+            docs="""Streaming bitrate (Kbps)."""
         )
-        custom token inputs:cameraModel = "ZED_X" (
-            docs="""ZED Camera model."""
-        )
-        custom rel inputs:cameraPrim (
-            docs="""ZED Camera prim used to stream data."""
+        custom token inputs:cameraModel = "ZED_XONE_GS" (
+            docs="""ZED Mono Camera model."""
         )
         custom uint inputs:chunkSize = 4096 (
-            docs="""Chunk size in bytes. (Used only if IPC is disabled)"""
+            docs="""Streaming chunk size (bytes)."""
         )
         custom uint inputs:execIn = 0 (
             docs="""Triggers execution"""
@@ -37,8 +34,17 @@ def OmniGraph "TestGraph"
         custom uint inputs:fps = 30 (
             docs="""Camera stream frame rate."""
         )
+        custom rel inputs:leftCameraPrim (
+            docs="""Main monocular camera"""
+        )
         custom token inputs:resolution = "HD1200" (
             docs="""Camera stream resolution."""
+        )
+        custom rel inputs:rightCameraPrim (
+            docs="""(optional) Used to create a virtual stereo camera from two ZED X Ones."""
+        )
+        custom string inputs:serialNumber = "119999999" (
+            docs="""Serial number of the stereo cam. Only used for virtual ZED X cameras."""
         )
         custom uint inputs:streamingPort = 30000 (
             docs="""Unique port per camera."""

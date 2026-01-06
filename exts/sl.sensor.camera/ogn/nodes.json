@@ -1,0 +1,29 @@
+{
+  "extension": "sl.sensor.camera",
+  "nodes": {
+    "OgnZEDSimCameraNode": {
+      "description": [
+        ""
+      ],
+      "version": 1,
+      "uiName": "ZED Stream",
+      "language": "C++"
+    },
+    "SlCameraStreamer": {
+      "description": [
+        ""
+      ],
+      "version": 2,
+      "uiName": "ZED Camera Helper",
+      "language": "Python"
+    },
+    "SlCameraOneStreamer": {
+      "description": [
+        ""
+      ],
+      "version": 2,
+      "uiName": "ZED Camera One Helper",
+      "language": "Python"
+    }
+  }
+}

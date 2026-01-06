@@ -17,7 +17,7 @@
 #include <omni/graph/core/ogn/Registration.h>
 
 // Standard plugin definitions required by Carbonite.
-const struct carb::PluginImplDesc pluginImplDesc = { "sl.sensor.camera.bridge.plugin",
+const struct carb::PluginImplDesc pluginImplDesc = { "sl.sensor.camera.plugin",
                                                      "", "Stereolabs",
                                                      carb::PluginHotReload::eEnabled, "dev" };
 
@@ -34,8 +34,6 @@ namespace sl
 namespace sensor
 {
 namespace camera
-{
-namespace bridge
 {
 
 class ZEDSimNodeExtension : public omni::ext::IExt
@@ -63,10 +61,9 @@ private:
 }
 }
 }
-}
 
-CARB_PLUGIN_IMPL(pluginImplDesc, sl::sensor::camera::bridge::ZEDSimNodeExtension)
+CARB_PLUGIN_IMPL(pluginImplDesc, sl::sensor::camera::ZEDSimNodeExtension)
 
-void fillInterface(sl::sensor::camera::bridge::ZEDSimNodeExtension& iface)
+void fillInterface(sl::sensor::camera::ZEDSimNodeExtension& iface)
 {
 }

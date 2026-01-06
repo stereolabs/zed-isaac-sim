@@ -1,9 +1,11 @@
 [package]
 version = "1.0.0"
-category = "Simulation"
-title = "ZED calibration exporter"
-description = ""
-keywords = []
+category = "Stereolabs"
+title = "Stereolabs ZED Calibration Exporter"
+description = "Export ZED camera calibration data from Isaac Sim cameras. Generates calibration files compatible with ZED SDK for Virtual ZED X cameras."
+keywords = ["Stereolabs", "ZED", "Calibration", "Export", "Camera", "Sensor"]
+authors = ["Stereolabs"]
+repository = "https://github.com/stereolabs/zed-isaac-sim"
 changelog = "docs/CHANGELOG.md"
 readme = "docs/README.md"
 preview_image = "data/preview.png"

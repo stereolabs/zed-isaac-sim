@@ -1,6 +1,7 @@
 {
   "OgnZEDSimCameraNode": {
     "version": 1,
+    "categories": {"Stereolabs": "Nodes used with the Stereolabs ZED SDK"},
     "uiName": "ZED Stream",
     "description": [
       ""

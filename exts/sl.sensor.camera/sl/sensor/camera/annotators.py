@@ -195,7 +195,6 @@ class ZEDAnnotator:
 
         # create/assign sync and time nodes
         _physics_nodes = {
-            "sim_gate": {"node_type": "isaacsim.core.nodes.IsaacSimulationGate", "node": None},
             "sync": {"node_type": "omni.graph.action.RationalTimeSyncGate", "node": None},
             "sim_time": {"node_type": "isaacsim.core.nodes.IsaacReadSimulationTime", "node": None},
             "sys_time": {"node_type": "isaacsim.core.nodes.IsaacReadSystemTime", "node": None},
@@ -212,7 +211,6 @@ class ZEDAnnotator:
             _["node"] = node
 
         # assign to vars for clarity
-        self.sim_gate = _physics_nodes["sim_gate"]["node"]
         self.sync_node = _physics_nodes["sync"]["node"]
         self.sim_time = _physics_nodes["sim_time"]["node"]
         self.sys_time = _physics_nodes["sys_time"]["node"]
@@ -236,7 +234,7 @@ class ZEDAnnotator:
         )
 
         # create ZED node
-        self.zed_ = self.graph.create_node(self._graph_path + f"/zed_{self.port}", "sl.sensor.camera.bridge.OgnZEDSimCameraNode", True)
+        self.zed_ = self.graph.create_node(self._graph_path + f"/zed_{self.port}", "sl.sensor.camera.OgnZEDSimCameraNode", True)
         self.zed_.get_attribute("inputs:port").set(self.port)
         self.zed_.get_attribute("inputs:width").set(self.resolution[0])
         self.zed_.get_attribute("inputs:height").set(self.resolution[1])
@@ -257,7 +255,7 @@ class ZEDAnnotator:
 
             for an, _params in annot_var_mapping.items():
                 ptr_node = self.annotators[cam[0]].get_node()
-                ptr_node.get_attribute("outputs:exec").connect(self.sim_gate.get_attribute("inputs:execIn"), True)
+                ptr_node.get_attribute("outputs:exec").connect(self.sync_node.get_attribute("inputs:execIn"), True)
                 for p in _params["attrs"]:
                     target_attr = self.zed_.get_attribute(f"inputs:{p}{cam[0]}{_params['attr_suffix']}")
                     ptr_node.get_attribute(f"outputs:{p}").connect(target_attr, True)
@@ -270,8 +268,9 @@ class ZEDAnnotator:
         self.zed_.get_attribute("inputs:serialNumber").set(self.serial_number if self.serial_number else "-1")
 
         # connect sync node to zed node to trigger the stream
-        self.sim_gate.get_attribute("outputs:execOut").connect(self.sync_node.get_attribute("inputs:execIn"), True)
         self.sync_node.get_attribute("outputs:execOut").connect(self.imu.get_attribute("inputs:execIn"), True)
+        self.sync_node.get_attribute("outputs:rationalTimeDenominator").connect(self.sim_time.get_attribute("inputs:referenceTimeDenominator"), True)
+        self.sync_node.get_attribute("outputs:rationalTimeNumerator").connect(self.sim_time.get_attribute("inputs:referenceTimeNumerator"), True)
 
         imu_path = "/base_link/" + self.camera_model + "/Imu_Sensor"
         imu_full_path = self.camera_prim_path[0].pathString + imu_path
@@ -283,7 +282,7 @@ class ZEDAnnotator:
         self.imu.get_attribute("outputs:linAcc").connect(self.zed_.get_attribute("inputs:linearAcceleration"), True)
         self.imu.get_attribute("outputs:execOut").connect(self.zed_.get_attribute("inputs:execIn"), True)
 
-        self.nodes = [self.sim_gate, self.sync_node, self.sim_time, self.sys_time, self.imu, self.zed_]
+        self.nodes = [self.sync_node, self.sim_time, self.sys_time, self.imu, self.zed_]
 
     def destroy(self) -> None:
         """
@@ -294,7 +293,6 @@ class ZEDAnnotator:
         """
 
         for node in self.nodes:
-            print("Destroying node:", node)
             try:
                 if node.is_valid():
                     _p = node.get_prim_path()
