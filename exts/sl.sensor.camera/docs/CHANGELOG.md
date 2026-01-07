@@ -2,6 +2,11 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [4.2.0]
+- Add the option to change streaming bitrate and chunksize when streaming over network.
+- Add the option to stream over both IPC and network simultaneously.
+- The C++ omnigraph node and the python nodes are now implemented in a single extension, simplifying installation and usage.
+
 ## [4.1.1]
 - Fix IPC streaming issue when using multiple ZED cameras on the same machine.
 

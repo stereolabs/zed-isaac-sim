@@ -1,45 +1,58 @@
-# ZED Camera extension    
+# ZED Camera Extension
 
-The ZED camera extension streams your virtual ZED camera data to the ZED SDK.
+The ZED camera extension streams virtual ZED camera data from NVIDIA Isaac Sim to the ZED SDK. This allows you to test and develop applications using the ZED SDK in a simulated environment.
 
 ## Compatibility
 
-Please find the correct extension version compatible with your Isaac Sim version in the following table:
+Refer to the following table for the extension version compatible with your Isaac Sim version:
 
+| Isaac Sim Version | Extension Version |
+| :---------------- | :---------------- |
+| 2023.X.X          | 1.X.X             |
+| 4.0               | 2.X.X             |
+| 4.5               | 3.X.X             |
+| 5.0               | 4.X.X             |
 
-- Versions 1.X.X are compatible with Isaac Sim 2023.X.X.
-- Versions 2.X.X are compatible with Isaac Sim 4.X
-- Versions 3.X.X are compatible with Isaac Sim 4.5
-- Versions 4.X.X are compatible with Isaac Sim 5.0
+## Getting Started
 
-## Getting started
+To start using the ZED Camera extension in Isaac Sim, we recommend following our [Getting started with Isaac Sim](https://www.stereolabs.com/docs/isaac-sim/isaac_sim) guide.
 
+### Adding ZED Camera Models
 
-To start using the ZED Camera extension in Isaac Sim, we recommend using our [Getting started with Isaac Sim](https://www.stereolabs.com/docs/isaac-sim/isaac_sim) guide from our online documentation first.
+You can find USD models for various ZED cameras in the extension's `data` folder within the Content Browser. Supported models include:
+- **ZED X** and **ZED X Mini**
+- **ZED X One GS** and **ZED X One UHD**
+- **Virtual ZED X**
 
-### Adding the 3D model of the ZED
+Drag and drop the desired `.usd` file into your stage to begin.
 
-Navigate to this extension's folder in the content browser, you can drag and drop the zed_x.usd under data into your stage.
+### Starting the Data Stream
 
-### Starting the data stream    
+To enable streaming:
+1. Open the **Action Graph** (`Window` > `Visual Scripting` > `Action Graph`).
+2. Add the **ZED Camera** node to the graph.
+3. Connect an **On Playback Tick** node to the `Exec In` of the ZED Camera node.
+4. Select the ZED Camera node and configure its properties in the **Property** panel.
+5. Press **Play**.
 
-To enable the streaming in Isaac sim, add the ZED Camera Omnigraph node to an Action graph, connect your camera to it and press play.
+### Node Parameters
 
-#### Parameters    
+| Parameter | Description |
+| :--- | :--- |
+| **Stream** | Enables or disables the data stream. |
+| **Camera Prim** | The path to the ZED camera prim in the stage (e.g., `/World/ZED_X`). |
+| **Camera Model** | Select the camera model (ZED X, ZED X Mini, ZED X One GS, etc.). |
+| **Transport Layer Mode** | Choose between `NETWORK` (streaming over port), `IPC` (shared memory for local streaming), or `BOTH`. |
+| **Port** | Defines the network streaming port (must be an even number). |
+| **Serial Number** | For `VIRTUAL_ZED_X`, sets a custom serial number (must start with 11). For other models, it is automatically assigned. |
+| **Bitrate** | Configures the streaming bitrate (in kbps). |
+| **Chunk Size** | Configures the network chunk size for streaming. |
+| **FPS** | Target frame rate for the stream. |
+| **Resolution** | Defines the width and height of the streamed images. |
 
-You can configure the streamer properties in the Property panel on the right:
-- Serial number: this field allows you identify the virtual camera you are using. It has no functional effect and can be left to the default value. This field can be useful when using multiple camera and you need to identify each one.
-- Streaming port: Defines which port is used for streaming. It must be an even number.
-- Use system time: when set to true, the streamer assigns the latest system time to the images that are sent to the SDK. If set to false, the streamer only sets the first timestamp to system time and then increments the later timestamps by simulation time.
-- ZED Camera prim: this parameter should be set to the ZED X camera prim in the stage as shown in the picture above.
+> [!NOTE]
+> **IPC Mode** provides the best performance for local streaming but is currently only available on **Linux**. On Windows, the extension will automatically fallback to Network streaming.
 
+### Connecting to the ZED SDK
 
-### Connecting to the ZED SDK    
-
-Once you press play in the simulation, you can connect the virtual camera to the ZED SDK via the streaming interface.
-
-
-
-### TODO
-
-- ZED Camera extension parameters are not reset after pressing Stop in Isaac Sim UI, but requires node to be released. TODO: Clean parameters between each play/stop session
+Once the simulation is running and the node is active, you can connect to the virtual camera using the [ZED SDK Streaming API](https://www.stereolabs.com/docs/video/streaming). The SDK will detect the stream on the specified port or via IPC on Linux.
