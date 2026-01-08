@@ -6,7 +6,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE}")
 mkdir -p exts/sl.sensor.camera/bin/
 rm -f exts/sl.sensor.camera/bin/libsl.sensor.camera.plugin.so
 
-ZED_ISAAC_SIM_VERSION=4.1.0
+ZED_ISAAC_SIM_VERSION=4.2.0
 echo "Downloading dependencies version $ZED_ISAAC_SIM_VERSION..."
 
 SL_ZED_DOWNLOAD_URL="https://stereolabs.sfo2.cdn.digitaloceanspaces.com/utils/zed_isaac_sim/${ZED_ISAAC_SIM_VERSION}/libsl_zed_linux_x86_64_${ZED_ISAAC_SIM_VERSION}.tar.gz"

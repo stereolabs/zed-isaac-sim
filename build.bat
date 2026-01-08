@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 set SCRIPT_DIR=%~dp0
 
-set "SL_ZED_VERSION=4.1.0"
+set "SL_ZED_VERSION=4.2.0"
 set "BUILD_PATH=_build\windows-x86_64\release\exts\sl.sensor.camera\bin"
 set "BIN_TARGET=exts\sl.sensor.camera\bin"
 set "SL_ZED_FILENAME=sl_zed64_windows_x86_64_!SL_ZED_VERSION!.tar.gz"
@@ -25,13 +25,13 @@ if not exist "%BUILD_PATH%" (
 REM 2. Download and Extract sl_zed library
 if not exist "%BIN_TARGET%\sl_zed64.dll" (
     echo [INFO] sl_zed64.dll not found. Starting download...
-    
+
     powershell -Command "Invoke-WebRequest -Uri '!SL_ZED_DOWNLOAD_URL!' -OutFile '%BIN_TARGET%\!SL_ZED_FILENAME!'"
     if errorlevel 1 (
         echo [ERROR] Failed to download library from !SL_ZED_DOWNLOAD_URL!
         exit /b 1
     )
-    
+
     echo [INFO] Extracting !SL_ZED_FILENAME!...
     powershell -Command "tar -xzvf '%BIN_TARGET%\!SL_ZED_FILENAME!' -C '%BIN_TARGET%'"
     if errorlevel 1 (
