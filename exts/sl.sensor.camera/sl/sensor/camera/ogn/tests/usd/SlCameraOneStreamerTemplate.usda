@@ -31,7 +31,7 @@ def OmniGraph "TestGraph"
         custom uint inputs:execIn = 0 (
             docs="""Triggers execution"""
         )
-        custom uint inputs:fps = 30 (
+        custom uint inputs:fps = 60 (
             docs="""Camera stream frame rate."""
         )
         custom rel inputs:leftCameraPrim (

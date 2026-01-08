@@ -74,7 +74,7 @@ class TestOgn(ogts.OmniGraphTestCase):
         self.assertTrue(attribute.is_valid())
         db_value = database.inputs.fps
         database.inputs.fps = db_value
-        expected_value = 30
+        expected_value = 60
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))

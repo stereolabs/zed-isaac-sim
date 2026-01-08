@@ -5,9 +5,6 @@ import carb
 from dataclasses import dataclass
 import traceback
 import omni.kit.commands
-from carb.events import IEvent
-from isaacsim.core.utils.stage import get_current_stage
-from pxr import Sdf
 
 from ..annotators import ZEDAnnotator
 

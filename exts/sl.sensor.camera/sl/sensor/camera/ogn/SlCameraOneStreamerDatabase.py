@@ -57,7 +57,7 @@ class SlCameraOneStreamerDatabase(og.Database):
 
     # Imprint the generator and target ABI versions in the file for JIT generation
     GENERATOR_VERSION = (1, 79, 2)
-    TARGET_VERSION = (2, 181, 8)
+    TARGET_VERSION = (2, 184, 5)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}
@@ -72,7 +72,7 @@ class SlCameraOneStreamerDatabase(og.Database):
         ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Mono Camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_XONE_UHD,ZED_XONE_GS,ZED_XONE_GS_4MM', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM"]', ogn.MetadataKeys.DEFAULT: '"ZED_XONE_GS"'}, True, "ZED_XONE_GS", False, ''),
         ('inputs:chunkSize', 'uint', 0, 'Streaming Chunk Size', 'Streaming chunk size (bytes).', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '4096'}, True, 4096, False, ''),
         ('inputs:execIn', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
-        ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate.', {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: '30'}, True, 30, False, ''),
+        ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate.', {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: '60'}, True, 60, False, ''),
         ('inputs:leftCameraPrim', 'target', 0, 'Left Camera Prim', 'Main monocular camera', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0', 'uiGroup': 'Camera Selection'}, True, None, False, ''),
         ('inputs:resolution', 'token', 0, 'Resolution', 'Camera stream resolution.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD4K,QHDPLUS,HD1200,HD1080,SVGA', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD4K", "QHDPLUS", "HD1200", "HD1080", "SVGA"]', ogn.MetadataKeys.DEFAULT: '"HD1200"'}, True, "HD1200", False, ''),
         ('inputs:rightCameraPrim', 'target', 0, 'Right Camera Prim (Optional)', '(optional) Used to create a virtual stereo camera from two ZED X Ones.', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0', 'uiGroup': 'Camera Selection'}, False, None, False, ''),
@@ -112,7 +112,7 @@ class SlCameraOneStreamerDatabase(og.Database):
             context = node.get_graph().get_default_graph_context()
             super().__init__(context, node, attributes, dynamic_attributes)
             self._batchedReadAttributes = [self._attributes.bitrate, self._attributes.cameraModel, self._attributes.chunkSize, self._attributes.execIn, self._attributes.fps, self._attributes.resolution, self._attributes.serialNumber, self._attributes.streamingPort, self._attributes.transportLayerMode]
-            self._batchedReadValues = [8000, "ZED_XONE_GS", 4096, 0, 30, "HD1200", "119999999", 30000, "BOTH"]
+            self._batchedReadValues = [8000, "ZED_XONE_GS", 4096, 0, 60, "HD1200", "119999999", 30000, "BOTH"]
 
         @property
         def leftCameraPrim(self):

@@ -71,7 +71,7 @@
       "fps": {
         "type": "uint",
         "description": "Camera stream frame rate.",
-        "default": 30,
+        "default": 60,
         "metadata": {
           "uiName": "FPS",
           "uiGroup": "Configuration"
