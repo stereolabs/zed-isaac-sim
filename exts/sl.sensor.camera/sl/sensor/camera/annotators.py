@@ -310,4 +310,7 @@ class ZEDAnnotator:
             self._right_rp.destroy()
 
 
+        stage = omni.usd.get_context().get_stage()
+        stage.RemovePrim(self._graph_path)
+
         carb.log_info(f"[ZED][port {self.port}] Annotators destroyed.")
