@@ -65,4 +65,10 @@ echo [INFO] Syncing build artifacts...
 xcopy /e /i /y "%BUILD_PATH%\*" "%BIN_TARGET%"
 copy /y "%BIN_TARGET%\sl_zed64.dll" "%BUILD_PATH%\sl_zed64.dll" >nul
 
+REM 6. Remove generated __ogn_files_prebuilt file
+if exist "exts\sl.sensor.camera\sl\sensor\camera\ogn\__ogn_files_prebuilt" (
+    REM echo [INFO] Removing __ogn_files_prebuilt file...
+    del /f /q "exts\sl.sensor.camera\sl\sensor\camera\ogn\__ogn_files_prebuilt"
+)
+
 echo [SUCCESS] Process complete.
