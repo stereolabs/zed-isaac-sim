@@ -35,4 +35,10 @@ cp -r $BUILD_PATH/* "exts/sl.sensor.camera/bin/"
 
 cp "exts/sl.sensor.camera/bin/libsl_zed.so" "$BUILD_PATH/libsl_zed.so"
 
+# Remove generated __ogn_files_prebuilt file
+if [ -f "exts/sl.sensor.camera/sl/sensor/camera/ogn/__ogn_files_prebuilt" ]; then
+    #echo "Removing __ogn_files_prebuilt file..."
+    rm -f "exts/sl.sensor.camera/sl/sensor/camera/ogn/__ogn_files_prebuilt"
+fi
+
 #rm -rf _compiler _deps _repo

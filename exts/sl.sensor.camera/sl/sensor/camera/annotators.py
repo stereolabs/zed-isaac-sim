@@ -272,7 +272,7 @@ class ZEDAnnotator:
         self.sync_node.get_attribute("outputs:rationalTimeDenominator").connect(self.sim_time.get_attribute("inputs:referenceTimeDenominator"), True)
         self.sync_node.get_attribute("outputs:rationalTimeNumerator").connect(self.sim_time.get_attribute("inputs:referenceTimeNumerator"), True)
 
-        imu_path = "/base_link/" + self.camera_model + "/Imu_Sensor"
+        imu_path = "/base_link/" + get_camera_model(self.camera_model) + "/Imu_Sensor"
         imu_full_path = self.camera_prim_path[0].pathString + imu_path
         self.imu.get_attribute("inputs:imuPrim").set(imu_full_path)
         self.zed_.get_attribute("inputs:bitrate").set(self.bitrate)

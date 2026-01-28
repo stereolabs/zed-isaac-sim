@@ -39,3 +39,4 @@ source/
 
 exts/sl.sensor.camera/bin/libsl.sensor.camera.plugin.so
 exts/sl.sensor.camera/bin/sl.sensor.camera.plugin.dll
+exts/sl.sensor.camera/sl/sensor/camera/ogn/__ogn_files_prebuilt
