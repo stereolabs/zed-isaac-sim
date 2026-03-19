@@ -1,5 +1,5 @@
 [package]
-version = "4.2.1" # Semantic Versioning is used: https://semver.org/
+version = "5.0.0" # Semantic Versioning is used: https://semver.org/
 
 # These fields are used primarily for display in the extension browser UI.
 title = "Stereolabs ZED Camera"
@@ -20,14 +20,13 @@ exclude = ["Ogn*Database.py"]
 
 [package.target]
 platform = ["windows-x86_64", "linux-x86_64"]
-kit = ["107.3"]
+kit = ["110.0"]
 
 [package.writeTarget]
 kit = true
 
 [dependencies]
 "omni.graph.core" = {}
-"omni.replicator.core" = {}
 "omni.graph.tools" = {}
 
 [[python.module]]

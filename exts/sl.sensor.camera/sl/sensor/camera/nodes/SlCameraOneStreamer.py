@@ -4,10 +4,7 @@ This is the implementation of the OGN node defined in SlVirtualCameraStreamer.og
 import carb
 from dataclasses import dataclass
 import traceback
-import omni.kit.commands
-from carb.events import IEvent
-from isaacsim.core.utils.stage import get_current_stage
-from pxr import Sdf
+import omni.timeline
 
 from ..annotators import ZEDAnnotator
 
@@ -61,7 +58,7 @@ class SlCameraOneStreamer:
                     db.inputs.chunkSize,
                     db.inputs.transport_layer_mode,
                     db.inputs.serialNumber)
-         
+
                 state.initialized = True
                 # Mark the port as used
                 SlCameraOneStreamer.used_ports.add(port)
@@ -74,7 +71,7 @@ class SlCameraOneStreamer:
                 state.timeline_stop_sub = timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
                     int(omni.timeline.TimelineEventType.STOP), cleanup
                 )
-            
+
             except Exception as e:
                 print(traceback.format_exc())
                 pass

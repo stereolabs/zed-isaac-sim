@@ -1,12 +1,6 @@
 r"""Support for simplified access to data on nodes of type sl.sensor.camera.ZED_Camera
 
- __   ___ .  .  ___  __       ___  ___  __      __   __   __   ___
-/ _` |__  |\ | |__  |__)  /\   |  |__  |  \    /  ` /  \ |  \ |__
-\__| |___ | \| |___ |  \ /--\  |  |___ |__/    \__, \__/ |__/ |___
-
- __   __     .  .  __  ___     .  .  __   __     ___
-|  \ /  \    |\ | /  \  |      |\/| /  \ |  \ | |__  \ /
-|__/ \__/    | \| \__/  |      |  | \__/ |__/ | |     |
+GENERATED CODE. DO NOT MODIFY.
 
 Streams ZED camera data to the ZED SDK
 """
@@ -16,8 +10,9 @@ import traceback
 import usdrt
 
 import omni.graph.core as og
-import omni.graph.core._omni_graph_core as _og
+_og = og._omni_graph_core
 import omni.graph.tools.ogn as ogn
+
 
 
 
@@ -53,8 +48,8 @@ class SlCameraStreamerDatabase(og.Database):
     """
 
     # Imprint the generator and target ABI versions in the file for JIT generation
-    GENERATOR_VERSION = (1, 79, 2)
-    TARGET_VERSION = (2, 184, 5)
+    GENERATOR_VERSION = (1, 81, 0)
+    TARGET_VERSION = (3, 1, 0)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}

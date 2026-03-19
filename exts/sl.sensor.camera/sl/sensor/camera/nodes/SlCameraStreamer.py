@@ -4,7 +4,7 @@ This is the implementation of the OGN node defined in SlCameraStreamer.ogn
 import carb
 from dataclasses import dataclass
 import traceback
-import omni.kit.commands
+import omni.timeline
 
 from ..annotators import ZEDAnnotator
 
