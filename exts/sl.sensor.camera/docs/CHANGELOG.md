@@ -2,6 +2,9 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [4.2.2]
+- Fix IMU data when using multiple cameras in the scene. Previously it was re-using the same IMU node for all the cameras.
+
 ## [4.2.1]
 - Fix streaming of 4mm camera models (ZED X and ZED XM).
 

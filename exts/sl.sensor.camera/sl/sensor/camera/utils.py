@@ -134,15 +134,15 @@ def is_stereo_camera(camera_model: str) -> bool:
 
     return config["is_stereo"] if config else True  # Default to stereo for unknown models
 
-def get_pixel_size(camera_model: str) -> bool:
+def get_pixel_size(camera_model: str) -> int:
     """Gets the pixel size of the camera model in micrometers.
-    
+
     Args:
         camera_model: The camera model name
-        
+
     Returns:
         The pixel size in micrometers, defaults to 3 if not recognized
     """
     config = _CAMERA_CONFIGS.get(camera_model)
 
-    return config["pixel_size"] if config else 3  # Default to stereo for unknown models
+    return config["pixel_size"] if config else 3
