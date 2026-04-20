@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 set SCRIPT_DIR=%~dp0
 
-set "SL_ZED_VERSION=4.2.0"
+set "SL_ZED_VERSION=4.2.1"
 set "BUILD_PATH=_build\windows-x86_64\release\exts\sl.sensor.camera\bin"
 set "BIN_TARGET=exts\sl.sensor.camera\bin"
 set "SL_ZED_FILENAME=sl_zed64_windows_x86_64_!SL_ZED_VERSION!.tar.gz"
