@@ -3,6 +3,7 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [4.2.2]
+- Fix error when using ZED Camera One Helper node.
 - Fix encoder issue when using latest Nvidia drivers (590+).
 - Fix IMU data when using multiple cameras in the scene. Previously it was re-using the same IMU node for all the cameras.
 
