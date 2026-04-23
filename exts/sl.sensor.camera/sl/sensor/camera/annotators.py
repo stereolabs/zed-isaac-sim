@@ -2,16 +2,17 @@
 # SPDX-License-Identifier: MIT
 
 import carb
-from isaacsim.core.api.world import World
 import omni.graph.core as og
 import omni.replicator.core as rep
 from omni.replicator.core.scripts.utils import viewport_manager
 from isaacsim.core.utils.prims import is_prim_path_valid, get_prim_at_path
 import omni.usd
 from omni.syntheticdata import SyntheticData, SyntheticDataStage
-from typing import Optional, Tuple, List
 
 from .utils import get_camera_model, is_stereo_camera, is_4mm_camera, get_resolution, get_focal_length, get_pixel_size
+
+# Shared across all streamer classes to ensure port uniqueness
+used_ports = set()
 
 class ZEDAnnotator:
     """
@@ -48,14 +49,19 @@ class ZEDAnnotator:
          # Normalize input
         if len(camera_prim) == 1:
             carb.log_info("Single prim provided, assuming mono or stereo camera based on model.")
-            self.camera_prim_path = camera_prim
             self.custom_stereo = False
         elif len(camera_prim) == 2:
             carb.log_info("Two prims provided, assuming custom stereo setup.")
-            self.camera_prim_path = camera_prim
             self.custom_stereo = True
         else:
             carb.log_error(f"Expected 1 or 2 camera prims, got {len(camera_prim)}")
+            self.camera_prim_path = []
+            self.custom_stereo = False
+            self.is_stereo = False
+            self.nodes = []
+            self.zed_ = None
+            self.graph = None
+            self.port = streaming_port
             return
 
         self.camera_prim_path = camera_prim
@@ -63,7 +69,7 @@ class ZEDAnnotator:
         self.camera_model = camera_model
         self.port = streaming_port
         self.resolution = get_resolution(camera_model, resolution)
-        self.fps = fps
+        self.fps = ZEDAnnotator.check_frame_rate(fps)
         self.bitrate = bitrate
         self.chunk_size = chunk_size
         self.transport_layer_mode = transport_layer_mode
@@ -101,6 +107,7 @@ class ZEDAnnotator:
             carb.log_error(f"Camera prim path {camera_prim_path} is not valid.")
         return result
 
+    @staticmethod
     def check_frame_rate(camera_frame_rate: int):
         if camera_frame_rate not in [15, 30, 60, 120]:
             carb.log_warn(f"Invalid frame rate passed: {camera_frame_rate}. Defaulting to 30.")
@@ -193,28 +200,30 @@ class ZEDAnnotator:
         frame_gate_node = og.Controller.node(frame_gate_node_path)
         frame_gate_node.get_attribute("inputs:enabled").set(True)
 
-        # create/assign sync and time nodes
+        # create/assign sync and time nodes (unique per camera using port)
         _physics_nodes = {
-            "sync": {"node_type": "omni.graph.action.RationalTimeSyncGate", "node": None},
-            "sim_time": {"node_type": "isaacsim.core.nodes.IsaacReadSimulationTime", "node": None},
-            "sys_time": {"node_type": "isaacsim.core.nodes.IsaacReadSystemTime", "node": None},
-            "imu_sensor": {"node_type": "isaacsim.sensors.physics.IsaacReadIMU", "node": None}
+            f"sync_{self.port}": {"node_type": "omni.graph.action.RationalTimeSyncGate", "node": None},
+            f"sim_time_{self.port}": {"node_type": "isaacsim.core.nodes.IsaacReadSimulationTime", "node": None},
+            f"sys_time_{self.port}": {"node_type": "isaacsim.core.nodes.IsaacReadSystemTime", "node": None},
+            f"imu_sensor_{self.port}": {"node_type": "isaacsim.sensors.physics.IsaacReadIMU", "node": None}
         }
 
+        stage = omni.usd.get_context().get_stage()
         for node_name, _ in _physics_nodes.items():
             node_path = self._graph_path + f"/{node_name}"
             node = self.graph.get_node(node_path)
-            if not node:
+            if not node.is_valid():
+                # Remove stale prim if it exists from a previous session
+                if stage.GetPrimAtPath(node_path):
+                    stage.RemovePrim(node_path)
                 node = self.graph.create_node(node_path, _["node_type"], True)
-            # else:
-            #     carb.log_warn(f"{node_name} node already exists")
             _["node"] = node
 
         # assign to vars for clarity
-        self.sync_node = _physics_nodes["sync"]["node"]
-        self.sim_time = _physics_nodes["sim_time"]["node"]
-        self.sys_time = _physics_nodes["sys_time"]["node"]
-        self.imu = _physics_nodes["imu_sensor"]["node"]
+        self.sync_node = _physics_nodes[f"sync_{self.port}"]["node"]
+        self.sim_time = _physics_nodes[f"sim_time_{self.port}"]["node"]
+        self.sys_time = _physics_nodes[f"sys_time_{self.port}"]["node"]
+        self.imu = _physics_nodes[f"imu_sensor_{self.port}"]["node"]
 
     def build_graph(self, cams) -> None:
         """
@@ -234,7 +243,13 @@ class ZEDAnnotator:
         )
 
         # create ZED node
-        self.zed_ = self.graph.create_node(self._graph_path + f"/zed_{self.port}", "sl.sensor.camera.OgnZEDSimCameraNode", True)
+        zed_path = self._graph_path + f"/zed_{self.port}"
+        self.zed_ = self.graph.get_node(zed_path)
+        if not self.zed_.is_valid():
+            stage = omni.usd.get_context().get_stage()
+            if stage.GetPrimAtPath(zed_path):
+                stage.RemovePrim(zed_path)
+            self.zed_ = self.graph.create_node(zed_path, "sl.sensor.camera.OgnZEDSimCameraNode", True)
         self.zed_.get_attribute("inputs:port").set(self.port)
         self.zed_.get_attribute("inputs:width").set(self.resolution[0])
         self.zed_.get_attribute("inputs:height").set(self.resolution[1])
@@ -242,22 +257,18 @@ class ZEDAnnotator:
 
         for cam in cams:
             # get the annotator nodes and connect them to the zed node
-            pfx = f"/{cam[1]}_"
-            sufx = "buffPtr"
-
             annot_var_mapping = {}
             if self.annotators.get(cam[0]):
                 annot_var_mapping[cam[0]] = {
-                    "node_name": f"{pfx}LdrColorSD{sufx}",
                     "attr_suffix": "",
                     "attrs": ["bufferSize", "dataPtr"],
                 }
 
-            for an, _params in annot_var_mapping.items():
-                ptr_node = self.annotators[cam[0]].get_node()
+            for side, _params in annot_var_mapping.items():
+                ptr_node = self.annotators[side].get_node()
                 ptr_node.get_attribute("outputs:exec").connect(self.sync_node.get_attribute("inputs:execIn"), True)
                 for p in _params["attrs"]:
-                    target_attr = self.zed_.get_attribute(f"inputs:{p}{cam[0]}{_params['attr_suffix']}")
+                    target_attr = self.zed_.get_attribute(f"inputs:{p}{side}{_params['attr_suffix']}")
                     ptr_node.get_attribute(f"outputs:{p}").connect(target_attr, True)
 
         self.sim_time.get_attribute("outputs:simulationTime").connect(self.zed_.get_attribute("inputs:simulationTime"), True)
@@ -309,8 +320,5 @@ class ZEDAnnotator:
             self.right_rgb_annot.detach(self.right_rp)
             self._right_rp.destroy()
 
-
-        stage = omni.usd.get_context().get_stage()
-        stage.RemovePrim(self._graph_path)
 
         carb.log_info(f"[ZED][port {self.port}] Annotators destroyed.")
