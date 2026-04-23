@@ -14,11 +14,9 @@ writeTarget.kit = true
 
 [package.target]
 platform = ["windows-x86_64", "linux-x86_64"]
-kit = ["107.3"]
+kit = ["110.0"]
 
 [dependencies]
-"isaacsim.core.api" = {}
-"isaacsim.gui.components" = {}
 "omni.kit.uiapp" = {}
 
 [[python.module]]

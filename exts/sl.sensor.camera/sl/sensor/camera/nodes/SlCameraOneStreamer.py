@@ -9,13 +9,13 @@ from carb.events import IEvent
 from isaacsim.core.utils.stage import get_current_stage
 from pxr import Sdf
 
-from ..annotators import ZEDAnnotator
+from ..annotators import ZEDAnnotator, used_ports as _used_ports
 
 class SlCameraOneStreamer:
     """
          Streams camera data to the ZED SDK
     """
-    used_ports = set()
+    used_ports = _used_ports
 
     @dataclass
     class State:
@@ -59,7 +59,7 @@ class SlCameraOneStreamer:
                     db.inputs.fps,
                     db.inputs.bitrate,
                     db.inputs.chunkSize,
-                    db.inputs.transport_layer_mode,
+                    db.inputs.transportLayerMode,
                     db.inputs.serialNumber)
          
                 state.initialized = True

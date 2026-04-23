@@ -12,6 +12,7 @@ Refer to the following table for the extension version compatible with your Isaa
 | 4.0               | 2.X.X             |
 | 4.5               | 3.X.X             |
 | 5.0               | 4.X.X             |
+| 6.0               | 5.X.X             |
 
 ## Getting Started
 
