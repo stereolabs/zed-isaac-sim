@@ -4,15 +4,15 @@ This is the implementation of the OGN node defined in SlCameraStreamer.ogn
 import carb
 from dataclasses import dataclass
 import traceback
-import omni.timeline
+import omni.kit.commands
 
-from ..annotators import ZEDAnnotator
+from ..annotators import ZEDAnnotator, used_ports as _used_ports
 
 class SlCameraStreamer:
     """
          Streams camera data to the ZED SDK
     """
-    used_ports = set()
+    used_ports = _used_ports
 
     @dataclass
     class State:

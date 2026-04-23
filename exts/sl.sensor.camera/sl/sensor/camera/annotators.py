@@ -11,6 +11,9 @@ from omni.syntheticdata import SyntheticData, SyntheticDataStage
 
 from .utils import get_camera_model, is_stereo_camera, is_4mm_camera, get_resolution, get_focal_length, get_pixel_size
 
+# Shared across all streamer classes to ensure port uniqueness
+used_ports = set()
+
 class ZEDAnnotator:
     """
     Captures camera data and streams it to the ZED SDK.
@@ -205,10 +208,15 @@ class ZEDAnnotator:
             f"imu_sensor_{self.port}": {"node_type": "isaacsim.sensors.physics.IsaacReadIMU", "node": None}
         }
 
+        stage = omni.usd.get_context().get_stage()
         for node_name, _ in _physics_nodes.items():
             node_path = self._graph_path + f"/{node_name}"
             node = self.graph.get_node(node_path)
-            node = self.graph.create_node(node_path, _["node_type"], True)
+            if not node.is_valid():
+                # Remove stale prim if it exists from a previous session
+                if stage.GetPrimAtPath(node_path):
+                    stage.RemovePrim(node_path)
+                node = self.graph.create_node(node_path, _["node_type"], True)
             _["node"] = node
 
         # assign to vars for clarity
@@ -235,7 +243,13 @@ class ZEDAnnotator:
         )
 
         # create ZED node
-        self.zed_ = self.graph.create_node(self._graph_path + f"/zed_{self.port}", "sl.sensor.camera.OgnZEDSimCameraNode", True)
+        zed_path = self._graph_path + f"/zed_{self.port}"
+        self.zed_ = self.graph.get_node(zed_path)
+        if not self.zed_.is_valid():
+            stage = omni.usd.get_context().get_stage()
+            if stage.GetPrimAtPath(zed_path):
+                stage.RemovePrim(zed_path)
+            self.zed_ = self.graph.create_node(zed_path, "sl.sensor.camera.OgnZEDSimCameraNode", True)
         self.zed_.get_attribute("inputs:port").set(self.port)
         self.zed_.get_attribute("inputs:width").set(self.resolution[0])
         self.zed_.get_attribute("inputs:height").set(self.resolution[1])
