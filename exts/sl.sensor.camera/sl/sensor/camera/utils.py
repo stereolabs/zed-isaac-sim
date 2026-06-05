@@ -45,6 +45,7 @@ _CAMERA_CONFIGS = {
     "ZED_X_4MM": {"base_model": "ZED_X", "is_4mm": True, "is_stereo": True, "pixel_size": 3},
     "ZED_XM": {"base_model": "ZED_XM", "is_4mm": False, "is_stereo": True, "pixel_size": 3},
     "ZED_XM_4MM": {"base_model": "ZED_XM", "is_4mm": True, "is_stereo": True, "pixel_size": 3},
+    "ZED_X_Nano": {"base_model": "ZED_X_Nano", "is_4mm": False, "is_stereo": True, "pixel_size": 3},
     "ZED_XONE_UHD": {"base_model": "ZED_XONE_UHD", "is_4mm": False, "is_stereo": False, "pixel_size": 2},
     "ZED_XONE_GS": {"base_model": "ZED_XONE_GS", "is_4mm": False, "is_stereo": False, "pixel_size": 3},
     "ZED_XONE_GS_4MM": {"base_model": "ZED_XONE_GS", "is_4mm": True, "is_stereo": False, "pixel_size": 3},
@@ -79,7 +80,7 @@ def get_focal_length(camera_model: str, camera_resolution: List[int], is_4mm: bo
         The focal length value, defaults to 741.6 if resolution not found
     """
     height = camera_resolution[1]
-    
+
     if camera_model in ["ZED_XONE_UHD"]:
         _CAMERA_SPEC = _ZED_XONE_UHD_SPECIFICATIONS
     else:
@@ -89,16 +90,16 @@ def get_focal_length(camera_model: str, camera_resolution: List[int], is_4mm: bo
     for spec in _CAMERA_SPEC.values():
         if spec["resolution"][1] == height:
             return spec["focal_length"]["4mm" if is_4mm else "standard"]
-    
+
     # Default fallback
     return 741.6
 
 def get_camera_model(camera_model: str) -> str:
     """Get the base camera model name from the full camera model name.
-    
+
     Args:
         camera_model: The full camera model name
-        
+
     Returns:
         The base camera model, defaults to "ZED_X" if not recognized
     """
@@ -110,10 +111,10 @@ def get_camera_model(camera_model: str) -> str:
 
 def is_4mm_camera(camera_model: str) -> bool:
     """Check if the camera model is a 4mm variant.
-    
+
     Args:
         camera_model: The camera model name
-        
+
     Returns:
         True if the camera is a 4mm variant, False otherwise
     """
@@ -123,10 +124,10 @@ def is_4mm_camera(camera_model: str) -> bool:
 
 def is_stereo_camera(camera_model: str) -> bool:
     """Check if the camera model supports stereo vision.
-    
+
     Args:
         camera_model: The camera model name
-        
+
     Returns:
         True if the camera supports stereo vision, False otherwise
     """
