@@ -71,6 +71,7 @@ namespace sl {
                     case 9:  return "ZED_X_Nano";
                     case 30: return is_4mm ? "ZED_XONE_GS_4MM" : "ZED_XONE_GS";
                     case 31: return "ZED_XONE_UHD";
+                    case 32: return "ZED_X_ONE_S_FISHEYE";
                     default: return "";
                 }
             }

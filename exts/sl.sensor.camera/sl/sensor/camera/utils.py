@@ -20,6 +20,21 @@ _ZEDX_SPECIFICATIONS = {
     }
 }
 
+_ZED_X_ONE_S_FISHEYE_SPECIFICATIONS = {
+    "HD1200": {
+        "resolution": [1920, 1200],
+        "focal_length": {"standard": 945}
+    },
+    "HD1080": {
+        "resolution": [1920, 1080],
+        "focal_length": {"standard": 945}
+    },
+    "SVGA": {
+        "resolution": [960, 600],
+        "focal_length": {"standard": 472.5}
+    }
+}
+
 _ZED_XONE_UHD_SPECIFICATIONS = {
     "HD4K": {
         "resolution": [3856, 2180],
@@ -49,6 +64,7 @@ _CAMERA_CONFIGS = {
     "ZED_XONE_UHD": {"base_model": "ZED_XONE_UHD", "is_4mm": False, "is_stereo": False, "pixel_size": 2},
     "ZED_XONE_GS": {"base_model": "ZED_XONE_GS", "is_4mm": False, "is_stereo": False, "pixel_size": 3},
     "ZED_XONE_GS_4MM": {"base_model": "ZED_XONE_GS", "is_4mm": True, "is_stereo": False, "pixel_size": 3},
+    "ZED_X_ONE_S_FISHEYE": {"base_model": "ZED_XONE_S", "is_4mm": False, "is_stereo": False, "pixel_size": 3},
 }
 
 def get_resolution(camera_model: str, camera_resolution: str) -> Optional[List[int]]:
@@ -62,6 +78,8 @@ def get_resolution(camera_model: str, camera_resolution: str) -> Optional[List[i
     """
     if camera_model in ["ZED_XONE_UHD"]:
         spec = _ZED_XONE_UHD_SPECIFICATIONS.get(camera_resolution)
+    elif camera_model in ["ZED_X_ONE_S_FISHEYE"]:
+        spec = _ZED_X_ONE_S_FISHEYE_SPECIFICATIONS.get(camera_resolution)
     else:
         spec = _ZEDX_SPECIFICATIONS.get(camera_resolution)
 
@@ -83,6 +101,8 @@ def get_focal_length(camera_model: str, camera_resolution: List[int], is_4mm: bo
 
     if camera_model in ["ZED_XONE_UHD"]:
         _CAMERA_SPEC = _ZED_XONE_UHD_SPECIFICATIONS
+    elif camera_model in ["ZED_X_ONE_S_FISHEYE"]:
+        _CAMERA_SPEC = _ZED_X_ONE_S_FISHEYE_SPECIFICATIONS
     else:
         _CAMERA_SPEC = _ZEDX_SPECIFICATIONS
 

@@ -45,6 +45,7 @@ class SlCameraOneStreamerDatabase(og.Database):
         tokens.ZED_XONE_UHD
         tokens.ZED_XONE_GS
         tokens.ZED_XONE_GS_4MM
+        tokens.ZED_X_ONE_S_FISHEYE
         tokens.HD4K
         tokens.QHDPLUS
         tokens.HD1200
@@ -57,7 +58,7 @@ class SlCameraOneStreamerDatabase(og.Database):
 
     # Imprint the generator and target ABI versions in the file for JIT generation
     GENERATOR_VERSION = (1, 79, 2)
-    TARGET_VERSION = (2, 184, 5)
+    TARGET_VERSION = (0, 0, 0)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}
@@ -69,7 +70,7 @@ class SlCameraOneStreamerDatabase(og.Database):
     # You should not need to access any of this data directly, use the defined database interfaces
     INTERFACE = og.Database._get_interface([
         ('inputs:bitrate', 'uint', 0, 'Streaming Bitrate', 'Streaming bitrate (Kbps).', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '8000'}, True, 8000, False, ''),
-        ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Mono Camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_XONE_UHD,ZED_XONE_GS,ZED_XONE_GS_4MM', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM"]', ogn.MetadataKeys.DEFAULT: '"ZED_XONE_GS"'}, True, "ZED_XONE_GS", False, ''),
+        ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Mono Camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_XONE_UHD,ZED_XONE_GS,ZED_XONE_GS_4MM,ZED_X_ONE_S_FISHEYE', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM", "ZED_X_ONE_S_FISHEYE"]', ogn.MetadataKeys.DEFAULT: '"ZED_XONE_GS"'}, True, "ZED_XONE_GS", False, ''),
         ('inputs:chunkSize', 'uint', 0, 'Streaming Chunk Size', 'Streaming chunk size (bytes).', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '4096'}, True, 4096, False, ''),
         ('inputs:execIn', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate.', {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: '60'}, True, 60, False, ''),
@@ -85,6 +86,7 @@ class SlCameraOneStreamerDatabase(og.Database):
         ZED_XONE_UHD = "ZED_XONE_UHD"
         ZED_XONE_GS = "ZED_XONE_GS"
         ZED_XONE_GS_4MM = "ZED_XONE_GS_4MM"
+        ZED_X_ONE_S_FISHEYE = "ZED_X_ONE_S_FISHEYE"
         HD4K = "HD4K"
         QHDPLUS = "QHDPLUS"
         HD1200 = "HD1200"
