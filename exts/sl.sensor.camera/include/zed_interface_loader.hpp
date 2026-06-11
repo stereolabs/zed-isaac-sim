@@ -26,6 +26,35 @@ using LibHandle = void*;
 
 namespace sl
 {
+    // Returns the directory containing this plugin's shared library,
+    // so the bundled sl_zed library can be loaded by absolute path
+    // (a bare name would let the dynamic linker pick up a ZED SDK
+    // system install via LD_LIBRARY_PATH/ldconfig instead).
+    inline std::string get_current_module_dir()
+    {
+#ifdef _WIN32
+        HMODULE hModule = nullptr;
+        GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                           GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           (LPCSTR)&get_current_module_dir, &hModule);
+        char path[MAX_PATH] = {0};
+        if (!hModule || GetModuleFileNameA(hModule, path, MAX_PATH) == 0) {
+            return std::string();
+        }
+        std::string dir(path);
+        size_t pos = dir.find_last_of("\\/");
+        return (pos != std::string::npos) ? dir.substr(0, pos) : std::string();
+#else
+        Dl_info info{};
+        if (dladdr((void*)&get_current_module_dir, &info) && info.dli_fname) {
+            std::string dir(info.dli_fname);
+            size_t pos = dir.find_last_of('/');
+            return (pos != std::string::npos) ? dir.substr(0, pos) : std::string();
+        }
+        return std::string();
+#endif
+    }
+
     // Simple double buffer for frame data
     template <typename T>
     class DoubleBuffer {
@@ -123,7 +152,7 @@ namespace sl
                 return false;
             }
 
-            //CARB_LOG_INFO("[ZED] %s successfully loaded", zed_lib_path.c_str());
+            CARB_LOG_INFO("[ZED] %s successfully loaded", zed_lib_path.c_str());
             loaded = true;
             return true;
         }

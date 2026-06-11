@@ -262,15 +262,22 @@ public:
                     // Load zed streamer lib and init the streamer
                     std::string prefix = "";
                     std::string suffix = "";
+                    std::string sep = "/";
 #ifndef _WIN32
                     prefix = "lib";
                     suffix = ".so";
 #else
                     suffix = "64.dll";
+                    sep = "\\";
 #endif
                     std::string lib_name = prefix + "sl_zed" + suffix;
 
-                    if (m_zedStreamer.load_lib(lib_name) && m_zedStreamer.isZEDSDKCompatible())
+                    // Load by absolute path from this plugin's own directory (the extension's
+                    // bin/ folder) so the bundled lib is used, never a ZED SDK system install.
+                    std::string module_dir = sl::get_current_module_dir();
+                    std::string lib_path = module_dir.empty() ? lib_name : module_dir + sep + lib_name;
+
+                    if (m_zedStreamer.load_lib(lib_path) && m_zedStreamer.isZEDSDKCompatible())
                     {
                         m_valid = true;
                         CARB_LOG_INFO("[ZED] Successfully found and loaded ZED SDK");
