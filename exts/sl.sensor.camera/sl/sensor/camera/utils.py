@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import carb
-from typing import Optional, Tuple, List
+from typing import Optional, List
 
 # Camera specifications mapping for ZED X, ZED XM and ZED X ONE GS
 _ZEDX_SPECIFICATIONS = {
@@ -23,16 +23,24 @@ _ZEDX_SPECIFICATIONS = {
 _ZED_X_ONE_S_FISHEYE_SPECIFICATIONS = {
     "HD1200": {
         "resolution": [1920, 1200],
-        "focal_length": {"standard": 945}
+        "focal_length": {"standard": 455.8},
+        "optical_center": [960, 600]
     },
     "HD1080": {
         "resolution": [1920, 1080],
-        "focal_length": {"standard": 945}
+        "focal_length": {"standard": 455.8},
+        "optical_center": [960, 480]
     },
     "SVGA": {
         "resolution": [960, 600],
-        "focal_length": {"standard": 472.5}
+        "focal_length": {"standard": 230},
+        "optical_center": [480, 300]
     }
+}
+
+# OpenCV fisheye distortion coefficients [k1, k2, k3, k4] per camera model
+_DISTORTION_COEFFICIENTS = {
+    "ZED_X_ONE_S_FISHEYE": [0.05, 0.01, -0.003, -0.0005],
 }
 
 _ZED_XONE_UHD_SPECIFICATIONS = {
@@ -64,6 +72,8 @@ _CAMERA_CONFIGS = {
     "ZED_XONE_UHD": {"base_model": "ZED_XONE_UHD", "is_4mm": False, "is_stereo": False, "pixel_size": 2},
     "ZED_XONE_GS": {"base_model": "ZED_XONE_GS", "is_4mm": False, "is_stereo": False, "pixel_size": 3},
     "ZED_XONE_GS_4MM": {"base_model": "ZED_XONE_GS", "is_4mm": True, "is_stereo": False, "pixel_size": 3},
+    "ZED_X_ONE_S": {"base_model": "ZED_XONE_S", "is_4mm": False, "is_stereo": False, "pixel_size": 3},
+    "ZED_X_ONE_S_4MM": {"base_model": "ZED_XONE_S", "is_4mm": True, "is_stereo": False, "pixel_size": 3},
     "ZED_X_ONE_S_FISHEYE": {"base_model": "ZED_XONE_S", "is_4mm": False, "is_stereo": False, "pixel_size": 3},
 }
 
@@ -154,6 +164,34 @@ def is_stereo_camera(camera_model: str) -> bool:
     config = _CAMERA_CONFIGS.get(camera_model)
 
     return config["is_stereo"] if config else True  # Default to stereo for unknown models
+
+def get_distortion_coefficients(camera_model: str) -> Optional[List[float]]:
+    """Get the OpenCV fisheye distortion coefficients of the camera model.
+
+    Args:
+        camera_model: The camera model name
+
+    Returns:
+        The [k1, k2, k3, k4] coefficients, or None for undistorted (pinhole) models
+    """
+    return _DISTORTION_COEFFICIENTS.get(camera_model)
+
+def get_optical_center(camera_model: str, camera_resolution: List[int]) -> List[float]:
+    """Get the optical center (cx, cy) for the given camera model and resolution.
+
+    Args:
+        camera_model: The camera model name
+        camera_resolution: The camera resolution as [width, height]
+
+    Returns:
+        The optical center as [cx, cy], defaults to the image center
+    """
+    if camera_model in ["ZED_X_ONE_S_FISHEYE"]:
+        for spec in _ZED_X_ONE_S_FISHEYE_SPECIFICATIONS.values():
+            if spec["resolution"][1] == camera_resolution[1] and "optical_center" in spec:
+                return spec["optical_center"]
+
+    return [camera_resolution[0] / 2, camera_resolution[1] / 2]
 
 def get_pixel_size(camera_model: str) -> int:
     """Gets the pixel size of the camera model in micrometers.

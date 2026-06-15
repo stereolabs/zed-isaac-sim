@@ -10,6 +10,7 @@
 
 #include <chrono>
 #include <algorithm>
+#include <set>
 #include <thread>
 #include <mutex>
 #include <atomic>
@@ -71,10 +72,12 @@ namespace sl {
                     case 9:  return "ZED_X_Nano";
                     case 30: return is_4mm ? "ZED_XONE_GS_4MM" : "ZED_XONE_GS";
                     case 31: return "ZED_XONE_UHD";
-                    case 32: return "ZED_X_ONE_S_FISHEYE";
                     default: return "";
                 }
             }
+
+            // SNs reported as ZED_XONE_GS by the SDK but fitted with a fisheye lens
+            static const std::set<int> fisheye_serial_numbers = { 303412363, 303835666, 306847047, 303198502 };
 
             // List of available SN per camera model (populated from SDK at runtime)
             static std::map<std::string, std::vector<int>> available_zed_cameras = {};
@@ -88,7 +91,11 @@ namespace sl {
                 sl::SimCameraInfo* info = streamer.getVirtualCameraInfo(&count);
                 if (!info || count == 0) return;
                 for (int i = 0; i < count; i++) {
-                    std::string key = simCameraModelKey(info[i].model, info[i].is_4mm != 0);
+                    std::string key;
+                    if (fisheye_serial_numbers.count(info[i].serial_number))
+                        key = "ZED_X_ONE_S_FISHEYE";
+                    else
+                        key = simCameraModelKey(info[i].model, info[i].is_4mm != 0);
                     if (!key.empty())
                         available_zed_cameras[key].push_back(info[i].serial_number);
                 }
@@ -359,12 +366,12 @@ public:
                         state.m_stereo_camera = db.inputs.bufferSizeRight() > 0 && reinterpret_cast<void*>(db.inputs.dataPtrRight()) != nullptr;
 
                         std::string camera_model = db.inputs.cameraModel();
-                        if (!state.m_stereo_camera)
-                        {
-                            CARB_LOG_INFO("[ZED] Opening mono camera %s", camera_model.c_str());
-                        } else {
-                            CARB_LOG_INFO("[ZED] Opening stereo camera %s", camera_model.c_str());
-                        }
+                        // ZED X One S shares its SDK identity (model 30) with the GS, so it draws from the GS serial pool
+                        if (camera_model == "ZED_X_ONE_S")
+                            camera_model = "ZED_XONE_GS";
+                        else if (camera_model == "ZED_X_ONE_S_4MM")
+                            camera_model = "ZED_XONE_GS_4MM";
+
 
                         unsigned short port = db.inputs.port();
 
@@ -397,6 +404,14 @@ public:
 
                             removeStreamer(camera_model, serial_number);
                             return false;
+                        }
+
+                        if (!state.m_stereo_camera)
+                        {
+                            CARB_LOG_INFO("[ZED] Opening mono camera %s %d", camera_model.c_str(), serial_number);
+                        }
+                        else {
+                            CARB_LOG_INFO("[ZED] Opening stereo camera %s %d", camera_model.c_str(), serial_number);
                         }
 
                         int transport_layer_mode = transportLayerModeToInt(db.tokenToString(db.inputs.transportLayerMode()));

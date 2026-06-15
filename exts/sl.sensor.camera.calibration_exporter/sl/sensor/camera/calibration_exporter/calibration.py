@@ -57,7 +57,9 @@ def get_camera_config(camera_model: str) -> Tuple[str, bool]:
         "ZED_XONE_GS": ("30", False),
         "ZED_XS_GS_4MM": ("30", True),
         "ZED_XONE_UHD": ("31", False),
-        "ZED_X_ONE_S_FISHEYE": ("32", False),
+        "ZED_X_ONE_S": ("30", False),
+        "ZED_X_ONE_S_4MM": ("30", True),
+        "ZED_X_ONE_S_FISHEYE": ("30", False),
     }
 
     if camera_model not in camera_configs:

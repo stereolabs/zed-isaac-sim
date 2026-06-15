@@ -8,8 +8,18 @@ from omni.replicator.core.scripts.utils import viewport_manager
 from isaacsim.core.utils.prims import is_prim_path_valid, get_prim_at_path
 import omni.usd
 from omni.syntheticdata import SyntheticData, SyntheticDataStage
+from pxr import Gf
 
-from .utils import get_camera_model, is_stereo_camera, is_4mm_camera, get_resolution, get_focal_length, get_pixel_size
+from .utils import (
+    get_camera_model,
+    is_stereo_camera,
+    is_4mm_camera,
+    get_resolution,
+    get_focal_length,
+    get_pixel_size,
+    get_distortion_coefficients,
+    get_optical_center,
+)
 
 # Shared across all streamer classes to ensure port uniqueness
 used_ports = set()
@@ -102,6 +112,30 @@ class ZEDAnnotator:
                 cam_prim.GetAttribute("horizontalAperture").Set(horizontal_aperture)
                 cam_prim.GetAttribute("verticalAperture").Set(vertical_aperture)
                 cam_prim.GetAttribute("fStop").Set(f_stop)
+
+                # Apply lens distortion for fisheye camera models
+                distortion = get_distortion_coefficients(self.camera_model)
+                if distortion is None:
+                    # Revert to pinhole: remove any distortion schema left on the prim by a previous run
+                    for schema in cam_prim.GetAppliedSchemas():
+                        if schema.startswith("OmniLensDistortion"):
+                            cam_prim.RemoveAppliedSchema(schema)
+                    if cam_prim.HasAttribute("omni:lensdistortion:model"):
+                        cam_prim.RemoveProperty("omni:lensdistortion:model")
+                else:
+                    cx, cy = get_optical_center(self.camera_model, resolution)
+                    cam_prim.ApplyAPI("OmniLensDistortionOpenCvFisheyeAPI")
+                    cam_prim.GetAttribute("omni:lensdistortion:model").Set("opencvFisheye")
+                    cam_prim.GetAttribute("omni:lensdistortion:opencvFisheye:k1").Set(distortion[0])
+                    cam_prim.GetAttribute("omni:lensdistortion:opencvFisheye:k2").Set(distortion[1])
+                    cam_prim.GetAttribute("omni:lensdistortion:opencvFisheye:k3").Set(distortion[2])
+                    cam_prim.GetAttribute("omni:lensdistortion:opencvFisheye:k4").Set(distortion[3])
+                    cam_prim.GetAttribute("omni:lensdistortion:opencvFisheye:cx").Set(cx)
+                    cam_prim.GetAttribute("omni:lensdistortion:opencvFisheye:cy").Set(cy)
+                    cam_prim.GetAttribute("omni:lensdistortion:opencvFisheye:fx").Set(f)
+                    cam_prim.GetAttribute("omni:lensdistortion:opencvFisheye:fy").Set(f)
+                    cam_prim.GetAttribute("omni:lensdistortion:opencvFisheye:imageSize").Set(Gf.Vec2i(resolution[0], resolution[1]))
+
                 result = True
         else:
             carb.log_error(f"Camera prim path {camera_prim_path} is not valid.")
