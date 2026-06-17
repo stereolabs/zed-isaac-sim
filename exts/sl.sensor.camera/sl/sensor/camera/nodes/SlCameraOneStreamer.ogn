@@ -45,7 +45,7 @@
         "default": "ZED_XONE_GS",
         "metadata": {
           "uiName": "Camera Model",
-          "allowedTokens": [ "ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM", "ZED_X_ONE_S_FISHEYE" ],
+          "allowedTokens": [ "ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM"],
           "uiGroup": "Configuration"
         }
       },
