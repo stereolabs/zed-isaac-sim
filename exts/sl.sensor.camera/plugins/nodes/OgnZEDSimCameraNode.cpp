@@ -10,6 +10,7 @@
 
 #include <chrono>
 #include <algorithm>
+#include <set>
 #include <thread>
 #include <mutex>
 #include <atomic>
@@ -64,19 +65,41 @@ namespace sl {
                 }
             };
 
-            // List of available SN per camera model
-            static std::map<std::string, std::vector<int>> available_zed_cameras = {
-                {"ZED_X",   { 40976320, 41116066, 49123828, 45626933 }},
-                {"ZED_X_4MM", { 47890353,45263213,47800035,47706147 }},
-                {"ZED_XM",   { 57890353,55263213,57800035,57706147 }},
-                {"ZED_XM_4MM",   { 50179396,52835616,59695059,55043860 }},
-                {"ZED_XONE_UHD",   { 312015765, 312817871,315177501, 313382320 }},
-                {"ZED_XONE_GS",   { 305221009, 305952675, 307526942, 307184845 }},
-                {"ZED_XONE_GS_4MM",   {300605725, 302696256, 302485375, 307845777 }}
-            };
+            static std::string simCameraModelKey(int model, bool is_4mm) {
+                switch (model) {
+                    case 4:  return is_4mm ? "ZED_X_4MM" : "ZED_X";
+                    case 5:  return is_4mm ? "ZED_XM_4MM" : "ZED_XM";
+                    case 9:  return "ZED_X_Nano";
+                    case 30: return is_4mm ? "ZED_XONE_GS_4MM" : "ZED_XONE_GS";
+                    case 31: return "ZED_XONE_UHD";
+                    default: return "";
+                }
+            }
+
+            // SNs reported as ZED_XONE_GS by the SDK but fitted with a fisheye lens
+            static const std::set<int> fisheye_serial_numbers = { 303412363, 303835666, 306847047, 303198502 };
+
+            // List of available SN per camera model (populated from SDK at runtime)
+            static std::map<std::string, std::vector<int>> available_zed_cameras = {};
 
             // List of currently opened cameras
             static std::map<std::string, std::vector<int>> remaining_serial_numbers = {};
+
+            static void populateAvailableCameras(sl::ZedStreamer& streamer) {
+                available_zed_cameras.clear();
+                int count = 0;
+                sl::SimCameraInfo* info = streamer.getVirtualCameraInfo(&count);
+                if (!info || count == 0) return;
+                for (int i = 0; i < count; i++) {
+                    std::string key;
+                    if (fisheye_serial_numbers.count(info[i].serial_number))
+                        key = "ZED_X_ONE_S_FISHEYE";
+                    else
+                        key = simCameraModelKey(info[i].model, info[i].is_4mm != 0);
+                    if (!key.empty())
+                        available_zed_cameras[key].push_back(info[i].serial_number);
+                }
+            }
 
             // Try to open a new streamer given a camera model. Check if a serial number is still available among the list.
             static int addStreamer(const std::string& camera_model)
@@ -257,20 +280,25 @@ public:
                     m_cudaStreamNotCreated = true;
                     m_shouldStop = false;
 
-                    remaining_serial_numbers = available_zed_cameras;
-
                     // Load zed streamer lib and init the streamer
                     std::string prefix = "";
                     std::string suffix = "";
+                    std::string sep = "/";
 #ifndef _WIN32
                     prefix = "lib";
                     suffix = ".so";
 #else
                     suffix = "64.dll";
+                    sep = "\\";
 #endif
                     std::string lib_name = prefix + "sl_zed" + suffix;
 
-                    if (m_zedStreamer.load_lib(lib_name) && m_zedStreamer.isZEDSDKCompatible())
+                    // Load by absolute path from this plugin's own directory (the extension's
+                    // bin/ folder) so the bundled lib is used, never a ZED SDK system install.
+                    std::string module_dir = sl::get_current_module_dir();
+                    std::string lib_path = module_dir.empty() ? lib_name : module_dir + sep + lib_name;
+
+                    if (m_zedStreamer.load_lib(lib_path) && m_zedStreamer.isZEDSDKCompatible())
                     {
                         m_valid = true;
                         CARB_LOG_INFO("[ZED] Successfully found and loaded ZED SDK");
@@ -336,15 +364,21 @@ public:
 
                         state.m_zedStreamer.load_api();
 
+                        if (available_zed_cameras.empty())
+                        {
+                            populateAvailableCameras(state.m_zedStreamer);
+                            remaining_serial_numbers = available_zed_cameras;
+                        }
+
                         state.m_stereo_camera = db.inputs.bufferSizeRight() > 0 && reinterpret_cast<void*>(db.inputs.dataPtrRight()) != nullptr;
 
                         std::string camera_model = db.inputs.cameraModel();
-                        if (!state.m_stereo_camera)
-                        {
-                            CARB_LOG_INFO("[ZED] Opening mono camera %s", camera_model.c_str());
-                        } else {
-                            CARB_LOG_INFO("[ZED] Opening stereo camera %s", camera_model.c_str());
-                        }
+                        // ZED X One S shares its SDK identity (model 30) with the GS, so it draws from the GS serial pool
+                        if (camera_model == "ZED_X_ONE_S")
+                            camera_model = "ZED_XONE_GS";
+                        else if (camera_model == "ZED_X_ONE_S_4MM")
+                            camera_model = "ZED_XONE_GS_4MM";
+
 
                         unsigned short port = db.inputs.port();
 
@@ -377,6 +411,14 @@ public:
 
                             removeStreamer(camera_model, serial_number);
                             return false;
+                        }
+
+                        if (!state.m_stereo_camera)
+                        {
+                            CARB_LOG_INFO("[ZED] Opening mono camera %s %d", camera_model.c_str(), serial_number);
+                        }
+                        else {
+                            CARB_LOG_INFO("[ZED] Opening stereo camera %s %d", camera_model.c_str(), serial_number);
                         }
 
                         int transport_layer_mode = transportLayerModeToInt(db.tokenToString(db.inputs.transportLayerMode()));

@@ -33,7 +33,7 @@
         "default": "ZED_X",
         "metadata": {
           "uiName": "Camera Model",
-          "allowedTokens": [ "ZED_X", "ZED_XM", "ZED_X_4MM", "ZED_XM_4MM" ]
+          "allowedTokens": [ "ZED_X", "ZED_XM", "ZED_X_4MM", "ZED_XM_4MM", "ZED_X_Nano" ]
         }
       },
       "resolution": {
