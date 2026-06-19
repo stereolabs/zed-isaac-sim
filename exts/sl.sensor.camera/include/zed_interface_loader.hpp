@@ -109,9 +109,9 @@ namespace sl
         typedef int (*StreamYUVFunc)(int, unsigned char*, unsigned char*, long long, float, float, float, float, float, float, float);
         typedef void (*CloseStreamerFunc)(int);
         typedef void (*DestroyInstanceFunc)();
-        typedef int* (*GetVirtualCameraIdentifiersFunc)(int*);
         typedef int (*IngestImuFunc)(int, long long, float, float, float, float, float, float, float, float, float, float);
         typedef bool (*IsSNValidFunc)(int);
+        typedef SimCameraInfo* (*GetVirtualCameraInfoFunc)(int*);
 
         GetSDKVersion get_sdk_version;
         InitStreamerFunc init_streamer;
@@ -119,7 +119,7 @@ namespace sl
         StreamYUVFunc stream_yuv;
         CloseStreamerFunc close_streamer;
         DestroyInstanceFunc destroy_instance;
-        GetVirtualCameraIdentifiersFunc get_virtual_camera_identifiers;
+        GetVirtualCameraInfoFunc get_virtual_camera_info;
         IngestImuFunc ingest_imu;
         IsSNValidFunc is_sn_valid;
 
@@ -133,7 +133,7 @@ namespace sl
             stream_yuv = nullptr;
             close_streamer = nullptr;
             destroy_instance = nullptr;
-            get_virtual_camera_identifiers = nullptr;
+            get_virtual_camera_info = nullptr;
             ingest_imu = nullptr;
             is_sn_valid = nullptr;
         }
@@ -164,7 +164,7 @@ namespace sl
             stream_yuv = (StreamYUVFunc)GetFunc(hLibrary, "stream_yuv");
             close_streamer = (CloseStreamerFunc)GetFunc(hLibrary, "close_streamer");
             destroy_instance = (DestroyInstanceFunc)GetFunc(hLibrary, "destroy_instance");
-            get_virtual_camera_identifiers = (GetVirtualCameraIdentifiersFunc)GetFunc(hLibrary, "get_virtual_camera_identifiers");
+            get_virtual_camera_info = (GetVirtualCameraInfoFunc)GetFunc(hLibrary, "get_virtual_camera_info");
             ingest_imu = (IngestImuFunc)GetFunc(hLibrary, "ingest_imu");
             is_sn_valid = (IsSNValidFunc)GetFunc(hLibrary, "is_sn_valid");
 
@@ -186,7 +186,7 @@ namespace sl
             stream_yuv = nullptr;
             close_streamer = nullptr;
             destroy_instance = nullptr;
-            get_virtual_camera_identifiers = nullptr;
+            get_virtual_camera_info = nullptr;
             ingest_imu = nullptr;
             is_sn_valid = nullptr;
         }
@@ -224,7 +224,7 @@ namespace sl
                 int res = getSDKVersion(major, minor, patch);
                 if (res == 0)
                 {
-                    //CARB_LOG_INFO("[ZED] Found SDK v%d.%d.%d", major, minor, patch);
+                    CARB_LOG_INFO("[ZED] Found SDK v%d.%d.%d", major, minor, patch);
 
                     if (major > ZED_SDK_VERSION_MAJOR) return true;
                     if (major < ZED_SDK_VERSION_MAJOR) return false;
@@ -295,20 +295,21 @@ namespace sl
             destroy_instance();
         }
 
-        int* getVirtualCameraIdentifiers(int* size_out) {
-            if (!loaded || !get_virtual_camera_identifiers) {
-                std::cerr << "[ZED] Error with get_virtual_camera_identifiers function call" << std::endl;
-                return nullptr;
-            }
-            return get_virtual_camera_identifiers(size_out);
-        }
-
         bool isSNValid(int serial_number) {
             if (!loaded || !is_sn_valid) {
                 std::cerr << "[ZED] Error with is_sn_valid function call" << std::endl;
                 return false;
             }
             return is_sn_valid(serial_number);
+        }
+
+        SimCameraInfo* getVirtualCameraInfo(int* size_out) {
+            if (!loaded || !get_virtual_camera_info) {
+                std::cerr << "[ZED] Error with get_virtual_camera_info function call" << std::endl;
+                if (size_out) *size_out = 0;
+                return nullptr;
+            }
+            return get_virtual_camera_info(size_out);
         }
 
         int ingestIMU(int streamer_id, long long timestamp_ns, float vx, float vy, float vz,
