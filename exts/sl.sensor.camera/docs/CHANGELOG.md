@@ -2,6 +2,10 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [4.3.0]
+- Added support for the ZED X Nano camera.
+- Changed the default camera resolution to SVGA for better out-of-the-box performance.
+
 ## [4.2.2]
 - Fix error when using ZED Camera One Helper node.
 - Fix encoder issue when using latest Nvidia drivers (590+).
