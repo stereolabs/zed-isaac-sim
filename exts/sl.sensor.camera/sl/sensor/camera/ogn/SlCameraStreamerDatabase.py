@@ -39,6 +39,7 @@ class SlCameraStreamerDatabase(og.Database):
         tokens.ZED_XM
         tokens.ZED_X_4MM
         tokens.ZED_XM_4MM
+        tokens.ZED_X_Nano
         tokens.HD1200
         tokens.HD1080
         tokens.SVGA
@@ -48,8 +49,8 @@ class SlCameraStreamerDatabase(og.Database):
     """
 
     # Imprint the generator and target ABI versions in the file for JIT generation
-    GENERATOR_VERSION = (1, 81, 0)
-    TARGET_VERSION = (3, 1, 0)
+    GENERATOR_VERSION = (1, 79, 2)
+    TARGET_VERSION = (0, 0, 0)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}
@@ -61,7 +62,7 @@ class SlCameraStreamerDatabase(og.Database):
     # You should not need to access any of this data directly, use the defined database interfaces
     INTERFACE = og.Database._get_interface([
         ('inputs:bitrate', 'uint', 0, 'Streaming Bitrate', 'Bitrate in Kbps. (Used only if IPC is disabled)', {ogn.MetadataKeys.DEFAULT: '8000'}, True, 8000, False, ''),
-        ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_X,ZED_XM,ZED_X_4MM,ZED_XM_4MM', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_X", "ZED_XM", "ZED_X_4MM", "ZED_XM_4MM"]', ogn.MetadataKeys.DEFAULT: '"ZED_X"'}, True, "ZED_X", False, ''),
+        ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_X,ZED_XM,ZED_X_4MM,ZED_XM_4MM,ZED_X_Nano', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_X", "ZED_XM", "ZED_X_4MM", "ZED_XM_4MM", "ZED_X_Nano"]', ogn.MetadataKeys.DEFAULT: '"ZED_X"'}, True, "ZED_X", False, ''),
         ('inputs:cameraPrim', 'target', 0, 'ZED Camera Prim', 'ZED Camera prim used to stream data.', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0'}, True, None, False, ''),
         ('inputs:chunkSize', 'uint', 0, 'Streaming Chunk Size', 'Chunk size in bytes. (Used only if IPC is disabled)', {ogn.MetadataKeys.DEFAULT: '4096'}, True, 4096, False, ''),
         ('inputs:execIn', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
@@ -76,6 +77,7 @@ class SlCameraStreamerDatabase(og.Database):
         ZED_XM = "ZED_XM"
         ZED_X_4MM = "ZED_X_4MM"
         ZED_XM_4MM = "ZED_XM_4MM"
+        ZED_X_Nano = "ZED_X_Nano"
         HD1200 = "HD1200"
         HD1080 = "HD1080"
         SVGA = "SVGA"

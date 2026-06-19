@@ -97,6 +97,12 @@ namespace sl
         unsigned short chunk_size = 4096; // in bytes
     };
 
+    struct SimCameraInfo {
+        int serial_number;
+        int model;
+        int is_4mm;
+    };
+
 }
 
 #endif

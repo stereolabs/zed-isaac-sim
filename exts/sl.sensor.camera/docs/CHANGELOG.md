@@ -2,13 +2,22 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [5.0.1]
+## [5.1.0]
+- Added support for the ZED X Nano camera.
+- Changed the default camera resolution to SVGA for better out-of-the-box performance.
+
+[5.0.1]
 - Fix error when using ZED Camera One Helper node.
 - Fix encoder issue when using latest Nvidia drivers (590+).
 - Fix IMU data when using multiple cameras in the scene. Previously it was re-using the same IMU node for all the cameras.
 
 ## [5.0.0]
 - Add Isaac SIM 6.0 support
+
+## [4.2.2]
+- Fix error when using ZED Camera One Helper node.
+- Fix encoder issue when using latest Nvidia drivers (590+).
+- Fix IMU data when using multiple cameras in the scene. Previously it was re-using the same IMU node for all the cameras.
 
 ## [4.2.1]
 - Fix streaming of 4mm camera models (ZED X and ZED XM).
