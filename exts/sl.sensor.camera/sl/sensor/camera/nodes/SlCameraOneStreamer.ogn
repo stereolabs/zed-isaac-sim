@@ -61,7 +61,7 @@
       "resolution": {
         "type": "token",
         "description": "Camera stream resolution.",
-        "default": "HD1200",
+        "default": "SVGA",
         "metadata": {
           "allowedTokens": [ "HD4K", "QHDPLUS", "HD1200", "HD1080", "SVGA" ],
           "uiName": "Resolution",
