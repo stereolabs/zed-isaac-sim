@@ -33,13 +33,13 @@
         "default": "ZED_X",
         "metadata": {
           "uiName": "Camera Model",
-          "allowedTokens": [ "ZED_X", "ZED_XM", "ZED_X_4MM", "ZED_XM_4MM" ]
+          "allowedTokens": [ "ZED_X", "ZED_XM", "ZED_X_4MM", "ZED_XM_4MM", "ZED_X_Nano" ]
         }
       },
       "resolution": {
         "type": "token",
         "description": "Camera stream resolution.",
-        "default": "HD1200",
+        "default": "SVGA",
         "metadata": {
           "uiName": "Resolution",
           "allowedTokens": [ "HD1200", "HD1080", "SVGA" ]

@@ -47,6 +47,7 @@ project_ext_plugin(ext, ogn.plugin_project)
         includedirs { "%{target_deps}/cuda/include" }
         libdirs     { "%{target_deps}/cuda/lib/x64" }
         links       { "cudart_static" }
+        disablewarnings { "4875" }
     filter {}
 
     -- Add the standard dependencies all OGN projects have; includes, libraries to link, and required compiler flags
