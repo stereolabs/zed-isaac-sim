@@ -20,9 +20,16 @@ enabled = false
 
 [repo_build.msbuild]
 link_host_toolchain = true
-vs_version = "vs2019" # Empty string will match all years and prioritize the newest, specifying vs2019 because of issue with usd libs and vs2022
+vs_version = "vs2022" # Local default: drive msbuild with VS2022. ABI stays compatible because the compiler toolset is pinned to v142 (MSVC_VERSION in premake5.lua) - the actual USD-libs-vs2022 concern is the toolset, not the IDE year. Requires the v142 (14.27) build-tools component installed in VS2022. CI overrides below.
 "token:in_ci==true".vs_version = "vs2019"
 "token:in_ci==true".vs_path = "C:\\vs2019"
+
+[[repo_kit_pull_extensions.environment]]
+name = "integ"
+app_version_regex = ""
+tokens.registry_url = "https://ovextensionsprod.blob.core.windows.net"
+tokens.registry_shared_name = "shared"
+tokens.registry_name = "kit/prod"
 
 [repo_precache_exts]
 registries = [

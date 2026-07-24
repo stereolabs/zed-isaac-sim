@@ -1,118 +1,198 @@
 {
-  "ZED_Camera_One": {
-    "version": 2,
-    "categories": {
-      "Stereolabs": "Nodes used with the Stereolabs ZED SDK"
-    },
-    "description": "Streams ZED mono camera data to the ZED SDK",
-    "language": "Python",
-    "metadata": {
-      "uiName": "ZED Camera One Helper"
-    },
-    "inputs": {
-      "execIn": {
-        "type": "execution",
-        "description": "Triggers execution",
-        "default": 0,
-        "metadata": {
-          "uiName": "ExecIn"
-        }
-      },
-      "leftCameraPrim": {
-        "type": "target",
-        "description": "Main monocular camera",
-        "metadata": {
-          "uiName": "Left Camera Prim",
-          "literalOnly": "1",
-          "allowMultiInputs": "0",
-          "uiGroup": "Camera Selection"
-        }
-      },
-      "rightCameraPrim": {
-        "type": "target",
-        "description": "(optional) Used to create a virtual stereo camera from two ZED X Ones.",
-        "metadata": {
-          "uiName": "Right Camera Prim (Optional)",
-          "literalOnly": "1",
-          "allowMultiInputs": "0",
-          "uiGroup": "Camera Selection"
+    "ZED_Camera_One": {
+        "version": 4,
+        "categories": {
+            "Stereolabs": "Nodes used with the Stereolabs ZED SDK"
         },
-        "optional": true
-      },
-      "cameraModel": {
-        "type": "token",
-        "description": "ZED Mono Camera model.",
-        "default": "ZED_XONE_GS",
+        "description": "Streams ZED mono camera data to the ZED SDK",
+        "language": "Python",
         "metadata": {
-          "uiName": "Camera Model",
-          "allowedTokens": [ "ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM"],
-          "uiGroup": "Configuration"
+            "uiName": "ZED Camera One Helper"
+        },
+        "inputs": {
+            "execIn": {
+                "type": "execution",
+                "description": "Triggers execution",
+                "default": 0,
+                "metadata": {
+                    "uiName": "ExecIn"
+                }
+            },
+            "leftCameraPrim": {
+                "type": "target",
+                "description": "Main monocular camera",
+                "metadata": {
+                    "uiName": "Left Camera Prim",
+                    "literalOnly": "1",
+                    "allowMultiInputs": "0",
+                    "uiGroup": "Camera Selection"
+                }
+            },
+            "rightCameraPrim": {
+                "type": "target",
+                "description": "(optional) Used to create a virtual stereo camera from two ZED X Ones.",
+                "metadata": {
+                    "uiName": "Right Camera Prim (Optional)",
+                    "literalOnly": "1",
+                    "allowMultiInputs": "0",
+                    "uiGroup": "Camera Selection"
+                },
+                "optional": true
+            },
+            "cameraModel": {
+                "type": "token",
+                "description": "ZED Mono Camera model.",
+                "default": "ZED_XONE_GS",
+                "metadata": {
+                    "uiName": "Camera Model",
+                    "allowedTokens": [
+                        "ZED_XONE_UHD",
+                        "ZED_XONE_GS",
+                        "ZED_XONE_S"
+                    ],
+                    "uiGroup": "Configuration"
+                }
+            },
+            "lensType": {
+                "type": "token",
+                "description": "Lens fitted to the camera. Options shown depend on the selected camera model.",
+                "default": "Wide",
+                "metadata": {
+                    "uiName": "Lens Type",
+                    "allowedTokens": [
+                        "Wide",
+                        "Narrow",
+                        "Fisheye"
+                    ],
+                    "uiGroup": "Configuration"
+                }
+            },
+            "transportLayerMode": {
+                "type": "token",
+                "description": "Communication protocol used to send data to the ZED SDK. IPC improves streaming performance when streaming to the same machine (Linux and Windows)",
+                "default": "BOTH",
+                "metadata": {
+                    "uiName": "Transport layer mode",
+                    "allowedTokens": [
+                        "BOTH",
+                        "NETWORK",
+                        "IPC"
+                    ],
+                    "uiGroup": "Streaming"
+                }
+            },
+            "resolution": {
+                "type": "token",
+                "description": "Camera stream resolution.",
+                "default": "SVGA",
+                "metadata": {
+                    "allowedTokens": [
+                        "HD4K",
+                        "QHDPLUS",
+                        "HD1200",
+                        "HD1080",
+                        "SVGA"
+                    ],
+                    "uiName": "Resolution",
+                    "uiGroup": "Configuration"
+                }
+            },
+            "fps": {
+                "type": "uint",
+                "description": "Camera stream frame rate.",
+                "default": 30,
+                "metadata": {
+                    "uiName": "FPS",
+                    "uiGroup": "Configuration"
+                }
+            },
+            "serialNumber": {
+                "type": "string",
+                "description": "Serial number of the stereo cam. Only used for virtual ZED X cameras.",
+                "default": "119999999",
+                "metadata": {
+                    "uiName": "Serial Number",
+                    "uiGroup": "Configuration"
+                }
+            },
+            "streamingPort": {
+                "type": "uint",
+                "description": "Unique port per camera.",
+                "default": 30000,
+                "metadata": {
+                    "uiName": "Streaming Port",
+                    "uiGroup": "Streaming"
+                }
+            },
+            "bitrate": {
+                "type": "uint",
+                "description": "Streaming bitrate (Kbps).",
+                "default": 8000,
+                "metadata": {
+                    "uiName": "Streaming Bitrate",
+                    "uiGroup": "Streaming"
+                }
+            },
+            "chunkSize": {
+                "type": "uint",
+                "description": "Streaming chunk size (bytes).",
+                "default": 4096,
+                "metadata": {
+                    "uiName": "Streaming Chunk Size",
+                    "uiGroup": "Streaming"
+                }
+            },
+            "streamDepth": {
+                "type": "bool",
+                "description": "Enable Left+Depth streaming mode instead of Left+Right. Uses ground-truth depth from Isaac Sim.",
+                "default": false,
+                "metadata": {
+                    "uiName": "Stream Depth",
+                    "uiGroup": "Configuration"
+                }
+            },
+            "applyZedSim2Real": {
+                "type": "bool",
+                "description": [
+                    "Post-process the streamed frames with the calibrated ZED Sim2Real camera model",
+                    "so the simulated image matches a real ZED X.",
+                    "",
+                    "Models: lens blur (MTF), vignetting, auto-exposure, white balance,",
+                    "tone curve, sharpening and gain-coupled sensor noise.",
+                    "",
+                    "Can be toggled live while playing."
+                ],
+                "default": false,
+                "metadata": {
+                    "uiName": "Apply",
+                    "uiGroup": "ZED Sim2Real"
+                }
+            },
+            "zedSim2RealSceneLux": {
+                "type": "float",
+                "description": [
+                    "Assumed scene illuminance (lux) for low-light modeling.",
+                    "Only used when Apply is on; tunable live while playing.",
+                    "",
+                    "0 or less = bright scene: no extra darkening or added noise.",
+                    "A positive value simulates a dimmer scene: the lower the lux,",
+                    "the darker and noisier the image (gain-coupled sensor noise),",
+                    "matching how a real ZED gains up in low light."
+                ],
+                "default": 0.0,
+                "metadata": {
+                    "uiName": "Scene Lux",
+                    "uiGroup": "ZED Sim2Real"
+                }
+            },
+            "zedSim2RealAeTarget": {
+                "type": "float",
+                "description": "Override the ZED Sim2Real AE set-point (median display luma 0..1). <=0 = calibrated default (~0.45). Raise to brighten the modeled image.",
+                "default": -1.0,
+                "metadata": {
+                    "uiName": "ZED Sim2Real AE target"
+                }
+            }
         }
-      },
-      "transportLayerMode": {
-        "type": "token",
-        "description": "Communication protocol used to send data to the ZED SDK. IPC (Only available on Linux)improves streaming performances when streaming to the same machine",
-        "default": "BOTH",
-        "metadata": {
-          "uiName": "Transport layer mode",
-          "allowedTokens": [ "BOTH", "NETWORK", "IPC" ]
-        }
-      },
-      "resolution": {
-        "type": "token",
-        "description": "Camera stream resolution.",
-        "default": "HD1200",
-        "metadata": {
-          "allowedTokens": [ "HD4K", "QHDPLUS", "HD1200", "HD1080", "SVGA" ],
-          "uiName": "Resolution",
-          "uiGroup": "Configuration"
-        }
-      },
-      "fps": {
-        "type": "uint",
-        "description": "Camera stream frame rate.",
-        "default": 60,
-        "metadata": {
-          "uiName": "FPS",
-          "uiGroup": "Configuration"
-        }
-      },
-      "serialNumber": {
-        "type": "string",
-        "description": "Serial number of the stereo cam. Only used for virtual ZED X cameras.",
-        "default": "119999999",
-        "metadata": {
-          "uiName": "Serial Number",
-          "uiGroup": "Configuration"
-        }
-      },
-      "streamingPort": {
-        "type": "uint",
-        "description": "Unique port per camera.",
-        "default": 30000,
-        "metadata": {
-          "uiName": "Streaming Port",
-          "uiGroup": "Streaming"
-        }
-      },
-      "bitrate": {
-        "type": "uint",
-        "description": "Streaming bitrate (Kbps).",
-        "default": 8000,
-        "metadata": {
-          "uiName": "Streaming Bitrate",
-          "uiGroup": "Streaming"
-        }
-      },
-      "chunkSize": {
-        "type": "uint",
-        "description": "Streaming chunk size (bytes).",
-        "default": 4096,
-        "metadata": {
-          "uiName": "Streaming Chunk Size",
-          "uiGroup": "Streaming"
-        }
-      }
     }
-  }
 }

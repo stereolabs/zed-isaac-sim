@@ -1,12 +1,6 @@
 r"""Support for simplified access to data on nodes of type sl.sensor.camera.ZED_Camera
 
- __   ___ .  .  ___  __       ___  ___  __      __   __   __   ___
-/ _` |__  |\ | |__  |__)  /\   |  |__  |  \    /  ` /  \ |  \ |__
-\__| |___ | \| |___ |  \ /--\  |  |___ |__/    \__, \__/ |__/ |___
-
- __   __     .  .  __  ___     .  .  __   __     ___
-|  \ /  \    |\ | /  \  |      |\/| /  \ |  \ | |__  \ /
-|__/ \__/    | \| \__/  |      |  | \__/ |__/ | |     |
+GENERATED CODE. DO NOT MODIFY.
 
 Streams ZED camera data to the ZED SDK
 """
@@ -16,8 +10,9 @@ import traceback
 import usdrt
 
 import omni.graph.core as og
-import omni.graph.core._omni_graph_core as _og
+_og = og._omni_graph_core
 import omni.graph.tools.ogn as ogn
+
 
 
 
@@ -29,32 +24,42 @@ class SlCameraStreamerDatabase(og.Database):
 
     Attribute Value Properties:
         Inputs:
+            inputs.applyZedSim2Real
             inputs.bitrate
             inputs.cameraModel
             inputs.cameraPrim
             inputs.chunkSize
             inputs.execIn
             inputs.fps
+            inputs.lensType
             inputs.resolution
+            inputs.streamDepth
             inputs.streamingPort
             inputs.transportLayerMode
+            inputs.zedSim2RealAeTarget
+            inputs.zedSim2RealSceneLux
 
     Predefined Tokens:
         tokens.ZED_X
         tokens.ZED_XM
-        tokens.ZED_X_4MM
-        tokens.ZED_XM_4MM
         tokens.ZED_X_Nano
+        tokens.ZED_M
+        tokens.ZED_2i
+        tokens.Wide
+        tokens.Narrow
+        tokens.HD2K
         tokens.HD1200
         tokens.HD1080
+        tokens.HD720
         tokens.SVGA
+        tokens.VGA
         tokens.BOTH
         tokens.NETWORK
         tokens.IPC
     """
 
     # Imprint the generator and target ABI versions in the file for JIT generation
-    GENERATOR_VERSION = (1, 79, 2)
+    GENERATOR_VERSION = (1, 81, 0)
     TARGET_VERSION = (0, 0, 0)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
@@ -66,26 +71,36 @@ class SlCameraStreamerDatabase(og.Database):
     #     Is_Required, DefaultValue, Is_Deprecated, DeprecationMsg
     # You should not need to access any of this data directly, use the defined database interfaces
     INTERFACE = og.Database._get_interface([
-        ('inputs:bitrate', 'uint', 0, 'Streaming Bitrate', 'Bitrate in Kbps. (Used only if IPC is disabled)', {ogn.MetadataKeys.DEFAULT: '8000'}, True, 8000, False, ''),
-        ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_X,ZED_XM,ZED_X_4MM,ZED_XM_4MM,ZED_X_Nano', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_X", "ZED_XM", "ZED_X_4MM", "ZED_XM_4MM", "ZED_X_Nano"]', ogn.MetadataKeys.DEFAULT: '"ZED_X"'}, True, "ZED_X", False, ''),
-        ('inputs:cameraPrim', 'target', 0, 'ZED Camera Prim', 'ZED Camera prim used to stream data.', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0'}, True, None, False, ''),
-        ('inputs:chunkSize', 'uint', 0, 'Streaming Chunk Size', 'Chunk size in bytes. (Used only if IPC is disabled)', {ogn.MetadataKeys.DEFAULT: '4096'}, True, 4096, False, ''),
+        ('inputs:applyZedSim2Real', 'bool', 0, 'Apply', 'Post-process the streamed frames with the calibrated ZED Sim2Real camera model\nso the simulated image matches a real ZED X.\n\nModels: lens blur (MTF), vignetting, auto-exposure, white balance,\ntone curve, sharpening and gain-coupled sensor noise.\n\nCan be toggled live while playing.', {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
+        ('inputs:bitrate', 'uint', 0, 'Streaming Bitrate', 'Bitrate in Kbps. (Used only if IPC is disabled)', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '8000'}, True, 8000, False, ''),
+        ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_X,ZED_XM,ZED_X_Nano,ZED_M,ZED_2i', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_X", "ZED_XM", "ZED_X_Nano", "ZED_M", "ZED_2i"]', ogn.MetadataKeys.DEFAULT: '"ZED_X"'}, True, "ZED_X", False, ''),
+        ('inputs:cameraPrim', 'target', 0, 'ZED Camera Prim', 'ZED Camera prim used to stream data.', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0', 'uiGroup': 'Camera Selection'}, True, None, False, ''),
+        ('inputs:chunkSize', 'uint', 0, 'Streaming Chunk Size', 'Chunk size in bytes. (Used only if IPC is disabled)', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '4096'}, True, 4096, False, ''),
         ('inputs:execIn', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
-        ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate.', {ogn.MetadataKeys.DEFAULT: '60'}, True, 60, False, ''),
-        ('inputs:resolution', 'token', 0, 'Resolution', 'Camera stream resolution.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD1200,HD1080,SVGA', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD1200", "HD1080", "SVGA"]', ogn.MetadataKeys.DEFAULT: '"HD1200"'}, True, "HD1200", False, ''),
-        ('inputs:streamingPort', 'uint', 0, 'Streaming Port', 'Unique port per camera.', {ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
-        ('inputs:transportLayerMode', 'token', 0, 'Transport layer mode', 'Communication protocol used to send data to the ZED SDK. IPC (Only available on Linux)improves streaming performances when streaming to the same machine', {ogn.MetadataKeys.ALLOWED_TOKENS: 'BOTH,NETWORK,IPC', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["BOTH", "NETWORK", "IPC"]', ogn.MetadataKeys.DEFAULT: '"BOTH"'}, True, "BOTH", False, ''),
+        ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate.', {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: '30'}, True, 30, False, ''),
+        ('inputs:lensType', 'token', 0, 'Lens Type', 'Lens fitted to the camera. Options shown depend on the selected camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'Wide,Narrow', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["Wide", "Narrow"]', ogn.MetadataKeys.DEFAULT: '"Wide"'}, True, "Wide", False, ''),
+        ('inputs:resolution', 'token', 0, 'Resolution', 'Camera stream resolution.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD2K,HD1200,HD1080,HD720,SVGA,VGA', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD2K", "HD1200", "HD1080", "HD720", "SVGA", "VGA"]', ogn.MetadataKeys.DEFAULT: '"SVGA"'}, True, "SVGA", False, ''),
+        ('inputs:streamDepth', 'bool', 0, 'Stream Depth', 'Enable Left+Depth streaming mode instead of Left+Right. Uses ground-truth depth from Isaac Sim.', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
+        ('inputs:streamingPort', 'uint', 0, 'Streaming Port', 'Unique port per camera.', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
+        ('inputs:transportLayerMode', 'token', 0, 'Transport layer mode', 'Communication protocol used to send data to the ZED SDK. IPC improves streaming performance when streaming to the same machine (Linux and Windows)', {ogn.MetadataKeys.ALLOWED_TOKENS: 'BOTH,NETWORK,IPC', 'uiGroup': 'Streaming', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["BOTH", "NETWORK", "IPC"]', ogn.MetadataKeys.DEFAULT: '"BOTH"'}, True, "BOTH", False, ''),
+        ('inputs:zedSim2RealAeTarget', 'float', 0, 'ZED Sim2Real AE target', 'Override the ZED Sim2Real AE set-point (median display luma 0..1). <=0 = calibrated default (~0.45). Raise to brighten the modeled image.', {ogn.MetadataKeys.DEFAULT: '-1.0'}, True, -1.0, False, ''),
+        ('inputs:zedSim2RealSceneLux', 'float', 0, 'Scene Lux', 'Assumed scene illuminance (lux) for low-light modeling.\nOnly used when Apply is on; tunable live while playing.\n\n0 or less = bright scene: no extra darkening or added noise.\nA positive value simulates a dimmer scene: the lower the lux,\nthe darker and noisier the image (gain-coupled sensor noise),\nmatching how a real ZED gains up in low light.', {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: '0.0'}, True, 0.0, False, ''),
     ])
 
     class tokens:
         ZED_X = "ZED_X"
         ZED_XM = "ZED_XM"
-        ZED_X_4MM = "ZED_X_4MM"
-        ZED_XM_4MM = "ZED_XM_4MM"
         ZED_X_Nano = "ZED_X_Nano"
+        ZED_M = "ZED_M"
+        ZED_2i = "ZED_2i"
+        Wide = "Wide"
+        Narrow = "Narrow"
+        HD2K = "HD2K"
         HD1200 = "HD1200"
         HD1080 = "HD1080"
+        HD720 = "HD720"
         SVGA = "SVGA"
+        VGA = "VGA"
         BOTH = "BOTH"
         NETWORK = "NETWORK"
         IPC = "IPC"
@@ -99,14 +114,14 @@ class SlCameraStreamerDatabase(og.Database):
         return role_data
 
     class ValuesForInputs(og.DynamicAttributeAccess):
-        LOCAL_PROPERTY_NAMES = {"bitrate", "cameraModel", "chunkSize", "execIn", "fps", "resolution", "streamingPort", "transportLayerMode", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
+        LOCAL_PROPERTY_NAMES = {"applyZedSim2Real", "bitrate", "cameraModel", "chunkSize", "execIn", "fps", "lensType", "resolution", "streamDepth", "streamingPort", "transportLayerMode", "zedSim2RealAeTarget", "zedSim2RealSceneLux", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
         """Helper class that creates natural hierarchical access to input attributes"""
         def __init__(self, node: og.Node, attributes, dynamic_attributes: og.DynamicAttributeInterface):
             """Initialize simplified access for the attribute data"""
             context = node.get_graph().get_default_graph_context()
             super().__init__(context, node, attributes, dynamic_attributes)
-            self._batchedReadAttributes = [self._attributes.bitrate, self._attributes.cameraModel, self._attributes.chunkSize, self._attributes.execIn, self._attributes.fps, self._attributes.resolution, self._attributes.streamingPort, self._attributes.transportLayerMode]
-            self._batchedReadValues = [8000, "ZED_X", 4096, 0, 60, "HD1200", 30000, "BOTH"]
+            self._batchedReadAttributes = [self._attributes.applyZedSim2Real, self._attributes.bitrate, self._attributes.cameraModel, self._attributes.chunkSize, self._attributes.execIn, self._attributes.fps, self._attributes.lensType, self._attributes.resolution, self._attributes.streamDepth, self._attributes.streamingPort, self._attributes.transportLayerMode, self._attributes.zedSim2RealAeTarget, self._attributes.zedSim2RealSceneLux]
+            self._batchedReadValues = [False, 8000, "ZED_X", 4096, 0, 30, "Wide", "SVGA", False, 30000, "BOTH", -1.0, 0.0]
 
         @property
         def cameraPrim(self):
@@ -122,68 +137,108 @@ class SlCameraStreamerDatabase(og.Database):
             self.cameraPrim_size = data_view.get_array_size()
 
         @property
-        def bitrate(self):
+        def applyZedSim2Real(self):
             return self._batchedReadValues[0]
 
-        @bitrate.setter
-        def bitrate(self, value):
+        @applyZedSim2Real.setter
+        def applyZedSim2Real(self, value):
             self._batchedReadValues[0] = value
 
         @property
-        def cameraModel(self):
+        def bitrate(self):
             return self._batchedReadValues[1]
 
-        @cameraModel.setter
-        def cameraModel(self, value):
+        @bitrate.setter
+        def bitrate(self, value):
             self._batchedReadValues[1] = value
 
         @property
-        def chunkSize(self):
+        def cameraModel(self):
             return self._batchedReadValues[2]
 
-        @chunkSize.setter
-        def chunkSize(self, value):
+        @cameraModel.setter
+        def cameraModel(self, value):
             self._batchedReadValues[2] = value
 
         @property
-        def execIn(self):
+        def chunkSize(self):
             return self._batchedReadValues[3]
 
-        @execIn.setter
-        def execIn(self, value):
+        @chunkSize.setter
+        def chunkSize(self, value):
             self._batchedReadValues[3] = value
 
         @property
-        def fps(self):
+        def execIn(self):
             return self._batchedReadValues[4]
 
-        @fps.setter
-        def fps(self, value):
+        @execIn.setter
+        def execIn(self, value):
             self._batchedReadValues[4] = value
 
         @property
-        def resolution(self):
+        def fps(self):
             return self._batchedReadValues[5]
 
-        @resolution.setter
-        def resolution(self, value):
+        @fps.setter
+        def fps(self, value):
             self._batchedReadValues[5] = value
 
         @property
-        def streamingPort(self):
+        def lensType(self):
             return self._batchedReadValues[6]
 
-        @streamingPort.setter
-        def streamingPort(self, value):
+        @lensType.setter
+        def lensType(self, value):
             self._batchedReadValues[6] = value
 
         @property
-        def transportLayerMode(self):
+        def resolution(self):
             return self._batchedReadValues[7]
+
+        @resolution.setter
+        def resolution(self, value):
+            self._batchedReadValues[7] = value
+
+        @property
+        def streamDepth(self):
+            return self._batchedReadValues[8]
+
+        @streamDepth.setter
+        def streamDepth(self, value):
+            self._batchedReadValues[8] = value
+
+        @property
+        def streamingPort(self):
+            return self._batchedReadValues[9]
+
+        @streamingPort.setter
+        def streamingPort(self, value):
+            self._batchedReadValues[9] = value
+
+        @property
+        def transportLayerMode(self):
+            return self._batchedReadValues[10]
 
         @transportLayerMode.setter
         def transportLayerMode(self, value):
-            self._batchedReadValues[7] = value
+            self._batchedReadValues[10] = value
+
+        @property
+        def zedSim2RealAeTarget(self):
+            return self._batchedReadValues[11]
+
+        @zedSim2RealAeTarget.setter
+        def zedSim2RealAeTarget(self, value):
+            self._batchedReadValues[11] = value
+
+        @property
+        def zedSim2RealSceneLux(self):
+            return self._batchedReadValues[12]
+
+        @zedSim2RealSceneLux.setter
+        def zedSim2RealSceneLux(self, value):
+            self._batchedReadValues[12] = value
 
         def __getattr__(self, item: str):
             if item in self.LOCAL_PROPERTY_NAMES:
@@ -348,7 +403,7 @@ class SlCameraStreamerDatabase(og.Database):
     @staticmethod
     def register(node_type_class):
         SlCameraStreamerDatabase.NODE_TYPE_CLASS = node_type_class
-        og.register_node_type(SlCameraStreamerDatabase.abi, 2)
+        og.register_node_type(SlCameraStreamerDatabase.abi, 4)
 
     @staticmethod
     def deregister():

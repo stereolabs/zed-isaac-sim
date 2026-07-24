@@ -1,0 +1,79 @@
+{
+  "ZED_Depth": {
+    "version": 1,
+    "categories": {
+      "Stereolabs": "Nodes used with Stereolabs ZED cameras"
+    },
+    "description": "Captures RGB and simulated stereo depth from a ZED camera using Isaac Sim's renderer (no ZED SDK required).",
+    "language": "Python",
+    "metadata": {
+      "uiName": "ZED Depth"
+    },
+    "inputs": {
+      "execIn": {
+        "type": "execution",
+        "description": "Triggers execution",
+        "default": 0,
+        "metadata": {
+          "uiName": "ExecIn"
+        }
+      },
+      "cameraPrim": {
+        "type": "target",
+        "description": "ZED Camera prim (e.g. /World/ZED_X).",
+        "metadata": {
+          "uiName": "ZED Camera Prim",
+          "literalOnly": "1",
+          "allowMultiInputs": "0",
+          "uiGroup": "Camera Selection"
+        }
+      },
+      "cameraModel": {
+        "type": "token",
+        "description": "ZED Camera model. Determines intrinsics and stereo baseline.",
+        "default": "ZED_X",
+        "metadata": {
+          "uiName": "Camera Model",
+          "allowedTokens": ["ZED_X", "ZED_XM", "ZED_X_Nano", "ZED_M", "ZED_2i"],
+          "uiGroup": "Configuration"
+        }
+      },
+      "lensType": {
+        "type": "token",
+        "description": "Lens fitted to the camera. Options shown depend on the selected camera model.",
+        "default": "Wide",
+        "metadata": {
+          "uiName": "Lens Type",
+          "allowedTokens": ["Wide", "Narrow"],
+          "uiGroup": "Configuration"
+        }
+      },
+      "resolution": {
+        "type": "token",
+        "description": "Render resolution for RGB and depth.",
+        "default": "SVGA",
+        "metadata": {
+          "uiName": "Resolution",
+          "allowedTokens": ["HD2K", "HD1200", "HD1080", "HD720", "SVGA", "VGA"],
+          "uiGroup": "Configuration"
+        }
+      },
+      "enableSave": {
+        "type": "bool",
+        "description": "Save RGB (PNG) and depth (EXR) to disk each frame.",
+        "default": false,
+        "metadata": {
+          "uiName": "Enable Save"
+        }
+      },
+      "outputDir": {
+        "type": "string",
+        "description": "Directory to save frames. Required when Enable Save is on.",
+        "default": "",
+        "metadata": {
+          "uiName": "Output Directory"
+        }
+      }
+    }
+  }
+}

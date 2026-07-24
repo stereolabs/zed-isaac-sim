@@ -1,5 +1,5 @@
 [package]
-version = "1.0.0"
+version = "1.1.0"
 category = "Stereolabs"
 title = "Stereolabs ZED Calibration Exporter"
 description = "Export ZED camera calibration data from Isaac Sim cameras. Generates calibration files compatible with ZED SDK for Virtual ZED X cameras."
@@ -14,11 +14,9 @@ writeTarget.kit = true
 
 [package.target]
 platform = ["windows-x86_64", "linux-x86_64"]
-kit = ["107.3"]
+kit = ["110.1.2"]
 
 [dependencies]
-"isaacsim.core.api" = {}
-"isaacsim.gui.components" = {}
 "omni.kit.uiapp" = {}
 
 [[python.module]]

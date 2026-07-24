@@ -2,9 +2,40 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [4.3.0]
+## [5.2.0]
+### New features
+- Added the calibrated **ZED Sim2Real camera model**, an optional post-process that makes simulated RGB resemble a real ZED X camera (lens blur, vignetting, temporal auto-exposure, color grading, sensor noise). Enable it via the **ZED Sim2Real Apply** option on the ZED Camera Helper node, or pass `--apply_zed_sim2real` to the Isaac Lab examples (`zed_single.py`, `zed_multi_env.py`).
+- Added the **ZED Cameras panel**: an at-a-glance list of every ZED camera in the stage (thumbnail, prim name, and model) with one-click lens switching. The panel opens automatically at startup and can be toggled from the **Stereolabs** menu.
+- Added the **ZED Depth** node: SDK-free RGB + depth capture from a ZED camera using Isaac Sim's renderer, with optional PNG/EXR saving.
+- Added support for streaming depth from Isaac Sim into the ZED SDK. Enable the "Stream Depth" option on the OmniGraph node to stream the left RGB image along with the depth map instead of the left + right RGB pair. Uses the `ingestCustomDepth` feature introduced in ZED SDK 5.4.0.
+- Added Isaac Lab integration helpers (`isaaclab_utils`): mount the real ZED USD on a robot link, build camera configs from ZED spec tables, and import as a utilities-only package (no Kit app required). Standalone examples are now organized under `examples/`.
+- Added new example scripts demonstrating how to integrate ZED cameras in Isaac Sim and Isaac Lab.
+- Added support for ZED2i, ZED Mini, and ZED X One Fisheye cameras.
+- Added support for IPC streaming on Windows.
+
+### Performance
+- Changed the default stream frame rate from 60 to 30 FPS for better out-of-the-box performance.
+- ZED cameras now render only at their target FPS instead of every app frame (Isaac Sim 6.0 multi-tick rendering), reducing GPU cost in multi-camera scenes.
+
+### UI and usability
+- The **camera model and lens are now detected automatically** from the connected ZED USD asset (its name and its **Lens** selection: Wide, Narrow, or Fisheye). When a camera is connected, the Camera Model and Lens Type inputs are replaced by a read-only summary, so there is nothing to set by hand.
+- Grouped the ZED Camera Helper node inputs into **Camera Selection / Configuration / Streaming / ZED Sim2Real** sections for easier navigation in the property panel.
+- Improved visual quality of USD files for all ZED camera models.
+
+### Compatibility
+- Updated Kit version to 110.1.2.
+
+## [5.1.0]
 - Added support for the ZED X Nano camera.
 - Changed the default camera resolution to SVGA for better out-of-the-box performance.
+
+## [5.0.1]
+- Fix error when using ZED Camera One Helper node.
+- Fix encoder issue when using latest Nvidia drivers (590+).
+- Fix IMU data when using multiple cameras in the scene. Previously it was re-using the same IMU node for all the cameras.
+
+## [5.0.0]
+- Add Isaac SIM 6.0 support
 
 ## [4.2.2]
 - Fix error when using ZED Camera One Helper node.

@@ -1,0 +1,44 @@
+#usda 1.0
+(
+    doc ="""Generated from node description file SlZEDDepthStreamer.ogn
+Contains templates for node types found in that file."""
+)
+
+def OmniGraph "TestGraph"
+{
+    token evaluator:type = "push"
+    int2 fileFormatVersion = (1, 3)
+    token flatCacheBacking = "Shared"
+    token pipelineStage = "pipelineStageSimulation"
+
+    def OmniGraphNode "Template_sl_sensor_camera_ZED_Depth" (
+        docs="""Captures RGB and simulated stereo depth from a ZED camera using Isaac Sim's renderer (no ZED SDK required)."""
+    )
+    {
+        token node:type = "sl.sensor.camera.ZED_Depth"
+        int node:typeVersion = 1
+
+        # 7 attributes
+        custom token inputs:cameraModel = "ZED_X" (
+            docs="""ZED Camera model. Determines intrinsics and stereo baseline."""
+        )
+        custom rel inputs:cameraPrim (
+            docs="""ZED Camera prim (e.g. /World/ZED_X)."""
+        )
+        custom bool inputs:enableSave = false (
+            docs="""Save RGB (PNG) and depth (EXR) to disk each frame."""
+        )
+        custom uint inputs:execIn = 0 (
+            docs="""Triggers execution"""
+        )
+        custom token inputs:lensType = "Wide" (
+            docs="""Lens fitted to the camera. Options shown depend on the selected camera model."""
+        )
+        custom string inputs:outputDir = "" (
+            docs="""Directory to save frames. Required when Enable Save is on."""
+        )
+        custom token inputs:resolution = "SVGA" (
+            docs="""Render resolution for RGB and depth."""
+        )
+    }
+}

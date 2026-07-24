@@ -21,8 +21,8 @@ using LibHandle = void*;
 #endif
 
 #define ZED_SDK_VERSION_MAJOR 5
-#define ZED_SDK_VERSION_MINOR 1
-#define ZED_SDK_VERSION_PATCH 0
+#define ZED_SDK_VERSION_MINOR 4
+#define ZED_SDK_VERSION_PATCH 1
 
 namespace sl
 {
@@ -55,50 +55,6 @@ namespace sl
 #endif
     }
 
-    // Simple double buffer for frame data
-    template <typename T>
-    class DoubleBuffer {
-    private:
-        std::array<std::shared_ptr<T>, 2> buffers_;
-        std::atomic<int> front_index_{ 0 };
-        std::atomic<int> frame_index_{ 0 }; // frame index counter to detect new data
-
-    public:
-        DoubleBuffer() {
-            buffers_[0] = std::make_shared<T>();
-            buffers_[1] = std::make_shared<T>();
-        }
-
-        // Producer: write and increment version to signal new data
-        void write(std::shared_ptr<T> data) {
-            int back_index = 1 - front_index_.load(std::memory_order_relaxed);
-            buffers_[back_index] = std::move(data);
-
-            // Swap buffer and signal version
-            front_index_.store(back_index, std::memory_order_release);
-            frame_index_.fetch_add(1, std::memory_order_release);
-        }
-
-        // Consumer: wait until version changes
-        std::shared_ptr<T> wait_and_read(std::atomic<bool>& shouldStop, int& frameIndex) {
-            while (true) {
-                int current_index = frame_index_.load(std::memory_order_acquire);
-                if (current_index != frameIndex) {
-                    frameIndex = current_index;
-                    int index = front_index_.load(std::memory_order_acquire);
-                    return buffers_[index];
-                }
-
-                if (shouldStop.load(std::memory_order_acquire)) {
-                    return nullptr;
-                }
-
-                // Yield or sleep lightly to reduce CPU usage
-                std::this_thread::sleep_for(std::chrono::microseconds(100));
-            }
-        }
-    };
-
     class ZedStreamer {
     private:
         LibHandle hLibrary;
@@ -107,6 +63,7 @@ namespace sl
         typedef int (*InitStreamerFunc)(int, struct StreamingParameters*);
         typedef int (*StreamRGBFunc)(int, unsigned char*, unsigned char*, long long, float, float, float, float, float, float, float);
         typedef int (*StreamYUVFunc)(int, unsigned char*, unsigned char*, long long, float, float, float, float, float, float, float);
+        typedef int (*StreamLeftAndDepthFunc)(int, unsigned char*, float*, long long, float, float, float, float, float, float, float);
         typedef void (*CloseStreamerFunc)(int);
         typedef void (*DestroyInstanceFunc)();
         typedef int (*IngestImuFunc)(int, long long, float, float, float, float, float, float, float, float, float, float);
@@ -117,6 +74,7 @@ namespace sl
         InitStreamerFunc init_streamer;
         StreamRGBFunc stream_rgb;
         StreamYUVFunc stream_yuv;
+        StreamLeftAndDepthFunc stream_left_and_depth;
         CloseStreamerFunc close_streamer;
         DestroyInstanceFunc destroy_instance;
         GetVirtualCameraInfoFunc get_virtual_camera_info;
@@ -131,6 +89,7 @@ namespace sl
             init_streamer = nullptr;
             stream_rgb = nullptr;
             stream_yuv = nullptr;
+            stream_left_and_depth = nullptr;
             close_streamer = nullptr;
             destroy_instance = nullptr;
             get_virtual_camera_info = nullptr;
@@ -162,6 +121,7 @@ namespace sl
             init_streamer = (InitStreamerFunc)GetFunc(hLibrary, "init_streamer");
             stream_rgb = (StreamRGBFunc)GetFunc(hLibrary, "stream_rgb");
             stream_yuv = (StreamYUVFunc)GetFunc(hLibrary, "stream_yuv");
+            stream_left_and_depth = (StreamLeftAndDepthFunc)GetFunc(hLibrary, "stream_left_and_depth");
             close_streamer = (CloseStreamerFunc)GetFunc(hLibrary, "close_streamer");
             destroy_instance = (DestroyInstanceFunc)GetFunc(hLibrary, "destroy_instance");
             get_virtual_camera_info = (GetVirtualCameraInfoFunc)GetFunc(hLibrary, "get_virtual_camera_info");
@@ -184,6 +144,7 @@ namespace sl
             init_streamer = nullptr;
             stream_rgb = nullptr;
             stream_yuv = nullptr;
+            stream_left_and_depth = nullptr;
             close_streamer = nullptr;
             destroy_instance = nullptr;
             get_virtual_camera_info = nullptr;
@@ -250,7 +211,7 @@ namespace sl
             {
                 CARB_LOG_INFO("IPC stream enabled");
             }
-            CARB_LOG_WARN("Initializing streamer with ID %d on port %d", streamer_id, streaming_params->port);
+            CARB_LOG_WARN("[ZED] Initializing streamer with ID %d on port %d", streamer_id, streaming_params->port);
 
             return init_streamer(streamer_id, streaming_params);
         }
@@ -277,6 +238,18 @@ namespace sl
                 return stream_yuv(streamer_id, left, right, timestamp_ns, qw, qx, qy, qz,
                     lin_acc_x, lin_acc_y, lin_acc_z);
             }
+        }
+
+        int streamLeftAndDepth(int streamer_id, unsigned char* left, float* depth,
+                       long long timestamp_ns, float qw, float qx, float qy, float qz,
+                       float lin_acc_x, float lin_acc_y, float lin_acc_z)
+        {
+            if (!loaded || !stream_left_and_depth) {
+                std::cerr << "[ZED] Error with stream_left_and_depth function call" << std::endl;
+                return -1;
+            }
+            return stream_left_and_depth(streamer_id, left, depth, timestamp_ns, qw, qx, qy, qz,
+                lin_acc_x, lin_acc_y, lin_acc_z);
         }
 
         void closeStreamer(int streamer_id) {

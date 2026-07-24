@@ -26,7 +26,13 @@ from isaacsim.gui.components.element_wrappers import (
 )
 from isaacsim.gui.components.ui_utils import get_style
 
-from .calibration import write_stereo_calibration_file, generate_virtual_sn
+from .calibration import (
+    write_stereo_calibration_file,
+    generate_virtual_sn,
+    get_base_models,
+    get_allowed_lens_types,
+    compose_model,
+)
 
 class UIBuilder:
     def __init__(self):
@@ -36,6 +42,8 @@ class UIBuilder:
         # UI elements created using a UIElementWrapper from isaacsim.gui.components.element_wrappers
         self.wrapped_ui_elements = []
         self.serial_number = -1
+        self.base_model = "ZED_XONE_GS"
+        self.lens_type = "Wide"
         self.camera_model = "ZED_XONE_GS"
 
     ###################################################################################
@@ -132,18 +140,28 @@ class UIBuilder:
                     self.wrapped_ui_elements.append(self.right_cam_field)
 
                 with ui.VStack(style=get_style(), spacing=5, height=0):
-                    def dropdown_populate_fn():
-                        return ["ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_GS_4MM"]
-
-                    dropdown = DropDown(
+                    # Camera model (base) + Lens type, split like the ZED camera
+                    # helper nodes. The lens list is filtered to the selected base;
+                    # both recompose into the composite token used for calibration.
+                    model_dropdown = DropDown(
                         "Camera model",
-                        tooltip= "Camera model used to create a virtual stereo camera",
-                        populate_fn=dropdown_populate_fn,
-                        on_selection_fn=self._on_dropdown_item_selection,
+                        tooltip="Camera model used to create a virtual stereo camera",
+                        populate_fn=get_base_models,
+                        on_selection_fn=self._on_model_selection,
                     )
-                    self.wrapped_ui_elements.append(dropdown)
+                    self.wrapped_ui_elements.append(model_dropdown)
 
-                    dropdown.repopulate()  # This does not happen automatically, and it triggers the on_selection_fn
+                    self.lens_dropdown = DropDown(
+                        "Lens type",
+                        tooltip="Lens fitted to the camera",
+                        populate_fn=lambda: get_allowed_lens_types(self.base_model),
+                        on_selection_fn=self._on_lens_selection,
+                    )
+                    self.wrapped_ui_elements.append(self.lens_dropdown)
+
+                    # This does not happen automatically; repopulating the base
+                    # cascades into the lens dropdown via _on_model_selection.
+                    model_dropdown.repopulate()
 
                 self.serial_number_field = StringField(
                     "Serial number",
@@ -172,5 +190,12 @@ class UIBuilder:
         write_stereo_calibration_file(left_prim_path=self.left_cam_field.get_value(), right_prim_path=self.right_cam_field.get_value(),
             serial_number=self.serial_number_field.get_value(), camera_model=self.camera_model)
 
-    def _on_dropdown_item_selection(self, item: str):
-        self.camera_model = item
+    def _on_model_selection(self, item: str):
+        self.base_model = item
+        # Re-filter the lens list for the new base; repopulate cascades into
+        # _on_lens_selection, which recomposes the composite token.
+        self.lens_dropdown.repopulate()
+
+    def _on_lens_selection(self, item: str):
+        self.lens_type = item
+        self.camera_model = compose_model(self.base_model, self.lens_type)

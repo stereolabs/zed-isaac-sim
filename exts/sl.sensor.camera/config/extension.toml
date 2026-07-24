@@ -1,5 +1,5 @@
 [package]
-version = "4.3.0" # Semantic Versioning is used: https://semver.org/
+version = "5.2.0" # Semantic Versioning is used: https://semver.org/
 
 # These fields are used primarily for display in the extension browser UI.
 title = "Stereolabs ZED Camera"
@@ -20,15 +20,26 @@ exclude = ["Ogn*Database.py"]
 
 [package.target]
 platform = ["windows-x86_64", "linux-x86_64"]
-kit = ["107.3"]
+kit = ["110.1.2"]
 
 [package.writeTarget]
 kit = true
 
 [dependencies]
 "omni.graph.core" = {}
-"omni.replicator.core" = {}
 "omni.graph.tools" = {}
+"omni.graph.ui" = {} # Property-panel node templates (model-filtered Resolution dropdown)
+"omni.usd.schema.omni_sensors" = {} # OmniSensorAPI schema -> omni:sensor:tickRate (multi-tick rendering)
+"omni.kit.menu.utils" = { optional = true } # "ZED Cameras" lens panel menu entry (GUI only)
+"isaacsim.gui.components" = { optional = true } # "ZED Cameras" lens panel window (GUI only)
+
+
+[[test]]
+stdoutFailPatterns.exclude = [
+    "*[ZED] A camera prim must be specified.*",
+    "*[ZED] At least one camera prim must be specified.*",
+    "*[ZED Depth] No camera prim specified.*",
+]
 
 [[python.module]]
 name = "sl.sensor.camera"
@@ -42,6 +53,6 @@ path = "bin/*.plugin"
 
 [documentation]
 pages = [
-    "docs/Overview.md",
+    "docs/README.md",
     "docs/CHANGELOG.md",
 ]

@@ -1,122 +1,181 @@
 {
-  "OgnZEDSimCameraNode": {
-    "version": 1,
-    "categories": {"Stereolabs": "Nodes used with the Stereolabs ZED SDK"},
-    "uiName": "ZED Stream",
-    "description": [
-      ""
-    ],
-    "categories": [ "function" ],
-    "inputs": {
-      "execIn": {
-        "type": "execution",
-        "description": "Triggers execution",
-        "default": 0,
+    "OgnZEDSimCameraNode": {
+        "version": 3,
+        "categories": [
+            "function"
+        ],
+        "uiName": "ZED Stream",
         "metadata": {
-          "uiName": "ExecIn"
-        }
-      },
-      "stream": {
-        "type": "bool",
-        "description": "stream",
-        "default": false
-      },
-      "transportLayerMode": {
-        "type": "token",
-        "description": "Communication protocol used to send data to the ZED SDK.",
-        "default": "BOTH",
-        "metadata": {
-          "uiName": "Transport layer mode",
-          "allowedTokens": [ "BOTH", "NETWORK", "IPC" ]
-        }
-      },
-      "bitrate": {
-        "type": "uint",
-        "description": "streaming bitrate (in Kbps). Only used for network transport layer mode (not IPC)",
-        "default": 8000,
-        "metadata": {
-          "uiName": "Streaming Bitrate"
-        }
-      },
-      "chunkSize": {
-        "type": "uint",
-        "description": "streaming chunk size (in bytes). Only used for network transport layer mode (not IPC)",
-        "default": 4096,
-        "metadata": {
-          "uiName": "Streaming Chunk Size"
-        }
-      },
-      "cameraModel": {
-        "type": "string",
-        "description": "ZED Camera model. Can be either ZED_X, ZED_X_Mini",
-        "default": "ZED_X"
-      },
-      "width": {
-        "type": "uint",
-        "description": "Camera stream resolution. Can be either HD1200, HD1080 or SVGA",
-        "default": 1920
-      },
-      "height": {
-        "type": "uint",
-        "description": "Camera stream resolution. Can be either HD1200, HD1080 or SVGA",
-        "default": 1200
-      },
-      "fps": {
-        "type": "uint",
-        "description": "frame rate",
-        "default": 30
-      },
-      "port": {
-        "type": "uint",
-        "description": "server port",
-        "default": 5561,
-        "metadata": {
-          "uiName": "Streaming Port"
-        }
-      },
-      "serialNumber": {
-        "type": "string",
-        "description": "Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated",
-        "default": "109999999"
-      },
-      "simulationTime": {
-        "type": "double",
-        "description": "simulation time"
-      },
-      "systemTime": {
-        "type": "double",
-        "description": "system time"
-      },
-      "bufferSizeLeft": {
-        "type": "uint64",
-        "description": "Size (in bytes) of the buffer (0 if the input is a texture)"
-      },
-      "bufferSizeRight": {
-        "type": "uint64",
-        "description": "Size (in bytes) of the buffer (0 if the input is a texture)"
-      },
-      "dataPtrLeft": {
-        "type": "uint64",
-        "description": "Pointer to the raw data (cuda device pointer or host pointer)",
-        "default": 0
-      },
-      "dataPtrRight": {
-        "type": "uint64",
-        "description": "Pointer to the raw data (cuda device pointer or host pointer)",
-        "default": 0
-      },
-      "orientation": {
-        "type": "quatd[4]",
-        "description": "imu orientation",
-        "default": [ 0.0, 0.0, 0.0, 1.0 ]
-      },
-      "linearAcceleration": {
-        "type": "vectord[3]",
-        "description": "imu acceleration",
-        "default": [ 0.0, 0.0, 0.0 ]
-      }
-    },
-      "outputs": {
-      }
+            "hidden": "true"
+        },
+        "description": [
+            "internal node used to stream images to the zed sdk"
+        ],
+        "inputs": {
+            "execIn": {
+                "type": "execution",
+                "description": "Triggers execution",
+                "default": 0,
+                "metadata": {
+                    "uiName": "ExecIn"
+                }
+            },
+            "stream": {
+                "type": "bool",
+                "description": "stream",
+                "default": false
+            },
+            "transportLayerMode": {
+                "type": "token",
+                "description": "Communication protocol used to send data to the ZED SDK.",
+                "default": "BOTH",
+                "metadata": {
+                    "uiName": "Transport layer mode",
+                    "allowedTokens": [
+                        "BOTH",
+                        "NETWORK",
+                        "IPC"
+                    ]
+                }
+            },
+            "bitrate": {
+                "type": "uint",
+                "description": "streaming bitrate (in Kbps). Only used for network transport layer mode (not IPC)",
+                "default": 8000,
+                "metadata": {
+                    "uiName": "Streaming Bitrate"
+                }
+            },
+            "chunkSize": {
+                "type": "uint",
+                "description": "streaming chunk size (in bytes). Only used for network transport layer mode (not IPC)",
+                "default": 4096,
+                "metadata": {
+                    "uiName": "Streaming Chunk Size"
+                }
+            },
+            "simCameraModel": {
+                "type": "int",
+                "description": "SDK MODEL code of the camera (as in SimCameraInfo::model). Set by the annotator via utils.get_sdk_model_id(); -1 selects the custom virtual-stereo path.",
+                "default": 4
+            },
+            "simLensType": {
+                "type": "int",
+                "description": "Lens fitted to the camera, as SIM_LENS_TYPE: 0=Wide, 1=Narrow, 2=Fisheye. Set by the annotator via utils.get_sim_lens_type_id().",
+                "default": 0
+            },
+            "width": {
+                "type": "uint",
+                "description": "Camera stream width in pixels.",
+                "default": 960
+            },
+            "height": {
+                "type": "uint",
+                "description": "Camera stream height in pixels.",
+                "default": 600
+            },
+            "fps": {
+                "type": "uint",
+                "description": "frame rate",
+                "default": 30
+            },
+            "port": {
+                "type": "uint",
+                "description": "server port",
+                "default": 5561,
+                "metadata": {
+                    "uiName": "Streaming Port"
+                }
+            },
+            "serialNumber": {
+                "type": "string",
+                "description": "Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated",
+                "default": "109999999"
+            },
+            "simulationTime": {
+                "type": "double",
+                "description": "simulation time"
+            },
+            "systemTime": {
+                "type": "double",
+                "description": "system time"
+            },
+            "bufferSizeLeft": {
+                "type": "uint64",
+                "description": "Size (in bytes) of the buffer (0 if the input is a texture)"
+            },
+            "bufferSizeRight": {
+                "type": "uint64",
+                "description": "Size (in bytes) of the buffer (0 if the input is a texture)"
+            },
+            "bufferSizeDepth": {
+                "type": "uint64",
+                "description": "Size (in bytes) of the depth buffer"
+            },
+            "dataPtrLeft": {
+                "type": "uint64",
+                "description": "Pointer to the raw data (cuda device pointer or host pointer)",
+                "default": 0
+            },
+            "dataPtrRight": {
+                "type": "uint64",
+                "description": "Pointer to the raw data (cuda device pointer or host pointer)",
+                "default": 0
+            },
+            "dataPtrDepth": {
+                "type": "uint64",
+                "description": "Pointer to the depth data (cuda device pointer, float32)",
+                "default": 0
+            },
+            "streamDepth": {
+                "type": "bool",
+                "description": "Enable Left+Depth streaming mode instead of Left+Right",
+                "default": false
+            },
+            "applyZedSim2Real": {
+                "type": "bool",
+                "description": "Apply the Imatest-calibrated ZED Sim2Real camera model (MTF, vignetting, AE, bloom, AWB, tone, sharpening, sensor noise) to the frames before streaming",
+                "default": false,
+                "metadata": {
+                    "uiName": "Apply ZED Sim2Real"
+                }
+            },
+            "zedSim2RealSceneLux": {
+                "type": "float",
+                "description": "Absolute scene illuminance in lux for the sim2real's gain-ceiling AE and gain-coupled noise. 0 = bright scene",
+                "default": 0.0,
+                "metadata": {
+                    "uiName": "ZED Sim2Real scene lux"
+                }
+            },
+            "zedSim2RealAeTarget": {
+                "type": "float",
+                "description": "Override the sim2real AE set-point (median display luma 0..1). <=0 = calibrated default (~0.45). Raise to brighten the modeled image, e.g. to sit closer to the raw render's tone mapping.",
+                "default": -1.0,
+                "metadata": {
+                    "uiName": "ZED Sim2Real AE target"
+                }
+            },
+            "orientation": {
+                "type": "quatd[4]",
+                "description": "imu orientation",
+                "default": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            },
+            "linearAcceleration": {
+                "type": "vectord[3]",
+                "description": "imu acceleration",
+                "default": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            }
+        },
+        "outputs": {}
     }
 }

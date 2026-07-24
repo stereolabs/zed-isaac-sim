@@ -37,6 +37,6 @@ _compiler
 .vscode/
 source/
 
-exts/sl.sensor.camera/bin/libsl.sensor.camera.plugin.so
-exts/sl.sensor.camera/bin/sl.sensor.camera.plugin.dll
+# build outputs + downloaded ZED runtime library (populated by build.bat/build.sh)
+exts/sl.sensor.camera/bin/
 exts/sl.sensor.camera/sl/sensor/camera/ogn/__ogn_files_prebuilt

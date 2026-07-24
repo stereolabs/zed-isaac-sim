@@ -1,0 +1,94 @@
+#usda 1.0
+(
+    doc = "Light rig for the ZED pick-place demo. Edit this file (or open it in Isaac and paste your lights under /World) - pickplace.py sublayers it into the scene at load."
+    defaultPrim = "World"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "World"
+{
+    def RectLight "FillLight"
+    {
+        color3f inputs:color = (1, 0.95, 0.88)
+        float inputs:height = 22.5
+        float inputs:intensity = 500000
+        bool inputs:normalize = 1
+        float inputs:width = 19
+        token visibility = "inherited"
+        float3 xformOp:rotateXYZ = (0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (0.24262477693976178, 0.05629072300290944, 5.762811212621982)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+    }
+
+    def RectLight "KeyLight"
+    {
+        color3f inputs:color = (1, 0.95, 0.88)
+        float inputs:height = 2.6000001
+        float inputs:intensity = 8000
+        bool inputs:normalize = 1
+        float inputs:width = 3.7
+        token visibility = "inherited"
+        float3 xformOp:rotateXYZ = (0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (0.24262477693976178, 0.05629072300290944, 2.78488254639295)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+    }
+
+    def RectLight "KeyLight_01"
+    {
+        color3f inputs:color = (1, 0.95, 0.88)
+        float inputs:height = 2.6000001
+        float inputs:intensity = 8000
+        bool inputs:normalize = 1
+        float inputs:width = 1.8000001
+        token visibility = "inherited"
+        float3 xformOp:rotateXYZ = (0, 45, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (2.074026737523313, 0.05629072300290948, 2.78488254639296)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+    }
+
+    def RectLight "KeyLight_02"
+    {
+        color3f inputs:color = (1, 0.95, 0.88)
+        float inputs:height = 2.6000001
+        float inputs:intensity = 8000
+        bool inputs:normalize = 1
+        float inputs:width = 1.8000001
+        token visibility = "inherited"
+        float3 xformOp:rotateXYZ = (0, -45, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-1.7719012464075456, 0.05629072300290948, 2.7848825463929727)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+    }
+
+    def RectLight "KeyLight_03"
+    {
+        color3f inputs:color = (1, 0.95, 0.88)
+        float inputs:height = 2.6000001
+        float inputs:intensity = 8000
+        bool inputs:normalize = 1
+        float inputs:width = 1.8000001
+        token visibility = "inherited"
+        float3 xformOp:rotateXYZ = (0, -45, -90)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (0.2663510241048924, 1.9863683462075221, 2.7848825463929483)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+    }
+
+    def RectLight "KeyLight_04"
+    {
+        color3f inputs:color = (1, 0.95, 0.88)
+        float inputs:height = 2.6000001
+        float inputs:intensity = 8000
+        bool inputs:normalize = 1
+        float inputs:width = 1.8000001
+        token visibility = "inherited"
+        float3 xformOp:rotateXYZ = (0, 45, -90)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (0.2663510241048909, -1.8639472928272003, 2.784882546392922)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+    }
+}

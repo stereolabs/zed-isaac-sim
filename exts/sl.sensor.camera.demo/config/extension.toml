@@ -1,0 +1,29 @@
+[package]
+version = "1.0.0"
+title = "Stereolabs ZED Warehouse Demos"
+description = "Turnkey warehouse demos with robot-mounted ZED X cameras streaming to the ZED SDK: Franka pick-place, Unitree H1 humanoid, and iw.hub AMR. Adds entries to the Isaac Examples browser (Load & Run)."
+category = "Stereolabs"
+keywords = ["Stereolabs", "ZED", "Demo", "Pick", "Place", "Franka", "Humanoid", "AMR", "Example"]
+authors = ["Stereolabs"]
+repository = "https://github.com/stereolabs/zed-isaac-sim"
+readme = "docs/README.md"
+
+[package.target]
+platform = ["windows-x86_64", "linux-x86_64"]
+kit = ["110.1.2"]
+
+[dependencies]
+"sl.sensor.camera" = {}
+# isaacsim.* deps are optional: the repo builds against kit-kernel only (no full Isaac Sim),
+# so these packages aren't in the registry at build time and would fail the dependency solver.
+# They resolve at runtime inside Isaac Sim. See CLAUDE.md "isaacsim.* deps break precache".
+"isaacsim.examples.browser" = { optional = true }
+"isaacsim.robot.experimental.manipulators.examples" = { optional = true }
+"isaacsim.robot_motion.motion_generation" = { optional = true }
+"isaacsim.robot.policy.examples" = { optional = true }
+"isaacsim.core.api" = { optional = true }
+"omni.graph.core" = {}
+"omni.graph.action" = {}
+
+[[python.module]]
+name = "sl.sensor.camera.demo"

@@ -16,9 +16,18 @@ def OmniGraph "TestGraph"
     )
     {
         token node:type = "sl.sensor.camera.ZED_Camera"
-        int node:typeVersion = 2
+        int node:typeVersion = 4
 
-        # 9 attributes
+        # 14 attributes
+        custom bool inputs:applyZedSim2Real = false (
+            docs="""Post-process the streamed frames with the calibrated ZED Sim2Real camera model
+            so the simulated image matches a real ZED X.
+
+            Models: lens blur (MTF), vignetting, auto-exposure, white balance,
+            tone curve, sharpening and gain-coupled sensor noise.
+
+            Can be toggled live while playing."""
+        )
         custom uint inputs:bitrate = 8000 (
             docs="""Bitrate in Kbps. (Used only if IPC is disabled)"""
         )
@@ -34,17 +43,35 @@ def OmniGraph "TestGraph"
         custom uint inputs:execIn = 0 (
             docs="""Triggers execution"""
         )
-        custom uint inputs:fps = 60 (
+        custom uint inputs:fps = 30 (
             docs="""Camera stream frame rate."""
         )
-        custom token inputs:resolution = "HD1200" (
+        custom token inputs:lensType = "Wide" (
+            docs="""Lens fitted to the camera. Options shown depend on the selected camera model."""
+        )
+        custom token inputs:resolution = "SVGA" (
             docs="""Camera stream resolution."""
+        )
+        custom bool inputs:streamDepth = false (
+            docs="""Enable Left+Depth streaming mode instead of Left+Right. Uses ground-truth depth from Isaac Sim."""
         )
         custom uint inputs:streamingPort = 30000 (
             docs="""Unique port per camera."""
         )
         custom token inputs:transportLayerMode = "BOTH" (
-            docs="""Communication protocol used to send data to the ZED SDK. IPC (Only available on Linux)improves streaming performances when streaming to the same machine"""
+            docs="""Communication protocol used to send data to the ZED SDK. IPC improves streaming performance when streaming to the same machine (Linux and Windows)"""
+        )
+        custom float inputs:zedSim2RealAeTarget = -1.0 (
+            docs="""Override the ZED Sim2Real AE set-point (median display luma 0..1). <=0 = calibrated default (~0.45). Raise to brighten the modeled image."""
+        )
+        custom float inputs:zedSim2RealSceneLux = 0.0 (
+            docs="""Assumed scene illuminance (lux) for low-light modeling.
+            Only used when Apply is on; tunable live while playing.
+
+            0 or less = bright scene: no extra darkening or added noise.
+            A positive value simulates a dimmer scene: the lower the lux,
+            the darker and noisier the image (gain-coupled sensor noise),
+            matching how a real ZED gains up in low light."""
         )
     }
 }

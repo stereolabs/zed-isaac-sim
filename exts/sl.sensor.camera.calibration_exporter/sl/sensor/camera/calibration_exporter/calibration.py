@@ -1,12 +1,41 @@
-﻿from re import S
-import omni.usd
+﻿import omni.usd
 import math
 import configparser
+from enum import Enum
 from pxr import Gf, UsdGeom
 import platform
 import carb
 import random
 from typing import Tuple
+
+
+class LensType(Enum):
+    """Lens fitted to a camera model.
+
+    - WIDE: standard wide-angle lens (formerly ``is_4mm == False``)
+    - NARROW: 4mm narrow-angle lens (formerly ``is_4mm == True``)
+    - FISHEYE: fisheye lens
+    """
+    WIDE = "Wide"
+    NARROW = "Narrow"
+    FISHEYE = "Fisheye"
+
+
+# Integer code written to the SN*.conf [SIM] section, read by the ZED SDK's sim
+# streamer. Kept backward-friendly: the old is_4mm 0/1 values keep their meaning
+# (0 = Wide, 1 = Narrow), with 2 = Fisheye added.
+_LENS_TYPE_CODE = {
+    LensType.WIDE: 0,
+    LensType.NARROW: 1,
+    LensType.FISHEYE: 2,
+}
+
+# OpenCV fisheye distortion coefficients [k1, k2, k3, k4] per camera model,
+# written to the [DISTO] section for fisheye lenses. Mirrors _DISTORTION_COEFFICIENTS
+# in sl.sensor.camera/sl/sensor/camera/utils.py; keep the two in sync.
+_DISTORTION_COEFFICIENTS = {
+    "ZED_XONE_S_FISHEYE": [0.07, 0.0061, -0.0018, -0.00037],
+}
 
 def quat_to_rodrigues(quat: Gf.Quatd):
     """
@@ -14,25 +43,25 @@ def quat_to_rodrigues(quat: Gf.Quatd):
     """
     angle = 2.0 * math.acos(quat.GetReal())  # rotation angle
     sin_half_angle = math.sqrt(1 - quat.GetReal()**2)
-    
+
     # If angle is very small, rotation axis is undefined, use zero
     if sin_half_angle < 1e-8:
         return Gf.Vec3d(0, 0, 0)
-    
+
     axis = Gf.Vec3d(quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2])
     rodrigues = axis * (angle / sin_half_angle)
     return rodrigues
 
 def get_calibration_file_path():
     system = platform.system()
-    
+
     if system == "Windows":
         path = "C:/ProgramData/Stereolabs/settings/"
     elif system == "Linux":
         path = "/usr/local/zed/settings/"
     else:
         path = ""
-    
+
     return path
 
 RANDOM_SN_START_VALUE = 110_000_001
@@ -43,7 +72,49 @@ def generate_virtual_sn() -> int:
     return random.randint(RANDOM_SN_START_VALUE, RANDOM_SN_STOP_VALUE)
 
 
-def get_camera_config(camera_model: str) -> Tuple[str, bool]:
+# Base camera models offered by the exporter (ZED X One family only) and the lens
+# types available for each. Mirrors _CAMERA_CONFIGS in
+# sl.sensor.camera/sl/sensor/camera/utils.py; keep the two in sync.
+_BASE_LENS_TYPES = {
+    "ZED_XONE_UHD": [LensType.WIDE],
+    "ZED_XONE_GS": [LensType.WIDE, LensType.NARROW],
+    "ZED_XONE_S": [LensType.WIDE, LensType.NARROW, LensType.FISHEYE],
+}
+
+# (base_model, lens_type) -> composite token consumed by get_camera_config().
+_MODEL_BY_BASE_LENS = {
+    ("ZED_XONE_UHD", LensType.WIDE): "ZED_XONE_UHD",
+    ("ZED_XONE_GS", LensType.WIDE): "ZED_XONE_GS",
+    ("ZED_XONE_GS", LensType.NARROW): "ZED_XONE_GS_4MM",
+    ("ZED_XONE_S", LensType.WIDE): "ZED_XONE_S",
+    ("ZED_XONE_S", LensType.NARROW): "ZED_XONE_S_4MM",
+    ("ZED_XONE_S", LensType.FISHEYE): "ZED_XONE_S_FISHEYE",
+}
+
+
+def get_base_models() -> list:
+    """Get the base camera model names offered by the exporter, in display order."""
+    return list(_BASE_LENS_TYPES.keys())
+
+
+def get_allowed_lens_types(base_model: str) -> list:
+    """Get the lens type values available for a base model (LensType.value strings)."""
+    return [lens.value for lens in _BASE_LENS_TYPES.get(base_model, [LensType.WIDE])]
+
+
+def compose_model(base_model: str, lens_type: str) -> str:
+    """Recompose the composite camera model token from a base model and lens value.
+
+    Falls back to base_model when the (base, lens) pair is unknown.
+    """
+    try:
+        lens_enum = LensType(lens_type)
+    except ValueError:
+        return base_model
+    return _MODEL_BY_BASE_LENS.get((base_model, lens_enum), base_model)
+
+
+def get_camera_config(camera_model: str) -> Tuple[str, LensType]:
     """
     Returns configuration parameters for a given camera model.
 
@@ -51,20 +122,20 @@ def get_camera_config(camera_model: str) -> Tuple[str, bool]:
         camera_model (str): The name of the camera model.
 
     Returns:
-        Tuple[int, bool]: (fps, is_small_sensor)
+        Tuple[str, LensType]: (model_code, lens_type)
     """
     camera_configs = {
-        "ZED_XONE_GS": ("30", False),
-        "ZED_XS_GS_4MM": ("30", True),
-        "ZED_XONE_UHD": ("31", False),
-        "ZED_X_ONE_S": ("30", False),
-        "ZED_X_ONE_S_4MM": ("30", True),
-        "ZED_X_ONE_S_FISHEYE": ("30", False),
+        "ZED_XONE_GS": ("30", LensType.WIDE),
+        "ZED_XONE_GS_4MM": ("30", LensType.NARROW),
+        "ZED_XONE_UHD": ("31", LensType.WIDE),
+        "ZED_XONE_S": ("30", LensType.WIDE),
+        "ZED_XONE_S_4MM": ("30", LensType.NARROW),
+        "ZED_XONE_S_FISHEYE": ("30", LensType.FISHEYE),
     }
 
     if camera_model not in camera_configs:
         carb.log_warn(f"Unknown camera model '{camera_model}', defaulting to ZED_XONE_GS")
-    
+
     # Use get() to gracefully handle unknown models
     return camera_configs.get(camera_model, camera_configs["ZED_XONE_GS"])
 
@@ -90,7 +161,7 @@ def write_stereo_calibration_file(left_prim_path: str, right_prim_path: str, ser
 
     # Choose conversion matrix based on prim type
     if is_camera:
-        # Camera prim: -Z forward, Y up → image frame X right, Y down, Z forward
+        # Camera prim: -Z forward, Y up -> image frame X right, Y down, Z forward
         sim_to_image = Gf.Matrix4d(
             1, 0, 0, 0,    # newX = oldX
             0, 0, -1, 0,   # newY = -oldZ
@@ -98,11 +169,11 @@ def write_stereo_calibration_file(left_prim_path: str, right_prim_path: str, ser
             0, 0, 0, 1
         )
     else:
-        # Generic prim: X forward, Y left, Z up → image frame X right, Y down, Z forward
+        # Generic prim: X forward, Y left, Z up -> image frame X right, Y down, Z forward
         sim_to_image = Gf.Matrix4d(
-            0, -1, 0, 0,   # newX = -oldY  (USD Y left → image X right)
-            0,  0, -1, 0,  # newY = -oldZ  (USD Z up   → image Y down)
-            1,  0, 0, 0,   # newZ =  oldX  (USD X fwd → image Z fwd)
+            0, -1, 0, 0,   # newX = -oldY  (USD Y left -> image X right)
+            0,  0, -1, 0,  # newY = -oldZ  (USD Z up   -> image Y down)
+            1,  0, 0, 0,   # newZ =  oldX  (USD X fwd -> image Z fwd)
             0,  0, 0, 1
         )
 
@@ -123,7 +194,7 @@ def write_stereo_calibration_file(left_prim_path: str, right_prim_path: str, ser
     def decompose_gf_matrix(mat):
         # mat is a Gf.Matrix4d
         translation = mat.ExtractTranslation()
-        rotation =  quat_to_rodrigues(mat.ExtractRotationQuat()) 
+        rotation =  quat_to_rodrigues(mat.ExtractRotationQuat())
         return translation, rotation
 
     rel_trans, rel_rot = decompose_gf_matrix(relative_img)
@@ -149,12 +220,30 @@ def write_stereo_calibration_file(left_prim_path: str, right_prim_path: str, ser
     cfg['STEREO']['RZ_FHD1200'] = f"{rel_rot[2]:.8f}"
     cfg['STEREO']['RZ_QHDPLUS'] = f"{rel_rot[2]:.8f}"
 
-    # auto detect camera model based on prim path 
+    # auto detect camera model based on prim path
 
-    cam_model, is_4mm = get_camera_config(camera_model)
+    cam_model, lens_type = get_camera_config(camera_model)
     cfg['SIM'] = {}
-    cfg['SIM']['is_4mm'] = "1" if is_4mm else "0"
+    cfg['SIM']['lens_type'] = str(_LENS_TYPE_CODE[lens_type])
     cfg['SIM']['camera_model'] = cam_model
+
+    # Fisheye cameras carry OpenCV fisheye distortion coefficients
+    if lens_type == LensType.FISHEYE:
+        disto = _DISTORTION_COEFFICIENTS.get(camera_model)
+        if disto:
+            cfg['LEFT_DISTO'] = {}
+            cfg['LEFT_DISTO']['k1'] = f"{disto[0]}"
+            cfg['LEFT_DISTO']['k2'] = f"{disto[1]}"
+            cfg['LEFT_DISTO']['k3'] = f"{disto[2]}"
+            cfg['LEFT_DISTO']['k4'] = f"{disto[3]}"
+
+            cfg['RIGHT_DISTO'] = {}
+            cfg['RIGHT_DISTO']['k1'] = f"{disto[0]}"
+            cfg['RIGHT_DISTO']['k2'] = f"{disto[1]}"
+            cfg['RIGHT_DISTO']['k3'] = f"{disto[2]}"
+            cfg['RIGHT_DISTO']['k4'] = f"{disto[3]}"
+        else:
+            carb.log_warn(f"No fisheye distortion coefficients for model '{camera_model}'")
 
     # Write to file
     full_path = get_calibration_file_path() + f"SN{serial_number}.conf"

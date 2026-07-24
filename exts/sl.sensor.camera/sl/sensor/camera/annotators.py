@@ -3,26 +3,55 @@
 
 import carb
 import omni.graph.core as og
-import omni.replicator.core as rep
-from omni.replicator.core.scripts.utils import viewport_manager
-from isaacsim.core.utils.prims import is_prim_path_valid, get_prim_at_path
 import omni.usd
-from omni.syntheticdata import SyntheticData, SyntheticDataStage
 from pxr import Gf
 
+try:
+    import omni.replicator.core as rep
+    from omni.replicator.core.scripts.utils import viewport_manager
+    from isaacsim.core.utils.prims import is_prim_path_valid, get_prim_at_path
+    from omni.syntheticdata import SyntheticData, SyntheticDataStage
+except ImportError:
+    rep = viewport_manager = is_prim_path_valid = get_prim_at_path = None
+    SyntheticData = SyntheticDataStage = None
+
 from .utils import (
-    get_camera_model,
+    get_camera_subpaths,
     is_stereo_camera,
-    is_4mm_camera,
+    get_camera_model,
+    get_lens_type,
+    get_sdk_model_id,
+    get_sim_lens_type_id,
+    MODEL_ID_VIRTUAL_ZED_X,
     get_resolution,
     get_focal_length,
     get_pixel_size,
     get_distortion_coefficients,
     get_optical_center,
+    get_allowed_resolutions,
+    is_resolution_valid,
 )
 
 # Shared across all streamer classes to ensure port uniqueness
 used_ports = set()
+
+# Depth streamed to the ZED SDK (ingestCustomDepth) is fixed at this resolution.
+_STREAM_DEPTH_RESOLUTION = [896, 512]
+
+
+def _set_motion_blur(enabled: bool) -> None:
+    """RTX motion-vector motion blur, part of the sim2real look: real ZED X frames smear
+    during fast camera/robot motion (rolling exposure over a fraction of the frame time).
+    These are global RTX post settings, so they affect every render product including the
+    viewport - acceptable, since the effect is only visible on motion. exposureFraction
+    approximates the ZED X shutter (~40% of the 33 ms frame at indoor light levels)."""
+    import carb.settings
+    s = carb.settings.get_settings()
+    s.set("/rtx/post/motionblur/enabled", bool(enabled))
+    if enabled:
+        s.set("/rtx/post/motionblur/maxBlurDiameterFraction", 0.03)
+        s.set("/rtx/post/motionblur/exposureFraction", 0.65)
+        s.set("/rtx/post/motionblur/numSamples", 8)
 
 class ZEDAnnotator:
     """
@@ -38,12 +67,16 @@ class ZEDAnnotator:
         camera_prim,
         camera_model = "ZED_X",
         streaming_port = 30000,
-        resolution = "HD1200",
+        resolution = "SVGA",
         fps = 30,
         bitrate = 10000,
         chunk_size = 4096,
         transport_layer_mode = "BOTH",
-        virtual_serial_number = None
+        virtual_serial_number = None,
+        stream_depth = False,
+        apply_zed_sim2real = False,
+        zed_sim2real_scene_lux = 0.0,
+        zed_sim2real_ae_target = -1.0
         ):
 
         """
@@ -58,13 +91,12 @@ class ZEDAnnotator:
 
          # Normalize input
         if len(camera_prim) == 1:
-            carb.log_info("Single prim provided, assuming mono or stereo camera based on model.")
             self.custom_stereo = False
         elif len(camera_prim) == 2:
-            carb.log_info("Two prims provided, assuming custom stereo setup.")
+            carb.log_info("[ZED] Two prims provided, assuming custom stereo setup.")
             self.custom_stereo = True
         else:
-            carb.log_error(f"Expected 1 or 2 camera prims, got {len(camera_prim)}")
+            carb.log_error(f"[ZED] Expected 1 or 2 camera prims, got {len(camera_prim)}")
             self.camera_prim_path = []
             self.custom_stereo = False
             self.is_stereo = False
@@ -78,31 +110,47 @@ class ZEDAnnotator:
         self.serial_number = virtual_serial_number
         self.camera_model = camera_model
         self.port = streaming_port
+
+        # Guard against a resolution that the selected model does not support
+        # (e.g. graphs authored via script, or the in-canvas node body which is
+        # not filtered by the property panel template). Clamp to a valid value.
+        if not is_resolution_valid(camera_model, resolution):
+            allowed = get_allowed_resolutions(camera_model)
+            fallback = allowed[0] if allowed else resolution
+            carb.log_warn(
+                f"[ZED] Resolution '{resolution}' is not supported by camera model "
+                f"'{camera_model}'. Falling back to '{fallback}'."
+            )
+            resolution = fallback
+
         self.resolution = get_resolution(camera_model, resolution)
         self.fps = ZEDAnnotator.check_frame_rate(fps)
         self.bitrate = bitrate
         self.chunk_size = chunk_size
         self.transport_layer_mode = transport_layer_mode
+        self.apply_zed_sim2real = bool(apply_zed_sim2real)
+        self.zed_sim2real_scene_lux = float(zed_sim2real_scene_lux)
+        self.zed_sim2real_ae_target = float(zed_sim2real_ae_target)
 
         # Stereo if model is stereo OR user provides 2 prims
         self.is_stereo = is_stereo_camera(camera_model) or self.custom_stereo
+
+        self.stream_depth = stream_depth
 
         self.nodes = []
         self.zed_ = None
 
         self.build_annotators()
-        print(
-            f"[Port: {self.port}] Constructed annotator for "
-            f"{'custom stereo' if self.custom_stereo else ('stereo' if self.is_stereo else 'mono')} camera."
-        )
+        mode_str = "left+depth" if self.stream_depth else ('custom stereo' if self.custom_stereo else ('stereo' if self.is_stereo else 'mono'))
+        print(f"[Port: {self.port}] Constructed annotator for {mode_str} camera.")
 
-    def init_camera(self, camera_prim_path : str, resolution, is_4mm):
+    def init_camera(self, camera_prim_path : str, resolution, lens_type):
         result = False
         if is_prim_path_valid(camera_prim_path) == True:
                 cam_prim = get_prim_at_path(prim_path=camera_prim_path)
                 pixel_size = get_pixel_size(self.camera_model) * 1e-3
                 f_stop = 0 # disable focusing
-                f = get_focal_length(self.camera_model, resolution, is_4mm)
+                f = get_focal_length(self.camera_model, resolution, lens_type)
 
                 horizontal_aperture = pixel_size * resolution[0]
                 vertical_aperture = pixel_size * resolution[1]
@@ -112,6 +160,11 @@ class ZEDAnnotator:
                 cam_prim.GetAttribute("horizontalAperture").Set(horizontal_aperture)
                 cam_prim.GetAttribute("verticalAperture").Set(vertical_aperture)
                 cam_prim.GetAttribute("fStop").Set(f_stop)
+
+                # Multi-tick rendering (Isaac Sim 6.0): render this camera only at the ZED's
+                # target FPS instead of every app frame.
+                cam_prim.ApplyAPI("OmniSensorAPI")
+                cam_prim.GetAttribute("omni:sensor:tickRate").Set(float(self.fps))
 
                 # Apply lens distortion for fisheye camera models
                 distortion = get_distortion_coefficients(self.camera_model)
@@ -138,13 +191,13 @@ class ZEDAnnotator:
 
                 result = True
         else:
-            carb.log_error(f"Camera prim path {camera_prim_path} is not valid.")
+            carb.log_error(f"[ZED] Camera prim path {camera_prim_path} is not valid.")
         return result
 
     @staticmethod
     def check_frame_rate(camera_frame_rate: int):
         if camera_frame_rate not in [15, 30, 60, 120]:
-            carb.log_warn(f"Invalid frame rate passed: {camera_frame_rate}. Defaulting to 30.")
+            carb.log_warn(f"[ZED] Invalid frame rate passed: {camera_frame_rate}. Defaulting to 30.")
             return 30
         return camera_frame_rate
 
@@ -154,15 +207,14 @@ class ZEDAnnotator:
         cams = []
         self.annotators = {}
 
-        is_4mm = is_4mm_camera(self.camera_model)
-        base_camera_model = get_camera_model(self.camera_model)
+        lens_type = get_lens_type(self.camera_model)
+        subpaths = get_camera_subpaths(self.camera_model)
          # Case 1: user gave 2 prims (custom stereo)
         if self.custom_stereo:
-            cam_path = "/base_link/" + base_camera_model + "/Camera"
-            left_full_path = self.camera_prim_path[0].pathString + cam_path
-            right_full_path = self.camera_prim_path[1].pathString + cam_path
+            left_full_path = f"{self.camera_prim_path[0].pathString}/{subpaths['mono']}"
+            right_full_path = f"{self.camera_prim_path[1].pathString}/{subpaths['mono']}"
 
-            if self.init_camera(left_full_path, self.resolution, is_4mm):
+            if self.init_camera(left_full_path, self.resolution, lens_type):
                 name_left = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_left_rp"
                 self._left_rp = viewport_manager.get_render_product(left_full_path, self.resolution, False, name_left)
                 self.left_rp = self._left_rp.hydra_texture.get_render_product_path()
@@ -171,7 +223,16 @@ class ZEDAnnotator:
                 self.annotators["Left"] = self.left_rgb_annot
                 cams.append(["Left", name_left])
 
-            if self.init_camera(right_full_path, self.resolution, is_4mm):
+            if self.stream_depth:
+                depth_res = _STREAM_DEPTH_RESOLUTION
+                name_depth = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_depth_rp"
+                self._depth_rp = viewport_manager.get_render_product(left_full_path, depth_res, False, name_depth)
+                self.depth_rp = self._depth_rp.hydra_texture.get_render_product_path()
+                self.depth_annot = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane", device=device)
+                self.depth_annot.attach(self.depth_rp)
+                self.annotators["Depth"] = self.depth_annot
+                cams.append(["Depth", name_depth])
+            elif self.init_camera(right_full_path, self.resolution, lens_type):
                 name_right = f"{self.camera_prim_path[1].pathString.split('/')[-1]}_right_rp"
                 self._right_rp = viewport_manager.get_render_product(right_full_path, self.resolution, False, name_right)
                 self.right_rp = self._right_rp.hydra_texture.get_render_product_path()
@@ -181,14 +242,10 @@ class ZEDAnnotator:
                 cams.append(["Right", name_right])
         # Case 2: one prim (mono or stereo)
         else:
-            if self.is_stereo is True:
-                left_path = "/base_link/" + base_camera_model + "/CameraLeft"
-            else:
-                left_path = "/base_link/" + base_camera_model + "/Camera"
-
-            left_full_path = self.camera_prim_path[0].pathString + left_path
+            # subpaths["left"] resolves to CameraLeft for stereo models, Camera for mono.
+            left_full_path = f"{self.camera_prim_path[0].pathString}/{subpaths['left']}"
             # Init left camra (or mono camera)
-            if self.init_camera(left_full_path, self.resolution, is_4mm):
+            if self.init_camera(left_full_path, self.resolution, lens_type):
                 name_left = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_left_rp"
                 self._left_rp = viewport_manager.get_render_product(left_full_path, self.resolution, False, name_left)
                 self.left_rp = self._left_rp.hydra_texture.get_render_product_path()
@@ -197,13 +254,22 @@ class ZEDAnnotator:
                 self.annotators["Left"] = self.left_rgb_annot
                 cams.append(["Left", name_left])
             else:
-                carb.log_warn(f"[{self.camera_prim_path[0].pathString}] Invalid or non existing zed camera, try to re-import your camera prim.")
+                carb.log_warn(f"[ZED] [{self.camera_prim_path[0].pathString}] Invalid or non existing zed camera, try to re-import your camera prim.")
 
-            # Right Camera - Only for stereo cameras
-            if self.is_stereo:
-                right_path = "/base_link/" + base_camera_model + "/CameraRight"
-                right_full_path = self.camera_prim_path[0].pathString + right_path
-                if self.init_camera(right_full_path, self.resolution, is_4mm):
+            # Depth annotator - when stream_depth is enabled
+            if self.stream_depth:
+                depth_res = _STREAM_DEPTH_RESOLUTION
+                name_depth = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_depth_rp"
+                self._depth_rp = viewport_manager.get_render_product(left_full_path, depth_res, False, name_depth)
+                self.depth_rp = self._depth_rp.hydra_texture.get_render_product_path()
+                self.depth_annot = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane", device=device)
+                self.depth_annot.attach(self.depth_rp)
+                self.annotators["Depth"] = self.depth_annot
+                cams.append(["Depth", name_depth])
+            # Right Camera - Only for stereo cameras when not in depth mode
+            elif self.is_stereo:
+                right_full_path = f"{self.camera_prim_path[0].pathString}/{subpaths['right']}"
+                if self.init_camera(right_full_path, self.resolution, lens_type):
                     name_right = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_right_rp"
                     self._right_rp = viewport_manager.get_render_product(right_full_path, self.resolution, False, name_right)
                     self.right_rp = self._right_rp.hydra_texture.get_render_product_path()
@@ -212,7 +278,7 @@ class ZEDAnnotator:
                     self.annotators["Right"] = self.right_rgb_annot
                     cams.append(["Right", name_right])
                 else:
-                    carb.log_warn(f"[{self.camera_prim_path[0].pathString}] Invalid or non existing zed camera, try to re-import your camera prim.")
+                    carb.log_warn(f"[ZED] [{self.camera_prim_path[0].pathString}] Invalid or non existing zed camera, try to re-import your camera prim.")
 
 
         self.init_graph()
@@ -309,16 +375,28 @@ class ZEDAnnotator:
         self.sys_time.get_attribute("outputs:systemTime").connect(self.zed_.get_attribute("inputs:systemTime"), True)
 
         self.zed_.get_attribute("inputs:stream").set(value=True)
-        self.zed_.get_attribute("inputs:cameraModel").set("VIRTUAL_ZED_X" if self.custom_stereo else self.camera_model)
+        self.zed_.get_attribute("inputs:applyZedSim2Real").set(self.apply_zed_sim2real)
+        self.zed_.get_attribute("inputs:zedSim2RealSceneLux").set(self.zed_sim2real_scene_lux)
+        self.zed_.get_attribute("inputs:zedSim2RealAeTarget").set(self.zed_sim2real_ae_target)
+        _set_motion_blur(self.apply_zed_sim2real)
+        # Feed the C++ node the two primitives (SDK MODEL code + SIM_LENS_TYPE); it
+        # rebuilds the serial-pool key from them. Custom (two-mono) stereo uses the
+        # virtual-stereo sentinel instead of a real model.
+        if self.custom_stereo:
+            self.zed_.get_attribute("inputs:simCameraModel").set(MODEL_ID_VIRTUAL_ZED_X)
+            self.zed_.get_attribute("inputs:simLensType").set(0)
+        else:
+            self.zed_.get_attribute("inputs:simCameraModel").set(get_sdk_model_id(get_camera_model(self.camera_model)))
+            self.zed_.get_attribute("inputs:simLensType").set(get_sim_lens_type_id(get_lens_type(self.camera_model)))
         self.zed_.get_attribute("inputs:serialNumber").set(self.serial_number if self.serial_number else "-1")
+        self.zed_.get_attribute("inputs:streamDepth").set(self.stream_depth)
 
         # connect sync node to zed node to trigger the stream
         self.sync_node.get_attribute("outputs:execOut").connect(self.imu.get_attribute("inputs:execIn"), True)
         self.sync_node.get_attribute("outputs:rationalTimeDenominator").connect(self.sim_time.get_attribute("inputs:referenceTimeDenominator"), True)
         self.sync_node.get_attribute("outputs:rationalTimeNumerator").connect(self.sim_time.get_attribute("inputs:referenceTimeNumerator"), True)
 
-        imu_path = "/base_link/" + get_camera_model(self.camera_model) + "/Imu_Sensor"
-        imu_full_path = self.camera_prim_path[0].pathString + imu_path
+        imu_full_path = f"{self.camera_prim_path[0].pathString}/{get_camera_subpaths(self.camera_model)['imu']}"
         self.imu.get_attribute("inputs:imuPrim").set(imu_full_path)
         self.zed_.get_attribute("inputs:bitrate").set(self.bitrate)
         self.zed_.get_attribute("inputs:chunkSize").set(self.chunk_size)
@@ -328,6 +406,30 @@ class ZEDAnnotator:
         self.imu.get_attribute("outputs:execOut").connect(self.zed_.get_attribute("inputs:execIn"), True)
 
         self.nodes = [self.sync_node, self.sim_time, self.sys_time, self.imu, self.zed_]
+
+    def set_sim2real(self, apply_zed_sim2real, zed_sim2real_scene_lux, zed_sim2real_ae_target=None) -> None:
+        """Push a live sim2real-config change onto the streaming node.
+
+        The C++ node reads these inputs every frame, so forwarding a changed value here takes
+        effect immediately - no graph rebuild or stop/restart. Change-gated so the common
+        no-change case costs only a few comparisons; safe no-op before the node exists.
+        """
+        if self.zed_ is None:
+            return
+        apply = bool(apply_zed_sim2real)
+        lux = float(zed_sim2real_scene_lux)
+        if apply != self.apply_zed_sim2real:
+            self.zed_.get_attribute("inputs:applyZedSim2Real").set(apply)
+            self.apply_zed_sim2real = apply
+            _set_motion_blur(apply)
+        if lux != self.zed_sim2real_scene_lux:
+            self.zed_.get_attribute("inputs:zedSim2RealSceneLux").set(lux)
+            self.zed_sim2real_scene_lux = lux
+        if zed_sim2real_ae_target is not None:
+            target = float(zed_sim2real_ae_target)
+            if target != self.zed_sim2real_ae_target:
+                self.zed_.get_attribute("inputs:zedSim2RealAeTarget").set(target)
+                self.zed_sim2real_ae_target = target
 
     def destroy(self) -> None:
         """
@@ -343,16 +445,20 @@ class ZEDAnnotator:
                     _p = node.get_prim_path()
                     self.graph.destroy_node(_p, True)
             except:
-                carb.log_warn("Node {} not found".format(node))
+                carb.log_warn(f"[ZED] Node {node} not found")
         self.nodes = []
 
         if hasattr(self, "left_rgb_annot"):
             self.left_rgb_annot.detach(self.left_rp)
             self._left_rp.destroy()
 
-        if self.is_stereo and hasattr(self, "right_rgb_annot"):
+        if self.is_stereo and not self.stream_depth and hasattr(self, "right_rgb_annot"):
             self.right_rgb_annot.detach(self.right_rp)
             self._right_rp.destroy()
+
+        if self.stream_depth and hasattr(self, "depth_annot"):
+            self.depth_annot.detach(self.depth_rp)
+            self._depth_rp.destroy()
 
 
         carb.log_info(f"[ZED][port {self.port}] Annotators destroyed.")

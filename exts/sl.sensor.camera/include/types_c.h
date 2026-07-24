@@ -95,12 +95,28 @@ namespace sl
          *
          */
         unsigned short chunk_size = 4096; // in bytes
+
+        int gop_size = -1; // in frames
+
+        // When true, dataPtrLeft/Right are CUDA device pointers handed straight to the
+        // encoder (no host copy). Honored only on the RGBA/BGRA network path.
+        bool gpu_input = false;
+        bool stream_depth = false;
+        int depth_width = 0;
+        int depth_height = 0;
+        int depth_bitrate = 0;
+    };
+
+    enum class SIM_LENS_TYPE {
+        WIDE,
+        NARROW,
+        FISHEYE
     };
 
     struct SimCameraInfo {
         int serial_number;
         int model;
-        int is_4mm;
+        SIM_LENS_TYPE lens_type;
     };
 
 }
