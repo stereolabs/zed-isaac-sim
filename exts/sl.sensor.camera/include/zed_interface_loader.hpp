@@ -211,7 +211,7 @@ namespace sl
             {
                 CARB_LOG_INFO("IPC stream enabled");
             }
-            CARB_LOG_WARN("[ZED] Initializing streamer with ID %d on port %d", streamer_id, streaming_params->port);
+            CARB_LOG_INFO("[ZED] Initializing streamer with ID %d on port %d", streamer_id, streaming_params->port);
 
             return init_streamer(streamer_id, streaming_params);
         }

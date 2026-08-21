@@ -2,6 +2,12 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [5.2.1]
+### Fixes
+- Fixed a crash a few seconds after a stereo stream started on Linux when the transport mode was `IPC` or `BOTH`. Isaac Sim exited silently, with no crash report.
+- A camera that fails to start streaming is now recoverable: stop and play again. Previously every later attempt failed until Isaac Sim was restarted, whatever the port was set to. The failure is also reported once instead of every frame.
+- Deleting one ZED camera no longer stops the other cameras streaming in the same scene.
+
 ## [5.2.0]
 ### New features
 - Added the calibrated **ZED Sim2Real camera model**, an optional post-process that makes simulated RGB resemble a real ZED X camera (lens blur, vignetting, temporal auto-exposure, color grading, sensor noise). Enable it via the **ZED Sim2Real Apply** option on the ZED Camera Helper node, or pass `--apply_zed_sim2real` to the Isaac Lab examples (`zed_single.py`, `zed_multi_env.py`).

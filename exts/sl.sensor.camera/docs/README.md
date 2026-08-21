@@ -210,7 +210,12 @@ the configured port (network) or via IPC on `127.0.0.1` (same machine).
   streaming additionally relies on `ingestCustomDepth` (ZED SDK >= 5.4.0).
 - **First frame is slow / appears to hang.** The first rendered frame compiles RTX shaders and can take
   minutes on a cold cache. It is compiling, not stuck.
-- **Multiple cameras conflict.** Give each camera its own even port; port reuse is rejected.
+- **`Streamer initialization failed` in the console.** Most often the port is already in use or is not
+  even. Check the port reported in the message, then **Stop and Play again** - the camera does not retry
+  on its own within a session.
+- **Multiple cameras conflict.** Give each camera its own even port; port reuse is rejected. On IPC (or
+  the `BOTH` transport mode), closing one camera's stream currently also interrupts IPC delivery for the
+  other cameras in the scene; their network streams are unaffected.
 - **Wrong intrinsics / baseline.** Use the shipped ZED USD models (with their authored
   `CameraLeft`/`CameraRight` prims), not ad-hoc pinhole cameras, so intrinsics and baseline match the
   real hardware.

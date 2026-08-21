@@ -43,3 +43,15 @@ ext_folders = [
 
 [repo_symstore]
 enabled = false
+
+[repo_publish_exts]
+# Publish exactly these three extensions (explicit, so default discovery can never pull in
+# a dependency by accident). All three must be staged into _build/.../exts/ first, which the
+# per-extension premake5.lua files handle.
+exts.include = [
+    "sl.sensor.camera",
+    "sl.sensor.camera.calibration_exporter",
+    "sl.sensor.camera.demo",
+]
+# No codesign certs on dev machines; publish unsigned. Re-enable if publishing from CI.
+signing.enabled = false

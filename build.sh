@@ -9,7 +9,7 @@ rm -f exts/sl.sensor.camera/bin/libsl.sensor.camera.plugin.so
 # Each dependency is versioned independently under its own path segment
 # (<CDN_BASE>/<lib>/<version>/<archive>), so bumping one lib's version never forces
 # re-uploading another unchanged lib.
-ZED_ISAAC_SIM_VERSION=5.1.0
+ZED_ISAAC_SIM_VERSION=5.1.1
 SL_ZED_SIM2REAL_VERSION=0.1.0
 echo "Downloading dependencies (sl_zed $ZED_ISAAC_SIM_VERSION, sl_zed_sim2real $SL_ZED_SIM2REAL_VERSION)..."
 
