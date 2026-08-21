@@ -378,6 +378,9 @@ namespace sl {
                 // One-shot guard for the input-buffer-size mismatch below.
                 bool m_size_warned{ false };
 
+                // Set when streamer init fails, so the failure is reported once instead of every frame.
+                bool m_streamerInitFailed{ false };
+
                 // Fallback clock: some Isaac builds deliver simulationTime == 0 from the
                 // SDG time nodes; without a monotonic time the warmup gate and the
                 // frame-dedup logic would stall the streamer.
@@ -484,10 +487,9 @@ public:
                         m_owns_pool_serial = false;
                     }
 
-                    // Clean up ZED streamer
+                    // Clean up ZED streamer.
                     if (m_zedStreamerInitStatus == 1) {
                         m_zedStreamer.closeStreamer(m_streamer_id);
-                        m_zedStreamer.destroyInstance();
                         freeStreamerId(m_streamer_id);
                         m_zedStreamerInitStatus = 0;
                     }
@@ -519,8 +521,10 @@ public:
                     }
                     if (!db.inputs.stream()) {
                         // Streaming simply turned off - nothing to do this frame.
+                        state.m_streamerInitFailed = false;
                         return false;
                     }
+                    if (state.m_streamerInitFailed) return false;
 
                     // Robust frame time: prefer simulationTime, fall back to an internal
                     // steady clock when the upstream time nodes deliver 0 (Isaac build
@@ -672,7 +676,13 @@ public:
                             state.m_streamingThread = std::thread(&OgnZEDSimCameraNode::streamingThreadFunc, std::ref(state));
                         }
                         else {
-                            CARB_LOG_ERROR("[ZED] Error during zed streamer initialization %d", state.m_zedStreamerInitStatus);
+                            state.m_streamerInitFailed = true;
+                            CARB_LOG_ERROR("[ZED] Streamer initialization failed. "
+                                "Camera %s SN %d, port %d, %dx%d @ %d FPS.",
+                                camera_model.c_str(), serial_number, static_cast<int>(port),
+                                state.m_zedStreamerParams.image_width, state.m_zedStreamerParams.image_height,
+                                state.m_zedStreamerParams.fps);
+                            state.m_zedStreamer.closeStreamer(state.m_streamer_id);
                             freeStreamerId(state.m_streamer_id);
                             if (owns_pool_serial)
                                 removeStreamer(camera_model, serial_number);

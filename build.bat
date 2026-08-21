@@ -5,7 +5,7 @@ set SCRIPT_DIR=%~dp0
 REM Each dependency is versioned independently under its own path segment
 REM (<CDN_BASE>/<lib>/<version>/<archive>), so bumping one lib's version never forces
 REM re-uploading another unchanged lib.
-set "SL_ZED_VERSION=5.1.0"
+set "SL_ZED_VERSION=5.1.1"
 set "SL_ZED_SIM2REAL_VERSION=0.1.0"
 set "BUILD_PATH=_build\windows-x86_64\release\exts\sl.sensor.camera\bin"
 set "BIN_TARGET=exts\sl.sensor.camera\bin"

@@ -20,3 +20,5 @@ end
 dofile("_repo/deps/repo_kit_tools/kit-template/premake5.lua")
 
 include("exts/sl.sensor.camera/premake5.lua")
+include("exts/sl.sensor.camera.calibration_exporter/premake5.lua")
+include("exts/sl.sensor.camera.demo/premake5.lua")
