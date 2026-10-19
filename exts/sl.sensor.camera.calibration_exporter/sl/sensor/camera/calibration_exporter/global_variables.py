@@ -14,5 +14,3 @@
 # limitations under the License.
 
 EXTENSION_TITLE = "ZED Calibration Exporter"
-
-EXTENSION_DESCRIPTION = "Tools used to generate stereo calibration for Virtual Stereo cameras by Stereolabs"

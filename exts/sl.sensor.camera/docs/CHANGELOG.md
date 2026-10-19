@@ -2,6 +2,55 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [5.3.0]
+### New features
+- **ZED Sim2Real is now a model of the ZED X camera**, replacing the 5.2.0 post-process. It turns the rendered HDR image into what a real ZED X outputs: auto exposure, auto white balance, sensor noise, motion blur, vignetting and sharpness. Depth the SDK computes from the stream gets frame-to-frame noise close to a real ZED X's. **Apply ZED Sim2Real**, now on by default, is the master switch, with a live switch per effect in the *ZED Sim2Real* group of the ZED Camera Helper and ZED Camera One Helper. The ZED Capture node applies it without auto exposure and motion blur, Isaac Lab (`--apply_zed_sim2real`) without motion blur. See [ZED Sim2Real camera model](README.md#zed-sim2real-camera-model).
+- Added **Save Depth** to the ZED Capture node, on by default. Turn it off to record left and right images only: the float32 depth EXR per frame dominates capture I/O. Mono cameras no longer capture depth.
+
+### UI and usability
+- **A warning when a scene is too dark or too bright for a real camera**, with its estimated illuminance. It usually means the lights use the wrong units: a DistantLight of intensity I gives about 3.1 × I lux, a room 200-800 lux, direct sun about 100,000 lux.
+- When a camera fails to start streaming, the console names the cause (for example a port in use, an odd port number, an unavailable hardware encoder or an invalid virtual serial number) and what to do about it, instead of `Streamer initialization failed`. A per-frame streaming error is reported once it lasts 3 frames: Play no longer logs a red `ENCODING_FAILED` for the first frame of a network stereo or Stream Depth stream.
+- **A warning when a camera does not stream because its IMU gives no reading**, instead of streaming nothing without a word. This happens when **Rigid Body Enabled** is unticked on a camera that is not under another rigid body, or when its *Imu_Sensor* is disabled. To hold a camera still, tick **Kinematic Enabled** instead.
+- Setup errors of the ZED Camera Helper, ZED Camera One Helper and ZED Capture nodes (a port already in use, no camera prim, a capture that cannot start) are logged once instead of on every frame. A ZED Capture node that failed to start tries again when one of its inputs changes, or at the next Play.
+
+### Fixes
+- **Cameras sit at their lens's FOV cone vertex** on every model and lens except the ZED X One Core fisheye. They were up to 1 cm off along the optical axis, which offset the simulated depth by as much, and some about 1 mm off sideways.
+- **Fixed the ZED X One UHD rendering at 3856x2180 in HD4K and QHDPLUS**: it now renders at the ZED SDK's 3840x2160 and 3200x1800.
+- **Fixed the ZED 2i Narrow's field of view and the ZED X One fisheye's optical center at HD1080**: the 2i Narrow's focal length was 3.4% longer than the ZED SDK's, and the fisheye's HD1080 image was 60 px too high. Both now match the ZED SDK.
+- **Fixed the ZED X One UHD model's housing**: it had the smaller ZED X One S body and now has the real one, the same as the ZED X One GS. The camera moved 9.3 mm back and 3.8 mm up relative to the asset's origin, so a mount tuned to the old model may need adjusting.
+- **Fixed the ZED Mini model being upside down.**
+- **Fisheye cameras now render distorted in captures and Isaac Lab**: only streams applied the lens, so elsewhere a ZED X One set to **Fisheye** came out as an undistorted pinhole image. A stream, a capture and an Isaac Lab read of the same camera now produce the same image.
+- **Fixed SDK-free capture rendering with the wrong field of view**: it used whatever focal length and aperture the USD asset carried instead of the camera model's.
+- **Fixed Isaac Lab examples rendering with the wrong field of view**: the ZED USD assets ship one nominal lens for every variant. Call `apply_zed_optics()` after placing a ZED USD in your own Isaac Lab scene, as the examples now do.
+- **Fixed streamed depth not lining up with the left image at HD1200 and SVGA**: it was rendered at 896x512 whatever the image's aspect ratio, and the ZED SDK stretches it over the whole image. Rows near the top and bottom were up to 51 px off at HD1200. It now has the image's aspect ratio: 896x560 at HD1200 and SVGA, 896x504 at the 16:9 resolutions.
+- **Fixed `author_zed_link_joint()` mounting the ZED at the wrong angle**: it read Isaac Lab's (x, y, z, w) quaternion as (w, x, y, z), so (0, 0, 0) turned the camera by 180°. The angles are now `RotateXYZ` degrees, as documented. Re-tune the angles of a mount set up with the old behavior. The examples are updated and keep their camera views.
+- The streaming nodes and the ZED Capture node no longer need `isaacsim.core.utils`, which Isaac Lab's app does not have. Without it they failed on every frame with `'NoneType' object is not callable`.
+- `zed_record_demos.py` no longer wipes the demos of an earlier run: Isaac Lab's recorder empties the dataset file it opens. It now stops and asks for another `--dataset_file` when the file exists.
+- The Isaac Lab examples only accept the options they use: `--apply_zed_sim2real` is for `zed_single.py` and `zed_multi_env.py`, and `zed_record_demos.py` no longer takes `--save_dir` or `--num_frames`. Passing an option an example would ignore is now an error.
+- `zed_depth_example.py` no longer starts a second capture when resumed from Pause.
+- The ZED Fusion example writes camera positions in meters whatever the stage's units. On a centimeter stage they were 100 times too large.
+- **Fixed the Humanoid demo's streams declaring 30 fps while rendering 15**, which made the receiver pace for twice the frames it got. A stream now always declares the rate its camera actually renders at. The demo also renders at 30 fps, which halves how far the head-mounted cameras swing between frames while walking (up to 6.5° at 15 fps, enough to make the side ZED X One images look shaky).
+- The ZED Capture node falls back to a supported resolution, and reports it, instead of refusing to start on one the camera model does not support.
+- Depth no longer goes silently missing from captures on OpenCV builds that gate the EXR writer: it falls back to `.npy` with a warning.
+- **Fixed the ZED Capture node saving each image twice** when its camera renders slower than the app runs, for example at 30 fps in a 60 Hz scene.
+
+### Performance
+- **The ZED Capture node saves frames in the background**: several times more frames per second, without holding up the simulation. If the disk or CPU cannot keep up, the app slows down rather than dropping frames, and stopping the simulation waits for the last frames to be written. Custom `frame_writer`s still write on the calling thread.
+- Depth EXRs (ZED Capture node and Isaac Lab helpers) are PIZ-compressed instead of ZIP: still lossless, about 15% smaller and a quarter faster to write.
+
+### Changed
+- **Removed the 5.2.0 ZED Sim2Real settings** (**Scene Lux**, the auto exposure target, **Exposure gain**, **Response**, **Vignette strength**, **Isolate tone and vignette**). Graphs from 5.2 drop them on load and get **Apply ZED Sim2Real** switched on, even where it was off.
+- **Streamed and captured images are sRGB-encoded** like a real ZED X's, instead of the renderer's tone-mapped image: scenes tuned for the old look appear brighter in the mid-tones and darker in the shadows.
+- **Isaac Lab: `ZedSim2Real` takes HDR images**: render `rgb_hdr`, call `prepare_cameras(stage, camera_prim_paths)` once before the sensors start, then `apply(hdr_left, hdr_right, dt)` returns the images instead of modifying 8-bit tensors in place. `--zed_sim2real_scene_lux` is removed.
+- ZED Sim2Real needs the `sl_zed_sim2real` library 1.0.0. Without it, images are plain sRGB and a warning is logged once.
+- The **ZED Depth** node is renamed **ZED Capture** in the UI, since it records images with or without depth. The node type is unchanged, so existing graphs load as before.
+- Removed `make_stereo_camera_cfgs()` and the `spawn_pinhole`, `clipping_range` and `offset` arguments of `make_camera_cfg()`: their stand-in pinhole cameras cannot carry a ZED's fisheye lens. Mount the real ZED USD with `make_zed_usd_link_mount()` + `author_zed_link_joint()`, as the examples do.
+- `ZEDDepthCamera` takes an optional `frame_writer` that decides where each captured frame goes, what it is called and whether it is written. The default writes the same numbered PNGs as before. See `sl.sensor.camera.frames.FrameWriter`.
+
+### Compatibility
+- Added support for Isaac Sim 6.1 (Kit 110.3.0). Isaac Sim 6.0 (Kit 110.1.2) stays supported with the same build.
+- The Humanoid and Pick-Place demos now run on Isaac Sim 6.1, which removed the H1 locomotion policy and Franka pick-place classes they used. The 6.1 pick-place plans with cuMotion, so the arm moves differently and the two cubes alternate between their bench positions instead of random ones.
+
 ## [5.2.1]
 ### Fixes
 - Fixed a crash a few seconds after a stereo stream started on Linux when the transport mode was `IPC` or `BOTH`. Isaac Sim exited silently, with no crash report.

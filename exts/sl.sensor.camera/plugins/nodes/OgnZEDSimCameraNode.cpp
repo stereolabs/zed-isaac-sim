@@ -1,12 +1,8 @@
-
-// Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2026 Stereolabs. All rights reserved.
+// SPDX-License-Identifier: MIT
 //
-// NVIDIA CORPORATION and its licensors retain all intellectual property
-// and proprietary rights in and to this software, related documentation
-// and any modifications thereto.  Any use, reproduction, disclosure or
-// distribution of this software and related documentation without an express
-// license agreement from NVIDIA CORPORATION is strictly prohibited.
-//
+// The node skeleton (database include, static compute, REGISTER_OGN_NODE) follows
+// NVIDIA-Omniverse/kit-extension-template-cpp, Apache-2.0. See THIRD_PARTY_NOTICES.md.
 
 #include <algorithm>
 #include <array>
@@ -15,7 +11,6 @@
 #include <condition_variable>
 #include <map>
 #include <mutex>
-#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -24,9 +19,8 @@
 #include <cuda/include/cuda_runtime_api.h>
 #include "zed_interface_loader.hpp"
 #include "types_c.h"
-#include "sl_zed_sim2real_loader.hpp"
 
-// Helpers to explicit shorten names you know you will use
+// Shorthand for the OmniGraph core types used below.
 using omni::graph::core::Type;
 using omni::graph::core::BaseDataType;
 
@@ -42,14 +36,9 @@ namespace sl {
             // ---------------------------------------------------------------
             static std::mutex g_state_mutex;
 
-            // Depth streamed to the ZED SDK (ingestCustomDepth) is fixed at this
-            // resolution; it must match the depth render product sized in annotators.py.
-            static constexpr int kStreamDepthWidth = 896;
-            static constexpr int kStreamDepthHeight = 512;
-
             // Monotonic id allocator with a free-list, so ids are unique while a
             // streamer is alive and get recycled on teardown (no collisions on
-            // stop/restart, unlike a bare counter that was both ++'d and --'d).
+            // stop/restart).
             static int g_next_streamer_id = 0;
             static std::vector<int> g_free_streamer_ids = {};
 
@@ -86,9 +75,6 @@ namespace sl {
                 size_t cap_left{ 0 };                 // allocated capacity
                 size_t cap_right{ 0 };
                 size_t cap_depth{ 0 };
-                size_t size_left{ 0 };                // valid bytes for this frame
-                size_t size_right{ 0 };
-                size_t size_depth{ 0 };
                 bool has_right{ false };
                 bool has_depth{ false };              // depth buffer valid (Left+Depth mode)
                 bool on_device{ false }; // buffers are CUDA device memory (zero-copy path)
@@ -113,8 +99,6 @@ namespace sl {
                     for (int i = 0; i < NUM_SLOTS; ++i) m_free.push_back(i);
                 }
                 ~FramePipeline() { release(); }
-
-                FrameSlot* slots() { return m_slots; }
 
                 // Producer: take an exclusive free slot to fill. Returns nullptr
                 // when stopping or (defensively) if no slot is free.
@@ -248,17 +232,12 @@ namespace sl {
                     case 5:  return narrow ? "ZED_XM_4MM" : "ZED_XM";
                     case 9:  return "ZED_X_Nano";
                     // ZED X One S/GS/fisheye all share SDK model 30; the lens splits them.
-                    // The fisheye key matches the serial-set key in populateAvailableCameras
-                    // (fisheye is still identified by serial number, see below).
                     case 30: return fisheye ? "ZED_XONE_S_FISHEYE" : (narrow ? "ZED_XONE_GS_4MM" : "ZED_XONE_GS");
                     case 31: return "ZED_XONE_UHD";
                     case 3:        return narrow ? "ZED_2i_4MM" : "ZED_2i";
                     default: return "";
                 }
             }
-
-            // SNs reported as ZED_XONE_GS by the SDK but fitted with a fisheye lens
-            static const std::set<int> fisheye_serial_numbers = { 303412363, 303835666, 306847047, 303198502 };
 
             // Caller must hold g_state_mutex.
             static void populateAvailableCameras(sl::ZedStreamer& streamer) {
@@ -267,15 +246,8 @@ namespace sl {
                 sl::SimCameraInfo* info = streamer.getVirtualCameraInfo(&count);
                 if (!info || count == 0) return;
                 for (int i = 0; i < count; i++) {
-                    std::string key;
-                    // Fisheye units are still identified by serial number: the SDK
-                    // reports them as ZED_XONE_GS (model 30). Once the SDK reports
-                    // LENS_FISHEYE via lens_type, this hard-coded set can be retired
-                    // in favor of `info[i].lens_type == LENS_FISHEYE`.
-                    if (fisheye_serial_numbers.count(info[i].serial_number))
-                        key = "ZED_XONE_S_FISHEYE";
-                    else
-                        key = simCameraModelKey(info[i].model, static_cast<int>(info[i].lens_type));
+                    const std::string key = simCameraModelKey(info[i].model,
+                                                              static_cast<int>(info[i].lens_type));
                     if (!key.empty())
                         available_zed_cameras[key].push_back(info[i].serial_number);
                 }
@@ -327,15 +299,45 @@ namespace sl {
                 }
             }
 
+            // Actionable hint appended to the init-failure log for the statuses a user can act on.
+            static const char* streamerInitHint(sl::SIM_STREAMER_STATUS status)
+            {
+                switch (status)
+                {
+                case sl::SIM_STREAMER_STATUS::INVALID_PORT:
+                    return "The streaming port must be an even number.";
+                case sl::SIM_STREAMER_STATUS::PORT_UNAVAILABLE:
+                    return "The port is likely already in use: stop the other stream or pick another port.";
+                case sl::SIM_STREAMER_STATUS::ENCODER_LOAD_FAILED:
+                    return "The hardware video encoder (NVENC) is unavailable: check the GPU and its driver.";
+                case sl::SIM_STREAMER_STATUS::ENCODER_CREATION_FAILED:
+                    return "The hardware video encoder rejected the configuration: check resolution, FPS and codec.";
+                case sl::SIM_STREAMER_STATUS::INVALID_SERIAL_NUMBER:
+                    return "The serial number is not a valid virtual camera.";
+                case sl::SIM_STREAMER_STATUS::STREAMER_ALREADY_CREATED:
+                    return "A streamer with this id already exists: stop the other camera first.";
+                case sl::SIM_STREAMER_STATUS::LIB_NOT_LOADED:
+                    return "The bundled ZED SDK library is missing or incompatible.";
+                default:
+                    return "";
+                }
+            }
+
             class OgnZEDSimCameraNode
             {
                 sl::StreamingParameters m_zedStreamerParams;
                 sl::ZedStreamer m_zedStreamer;
                 cudaStream_t m_cudaStream;
                 bool m_cudaStreamNotCreated{ true };
+                // Last status returned by initStreamer (a sl::SIM_STREAMER_STATUS as int; see types_c.h).
                 int m_zedStreamerInitStatus{ -1 };
+                // True while the streamer is open (initStreamer returned SUCCESS, closeStreamer not
+                // called yet). SUCCESS is 0, so the status int cannot double as an "is open" flag.
+                bool m_streamerOpened{ false };
                 bool m_stereo_camera{ true };
                 bool m_stream_depth{ false };
+                int m_depth_width{ 0 };
+                int m_depth_height{ 0 };
                 bool m_valid{ false };
                 bool m_loggedInvalid{ false };
                 bool m_gpu_input{ false }; // zero-copy GPU input active (device pointers to encoder)
@@ -359,27 +361,19 @@ namespace sl {
                 FramePipeline m_pipeline;
                 int m_streamer_id{ 0 };
 
-                // ZED Sim2Real camera model (Imatest-calibrated post, from the sl_zed_sim2real lib,
-                // loaded at runtime). Runs on the compute (producer) thread. The engine owns the
-                // GPU scratch; the state owns per-stream auto-exposure (both eyes share one state).
-                sl::ZedSim2Real      m_sim2real;
-                sl_zed_sim2real_engine* m_sim2realEngine{ nullptr };
-                sl_zed_sim2real_state*  m_sim2realState{ nullptr };
-                // Last AE-target pushed to the state (sentinel -2 = never pushed); the input is
-                // forwarded only on change so the per-frame cost is one float compare.
-                float m_sim2realAeTargetApplied{ -2.0f };
-                // One-shot diagnostics for the sim2real path: log the effective config and any
-                // silent no-op branch exactly once per stream, so a "sim2real does nothing"
-                // report can be pinpointed from the Kit log without spamming per frame.
-                // One-shot guards so the silent-failure warnings below never spam per frame.
-                bool m_sim2real_guard_warned{ false };
-                bool m_sim2real_gpu_null_warned{ false };
-
                 // One-shot guard for the input-buffer-size mismatch below.
                 bool m_size_warned{ false };
 
                 // Set when streamer init fails, so the failure is reported once instead of every frame.
                 bool m_streamerInitFailed{ false };
+
+                // Consecutive failed stream calls (consumer thread only). A failure is reported once
+                // it lasts FAILED_CALLS_BEFORE_ERROR calls: the network stereo and left+depth encoders
+                // hold back their first frame, so the first call after init fails with nothing wrong.
+                static constexpr int FAILED_CALLS_BEFORE_ERROR = 3;
+                int m_failedCalls{ 0 };
+                // One-shot guard so the benign frame-drop notice is logged at most once.
+                bool m_frameDropLogged{ false };
 
                 // Fallback clock: some Isaac builds deliver simulationTime == 0 from the
                 // SDG time nodes; without a monotonic time the warmup gate and the
@@ -399,9 +393,10 @@ namespace sl {
                         FrameSlot* slot = state.m_pipeline.waitReady();
                         if (!slot) break; // stopping
 
+                        int status;
                         if (slot->has_depth)
                         {
-                            state.m_zedStreamer.streamLeftAndDepth(state.m_streamer_id,
+                            status = state.m_zedStreamer.streamLeftAndDepth(state.m_streamer_id,
                                 slot->buf_left,
                                 reinterpret_cast<float*>(slot->buf_depth),
                                 slot->ts_ns,
@@ -410,12 +405,38 @@ namespace sl {
                         }
                         else
                         {
-                            state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
+                            status = state.m_zedStreamer.stream(state.m_zedStreamerParams.input_format, state.m_streamer_id,
                                 slot->buf_left,
                                 slot->has_right ? slot->buf_right : nullptr,
                                 slot->ts_ns,
                                 slot->qw, slot->qx, slot->qy, slot->qz,
                                 slot->ax, slot->ay, slot->az);
+                        }
+
+                        const auto s = static_cast<sl::SIM_STREAMER_STATUS>(status);
+                        if (status > 0)
+                        {
+                            if (++state.m_failedCalls == FAILED_CALLS_BEFORE_ERROR)
+                            {
+                                CARB_LOG_ERROR("[ZED] Streaming failed: %s (status %d). Camera SN %d, port %d.",
+                                    sl::toString(s), status,
+                                    state.m_serial_number, static_cast<int>(state.m_zedStreamerParams.port));
+                            }
+                        }
+                        else
+                        {
+                            if (state.m_failedCalls >= FAILED_CALLS_BEFORE_ERROR)
+                            {
+                                CARB_LOG_INFO("[ZED] Streaming recovered on camera SN %d.", state.m_serial_number);
+                            }
+                            state.m_failedCalls = 0;
+                            if (s == sl::SIM_STREAMER_STATUS::FRAME_DROPPED && !state.m_frameDropLogged)
+                            {
+                                // Benign: frames arriving faster than the configured FPS are skipped.
+                                CARB_LOG_INFO("[ZED] Camera SN %d receives frames faster than its configured FPS; extra frames are dropped.",
+                                    state.m_serial_number);
+                                state.m_frameDropLogged = true;
+                            }
                         }
 
                         state.m_pipeline.releaseConsumed();
@@ -426,7 +447,6 @@ public:
 
                 OgnZEDSimCameraNode()
                 {
-                    m_zedStreamerInitStatus = 0;
                     m_cudaStreamNotCreated = true;
 
                     // Load zed streamer lib and init the streamer
@@ -475,12 +495,6 @@ public:
                     // Free this instance's pinned buffers now the consumer is done.
                     m_pipeline.release();
 
-                    // Free the sim2real engine/state. Only the compute (producer) thread touches
-                    // them, and no more frames are computed once teardown begins. Non-null implies
-                    // the library loaded, so the function pointers are valid.
-                    if (m_sim2realState)  { m_sim2real.state_destroy(m_sim2realState);   m_sim2realState  = nullptr; }
-                    if (m_sim2realEngine) { m_sim2real.engine_destroy(m_sim2realEngine); m_sim2realEngine = nullptr; }
-
                     // Return only our own serial / id to the shared pools.
                     if (m_owns_pool_serial && m_serial_number > 0) {
                         removeStreamer(m_camera_model, m_serial_number);
@@ -488,10 +502,10 @@ public:
                     }
 
                     // Clean up ZED streamer.
-                    if (m_zedStreamerInitStatus == 1) {
+                    if (m_streamerOpened) {
                         m_zedStreamer.closeStreamer(m_streamer_id);
                         freeStreamerId(m_streamer_id);
-                        m_zedStreamerInitStatus = 0;
+                        m_streamerOpened = false;
                     }
 
                     // Clean up CUDA stream if it was created
@@ -526,7 +540,7 @@ public:
                     }
                     if (state.m_streamerInitFailed) return false;
 
-                    // Robust frame time: prefer simulationTime, fall back to an internal
+                    // Frame time: prefer simulationTime, fall back to an internal
                     // steady clock when the upstream time nodes deliver 0 (Isaac build
                     // regression observed with Kit 110.1).
                     double frame_time = db.inputs.simulationTime();
@@ -540,7 +554,7 @@ public:
                     }
 
                     // Done once, init the streamer and start a stream
-                    if (state.m_zedStreamerInitStatus != 1)
+                    if (!state.m_streamerOpened)
                     {
                         float warmup = 1.0f;
                         if (frame_time < warmup) return true;
@@ -561,6 +575,8 @@ public:
                         if (state.m_stream_depth)
                         {
                             state.m_stereo_camera = false;
+                            state.m_depth_width = static_cast<int>(db.inputs.depthWidth());
+                            state.m_depth_height = static_cast<int>(db.inputs.depthHeight());
                         }
                         else
                         {
@@ -582,7 +598,13 @@ public:
                         bool owns_pool_serial = false;
                         if (camera_model == "VIRTUAL_ZED_X")
                         {
-                            serial_number = std::stoi(db.inputs.serialNumber());
+                            const std::string serial_str = db.inputs.serialNumber();
+                            try {
+                                serial_number = std::stoi(serial_str);
+                            } catch (const std::exception&) {
+                                CARB_LOG_ERROR("[ZED] Invalid serial number '%s'", serial_str.c_str());
+                                serial_number = -1;
+                            }
                         }
                         else
                         {
@@ -649,13 +671,14 @@ public:
                         state.m_zedStreamerParams.port = port;
                         state.m_zedStreamerParams.verbose = 0;
                         state.m_zedStreamerParams.stream_depth = state.m_stream_depth;
-                        state.m_zedStreamerParams.depth_width = kStreamDepthWidth;
-                        state.m_zedStreamerParams.depth_height = kStreamDepthHeight;
+                        state.m_zedStreamerParams.depth_width = state.m_depth_width;
+                        state.m_zedStreamerParams.depth_height = state.m_depth_height;
                         state.m_streamer_id = allocStreamerId();
                         state.m_zedStreamerInitStatus = state.m_zedStreamer.initStreamer(state.m_streamer_id, &state.m_zedStreamerParams);
 
-                        if (state.m_zedStreamerInitStatus > 0)
+                        if (state.m_zedStreamerInitStatus == static_cast<int>(sl::SIM_STREAMER_STATUS::SUCCESS))
                         {
+                            state.m_streamerOpened = true;
                             CARB_LOG_INFO("[ZED] ZED Streamer initialized successfully with ID %d", state.m_streamer_id);
 
                             // Remember our identity so stop() returns only our own resources.
@@ -677,8 +700,10 @@ public:
                         }
                         else {
                             state.m_streamerInitFailed = true;
-                            CARB_LOG_ERROR("[ZED] Streamer initialization failed. "
+                            const auto init_status = static_cast<sl::SIM_STREAMER_STATUS>(state.m_zedStreamerInitStatus);
+                            CARB_LOG_ERROR("[ZED] Streamer initialization failed: %s (status %d). %s "
                                 "Camera %s SN %d, port %d, %dx%d @ %d FPS.",
+                                sl::toString(init_status), state.m_zedStreamerInitStatus, streamerInitHint(init_status),
                                 camera_model.c_str(), serial_number, static_cast<int>(port),
                                 state.m_zedStreamerParams.image_width, state.m_zedStreamerParams.image_height,
                                 state.m_zedStreamerParams.fps);
@@ -691,10 +716,6 @@ public:
                     }
                     else
                     {
-                        // Read the sim2real config from the graph inputs each frame.
-                        const bool  sim2real_enable    = db.inputs.applyZedSim2Real();
-                        const float zed_sim2real_scene_lux = db.inputs.zedSim2RealSceneLux();
-                        const float zed_sim2real_ae_target = db.inputs.zedSim2RealAeTarget();
                         // Get frame data pointers and sizes
                         const size_t data_size_left{ db.inputs.bufferSizeLeft() };
                         const void* raw_ptr_left{ reinterpret_cast<void*>(db.inputs.dataPtrLeft()) };
@@ -743,7 +764,7 @@ public:
                         if (state.m_stream_depth)
                         {
                             const size_t expected_depth_bytes =
-                                static_cast<size_t>(kStreamDepthWidth) * kStreamDepthHeight * sizeof(float);
+                                static_cast<size_t>(state.m_depth_width) * state.m_depth_height * sizeof(float);
                             if (data_size_depth != expected_depth_bytes)
                             {
                                 if (!state.m_size_warned) {
@@ -751,7 +772,7 @@ public:
                                     CARB_LOG_ERROR("[ZED] Depth buffer size mismatch: depth=%zu expected=%zu "
                                                    "(%dx%d float32). Skipping frames until it matches.",
                                                    data_size_depth, expected_depth_bytes,
-                                                   kStreamDepthWidth, kStreamDepthHeight);
+                                                   state.m_depth_width, state.m_depth_height);
                                 }
                                 return false;
                             }
@@ -784,78 +805,14 @@ public:
                         cudaMemcpyKind copy_kind = state.m_gpu_input ? cudaMemcpyDeviceToDevice
                                                                      : cudaMemcpyDeviceToHost;
 
-                        // ZED Sim2Real stage-2: process the annotator's DEVICE buffers with the CUDA
-                        // sim2real, then copy the processed (device) output into the slot with copy_kind
-                        // - device-to-device on the zero-copy path (frame never leaves the GPU),
-                        // device-to-host otherwise. Falls back to a raw copy below on failure, and to
-                        // the CPU sim2real only when the slot is host memory.
-                        const int tw = static_cast<int>(state.m_zedStreamerParams.image_width);
-                        const int th = static_cast<int>(state.m_zedStreamerParams.image_height);
-                        const bool sim2real_enabled = sim2real_enable &&
-                            static_cast<size_t>(tw) * th * 4 == data_size_left;
-
-                        // Sim2Real requested but the buffer isn't the expected RGBA8 tw*th frame:
-                        // the ISP is silently skipped. Warn once with the mismatch so it's visible.
-                        if (sim2real_enable && !sim2real_enabled && !state.m_sim2real_guard_warned) {
-                            state.m_sim2real_guard_warned = true;
-                            CARB_LOG_WARN("[ZED] Sim2Real skipped: buffer size %zu != expected %zu (tw=%d th=%d, RGBA8); "
-                                          "check the stream resolution vs the render product",
-                                          data_size_left, static_cast<size_t>(tw) * th * 4, tw, th);
-                        }
-
-                        bool sim2real_gpu_done = false;
-                        if (sim2real_enabled && state.m_sim2real.load()) {
-                            if (!state.m_sim2realEngine) {
-                                state.m_sim2realEngine = state.m_sim2real.engine_create();
-                                state.m_sim2realState  = state.m_sim2real.state_create(/*seed=*/0);
-                            }
-                            // Forward the AE set-point override on change (covers the CPU
-                            // fallback too - both paths share this state). Null on pre-v0.2.0
-                            // libraries, where the input is silently ignored.
-                            if (state.m_sim2real.state_set_ae_target && state.m_sim2realState &&
-                                zed_sim2real_ae_target != state.m_sim2realAeTargetApplied) {
-                                state.m_sim2real.state_set_ae_target(state.m_sim2realState,
-                                                                     zed_sim2real_ae_target);
-                                state.m_sim2realAeTargetApplied = zed_sim2real_ae_target;
-                            }
-                            // Left eye advances auto-exposure; the right eye reuses it.
-                            const void* out_left = state.m_sim2real.process_device_out(
-                                state.m_sim2realEngine, state.m_sim2realState, raw_ptr_left, tw, th,
-                                state.m_cudaStream, /*enable=*/1, zed_sim2real_scene_lux, /*advance=*/1);
-                            sim2real_gpu_done = (out_left != nullptr);
-                            if (sim2real_gpu_done) {
-                                cudaMemcpyAsync(slot->buf_left, out_left,
-                                    data_size_left, copy_kind, state.m_cudaStream);
-                                if (state.m_stereo_camera) {
-                                    const void* out_right = state.m_sim2real.process_device_out(
-                                        state.m_sim2realEngine, state.m_sim2realState, raw_ptr_right, tw, th,
-                                        state.m_cudaStream, /*enable=*/1, zed_sim2real_scene_lux, /*advance=*/0);
-                                    sim2real_gpu_done = (out_right != nullptr);
-                                    if (sim2real_gpu_done)
-                                        cudaMemcpyAsync(slot->buf_right, out_right,
-                                            data_size_right, copy_kind, state.m_cudaStream);
-                                }
-                            }
-                            // GPU sim2real returned null: the raw (un-degraded) frame is streamed
-                            // instead, and on the zero-copy path the CPU fallback below is skipped.
-                            // Warn once so this doesn't look like "sim2real does nothing".
-                            if (!sim2real_gpu_done && !state.m_sim2real_gpu_null_warned) {
-                                state.m_sim2real_gpu_null_warned = true;
-                                CARB_LOG_WARN("[ZED] Sim2Real GPU path returned null; streaming raw frame"
-                                              "%s", state.m_gpu_input ? " (CPU fallback unavailable on zero-copy path)" : "");
-                            }
-                        }
-
                         cudaError_t err_left = cudaSuccess;
                         cudaError_t err_right = cudaSuccess;
-                        if (!sim2real_gpu_done) {
-                            err_left = cudaMemcpyAsync(slot->buf_left, raw_ptr_left,
-                                data_size_left, copy_kind, state.m_cudaStream);
-                            if (state.m_stereo_camera)
-                            {
-                                err_right = cudaMemcpyAsync(slot->buf_right, raw_ptr_right,
-                                    data_size_right, copy_kind, state.m_cudaStream);
-                            }
+                        err_left = cudaMemcpyAsync(slot->buf_left, raw_ptr_left,
+                            data_size_left, copy_kind, state.m_cudaStream);
+                        if (state.m_stereo_camera)
+                        {
+                            err_right = cudaMemcpyAsync(slot->buf_right, raw_ptr_right,
+                                data_size_right, copy_kind, state.m_cudaStream);
                         }
                         cudaError_t err_depth = cudaSuccess;
                         if (state.m_stream_depth)
@@ -877,18 +834,6 @@ public:
                             CARB_LOG_ERROR("[ZED] CUDA stream synchronization error: %s", cudaGetErrorString(sync_err));
                             state.m_pipeline.cancel(slot);
                             return false;
-                        }
-
-                        // ZED Sim2Real CPU fallback: only when the GPU path was unavailable, the library
-                        // and per-stream state exist, AND the slot is host memory. On the zero-copy
-                        // (gpu_input) path the slot is device memory, so process_host cannot touch it -
-                        // a GPU failure there just streams the raw frame copied above.
-                        if (sim2real_enabled && !sim2real_gpu_done && state.m_sim2realState && !state.m_gpu_input) {
-                            state.m_sim2real.process_host(state.m_sim2realState, slot->buf_left, tw, th,
-                                                         /*enable=*/1, zed_sim2real_scene_lux, /*advance=*/1);
-                            if (state.m_stereo_camera)
-                                state.m_sim2real.process_host(state.m_sim2realState, slot->buf_right, tw, th,
-                                                             /*enable=*/1, zed_sim2real_scene_lux, /*advance=*/0);
                         }
 
                         // Convert IMU orientation / linear acceleration into the
@@ -913,10 +858,7 @@ public:
                             state.m_timestamp_base_set = true;
                         }
 
-                        slot->size_left = data_size_left;
-                        slot->size_right = state.m_stereo_camera ? data_size_right : 0;
                         slot->has_right = state.m_stereo_camera;
-                        slot->size_depth = state.m_stream_depth ? data_size_depth : 0;
                         slot->has_depth = state.m_stream_depth;
                         slot->ts_ns = state.m_epoch_base_ns +
                             static_cast<unsigned long long>((timestamp - state.m_sim_time_base) * 1e9);
@@ -944,8 +886,7 @@ public:
 
             const pxr::GfMatrix4d OgnZEDSimCameraNode::inv_rotation_matrix = rotation_matrix.GetInverse();
 
-            // This macro provides the information necessary to OmniGraph that lets it automatically register and deregister
-            // your node type definition.
+            // Registers this node type with OmniGraph, and deregisters it on unload.
             REGISTER_OGN_NODE()
 
         } // camera

@@ -9,8 +9,8 @@ rm -f exts/sl.sensor.camera/bin/libsl.sensor.camera.plugin.so
 # Each dependency is versioned independently under its own path segment
 # (<CDN_BASE>/<lib>/<version>/<archive>), so bumping one lib's version never forces
 # re-uploading another unchanged lib.
-ZED_ISAAC_SIM_VERSION=5.1.1
-SL_ZED_SIM2REAL_VERSION=0.1.0
+ZED_ISAAC_SIM_VERSION=5.2.0
+SL_ZED_SIM2REAL_VERSION="1.0.0"
 echo "Downloading dependencies (sl_zed $ZED_ISAAC_SIM_VERSION, sl_zed_sim2real $SL_ZED_SIM2REAL_VERSION)..."
 
 CDN_BASE="https://stereolabs.sfo2.cdn.digitaloceanspaces.com/utils/zed_isaac_sim"
@@ -22,8 +22,10 @@ BUILD_PATH="_build/linux-x86_64/release/exts/sl.sensor.camera/bin/"
 SL_ZED_SIM2REAL_ARCHIVE="sl_zed_sim2real_linux_x86_64_${SL_ZED_SIM2REAL_VERSION}.tar.gz"
 SL_ZED_SIM2REAL_URL="${CDN_BASE}/sl_zed_sim2real/${SL_ZED_SIM2REAL_VERSION}/${SL_ZED_SIM2REAL_ARCHIVE}"
 
-# Download the sl_zed library
-if [ ! -f "exts/sl.sensor.camera/bin/libsl_zed.so" ]; then
+# Download the sl_zed library. bin/sl_zed.version holds the downloaded version, so changing
+# ZED_ISAAC_SIM_VERSION downloads the library again.
+if [ ! -f "exts/sl.sensor.camera/bin/libsl_zed.so" ] || \
+   [ "$(cat exts/sl.sensor.camera/bin/sl_zed.version 2>/dev/null)" != "$ZED_ISAAC_SIM_VERSION" ]; then
     echo "Downloading sl_zed library..."
     wget -O "exts/sl.sensor.camera/bin/libsl_zed_linux_x86_64_${ZED_ISAAC_SIM_VERSION}.tar.gz" "$SL_ZED_DOWNLOAD_URL"
     if [ $? -ne 0 ]; then
@@ -34,37 +36,40 @@ if [ ! -f "exts/sl.sensor.camera/bin/libsl_zed.so" ]; then
     # Extract the downloaded library and copy it to the correct location
     tar -xzf "exts/sl.sensor.camera/bin/libsl_zed_linux_x86_64_${ZED_ISAAC_SIM_VERSION}.tar.gz" -C "exts/sl.sensor.camera/bin/"
     rm -f "exts/sl.sensor.camera/bin/libsl_zed_linux_x86_64_${ZED_ISAAC_SIM_VERSION}.tar.gz"
+    echo "$ZED_ISAAC_SIM_VERSION" > exts/sl.sensor.camera/bin/sl_zed.version
 else
-    echo "sl_zed library already exists, skipping download."
+    echo "sl_zed $ZED_ISAAC_SIM_VERSION already downloaded, skipping."
 fi
 
 # Download the sl_zed_sim2real library. Optional: sim2real degrades gracefully if absent, so a
 # missing archive is a warning, not a fatal error (the failing wget is in an `if` so `set -e`
-# does not abort the build).
-if [ ! -f "exts/sl.sensor.camera/bin/libsl_zed_sim2real.so" ]; then
+# does not abort the build). bin/sl_zed_sim2real.version works like sl_zed.version.
+if [ ! -f "exts/sl.sensor.camera/bin/libsl_zed_sim2real.so" ] || \
+   [ "$(cat exts/sl.sensor.camera/bin/sl_zed_sim2real.version 2>/dev/null)" != "$SL_ZED_SIM2REAL_VERSION" ]; then
     echo "Downloading sl_zed_sim2real library..."
     if wget -q -O "exts/sl.sensor.camera/bin/${SL_ZED_SIM2REAL_ARCHIVE}" "$SL_ZED_SIM2REAL_URL"; then
         tar -xzf "exts/sl.sensor.camera/bin/${SL_ZED_SIM2REAL_ARCHIVE}" -C "exts/sl.sensor.camera/bin/"
         rm -f "exts/sl.sensor.camera/bin/${SL_ZED_SIM2REAL_ARCHIVE}"
+        echo "$SL_ZED_SIM2REAL_VERSION" > exts/sl.sensor.camera/bin/sl_zed_sim2real.version
     else
         rm -f "exts/sl.sensor.camera/bin/${SL_ZED_SIM2REAL_ARCHIVE}"
         echo "WARN: could not download sl_zed_sim2real from $SL_ZED_SIM2REAL_URL -- ZED Sim2Real disabled at runtime."
     fi
 else
-    echo "sl_zed_sim2real library already exists, skipping download."
+    echo "sl_zed_sim2real $SL_ZED_SIM2REAL_VERSION already downloaded, skipping."
 fi
 
 $SCRIPT_DIR/repo.sh build "$@"
 
-# Copy build artifacts into exts path for simplicity
-cp -r $BUILD_PATH/* "exts/sl.sensor.camera/bin/"
-
+# Sync the downloaded libraries into the build tree first, so _build is runnable and copying the
+# build artifacts back cannot replace them with an older copy left in _build.
 cp "exts/sl.sensor.camera/bin/libsl_zed.so" "$BUILD_PATH/libsl_zed.so"
-
-# Mirror the sim2real lib into the build tree too, so _build is runnable (parallels libsl_zed.so).
 if [ -f "exts/sl.sensor.camera/bin/libsl_zed_sim2real.so" ]; then
     cp "exts/sl.sensor.camera/bin/libsl_zed_sim2real.so" "$BUILD_PATH/libsl_zed_sim2real.so"
 fi
+
+# Copy build artifacts into exts path for simplicity
+cp -r $BUILD_PATH/* "exts/sl.sensor.camera/bin/"
 
 # Remove generated __ogn_files_prebuilt file
 if [ -f "exts/sl.sensor.camera/sl/sensor/camera/ogn/__ogn_files_prebuilt" ]; then
@@ -73,3 +78,9 @@ if [ -f "exts/sl.sensor.camera/sl/sensor/camera/ogn/__ogn_files_prebuilt" ]; the
 fi
 
 #rm -rf _compiler _deps _repo
+
+# Stage license files so repo package includes them in the release archive.
+# _build/<platform>/<config>/PACKAGE-LICENSES links here, and the packager keeps it.
+mkdir -p _build/PACKAGE-LICENSES
+cp LICENSE THIRD_PARTY_NOTICES.md _build/PACKAGE-LICENSES/
+cp LICENSES/Apache-2.0.txt _build/PACKAGE-LICENSES/

@@ -42,7 +42,7 @@ _LABEL_STYLE = {"alignment": ui.Alignment.RIGHT_TOP}
 
 # Order the category frames appear in the panel. Inputs whose uiGroup is not listed
 # (or have none) fall through to the end.
-_GROUP_ORDER = ("Camera Selection", "Configuration", "Streaming", "ZED Sim2Real")
+_GROUP_ORDER = ("Camera Selection", "Configuration", "Streaming", "ZED Sim2Real", "Capture")
 # Base model names, used to recognise a placed ZED asset by its authored structure
 # (<root>/base_link/<base_model>, see get_camera_subpaths) when filtering the
 # camera-prim target picker.

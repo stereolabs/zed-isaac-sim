@@ -1,13 +1,13 @@
 {
   "ZED_Depth": {
-    "version": 1,
+    "version": 2,
     "categories": {
       "Stereolabs": "Nodes used with Stereolabs ZED cameras"
     },
-    "description": "Captures RGB and simulated stereo depth from a ZED camera using Isaac Sim's renderer (no ZED SDK required).",
+    "description": "SDK-free capture from a ZED camera using Isaac Sim's renderer: RGB images and optionally simulated stereo depth. Nothing is streamed and no ZED SDK is required.",
     "language": "Python",
     "metadata": {
-      "uiName": "ZED Depth"
+      "uiName": "ZED Capture"
     },
     "inputs": {
       "execIn": {
@@ -63,7 +63,8 @@
         "description": "Save RGB (PNG) and depth (EXR) to disk each frame.",
         "default": false,
         "metadata": {
-          "uiName": "Enable Save"
+          "uiName": "Enable Save",
+          "uiGroup": "Capture"
         }
       },
       "outputDir": {
@@ -71,7 +72,17 @@
         "description": "Directory to save frames. Required when Enable Save is on.",
         "default": "",
         "metadata": {
-          "uiName": "Output Directory"
+          "uiName": "Output Directory",
+          "uiGroup": "Capture"
+        }
+      },
+      "saveDepth": {
+        "type": "bool",
+        "description": "Write the depth map (EXR) alongside the RGB frames. Turn off to record images only: depth costs an extra render annotator and a float32 EXR per frame, which dominates capture I/O. Depth is a stereo feature and is unavailable on mono cameras.",
+        "default": true,
+        "metadata": {
+          "uiName": "Save Depth",
+          "uiGroup": "Capture"
         }
       }
     }

@@ -15,6 +15,12 @@ this package. Importing it first in utilities-only mode caches the module
 without the extension class, and a later enable would find no IExt subclass.
 """
 
+# Sibling extensions (e.g. sl.sensor.camera.demo) ship their
+# subpackage in their own folder. Kit's extension importer loads those by path, but a
+# plain interpreter resolves this package as a regular one rooted here and would not
+# find them, so standalone scripts need __path__ to span every ext root on sys.path.
+__path__ = __import__("pkgutil").extend_path(__path__, __name__)
+
 try:
     from .extension import SlSensorCameraExtension  # full Kit app (Isaac Sim)
 except ImportError as _exc:
@@ -23,6 +29,6 @@ except ImportError as _exc:
     import logging
 
     logging.getLogger(__name__).info(
-        "sl.sensor.camera imported in utilities-only mode (no Kit): %s", _exc
+        "[ZED] sl.sensor.camera imported in utilities-only mode (no Kit): %s", _exc
     )
     SlSensorCameraExtension = None

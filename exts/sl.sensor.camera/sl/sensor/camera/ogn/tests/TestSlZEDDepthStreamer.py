@@ -22,7 +22,7 @@ class TestOgn(ogts.OmniGraphTestCase):
         database = SlZEDDepthStreamerDatabase(test_node)
         self.assertTrue(test_node.is_valid())
         node_type_name = test_node.get_type_name()
-        self.assertEqual(og.GraphRegistry().get_node_type_version(node_type_name), 1)
+        self.assertEqual(og.GraphRegistry().get_node_type_version(node_type_name), 2)
 
         def _attr_error(attribute: og.Attribute, usd_test: bool) -> str:  # pragma no cover
             test_type = "USD Load" if usd_test else "Database Access"
@@ -90,6 +90,16 @@ class TestOgn(ogts.OmniGraphTestCase):
         db_value = database.inputs.resolution
         database.inputs.resolution = db_value
         expected_value = "SVGA"
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:saveDepth"))
+        attribute = test_node.get_attribute("inputs:saveDepth")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.saveDepth
+        database.inputs.saveDepth = db_value
+        expected_value = True
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))

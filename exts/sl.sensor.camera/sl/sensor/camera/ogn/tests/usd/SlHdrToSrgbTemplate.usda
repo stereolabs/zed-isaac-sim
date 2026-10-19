@@ -1,0 +1,91 @@
+#usda 1.0
+(
+    doc ="""Generated from node description file SlHdrToSrgb.ogn
+Contains templates for node types found in that file."""
+)
+
+def OmniGraph "TestGraph"
+{
+    token evaluator:type = "push"
+    int2 fileFormatVersion = (1, 3)
+    token flatCacheBacking = "Shared"
+    token pipelineStage = "pipelineStageSimulation"
+
+    def OmniGraphNode "Template_sl_sensor_camera_ZED_HdrToSrgb" (
+        docs="""Encodes a render product's linear HdrColor (float16 RGBA, on the GPU) into the sRGB RGBA8 image streamed by the ZED node, as a real ZED X outputs it: its sharpness, lens vignetting, motion blur over the exposure time, white balance and sensor noise. Inputs mirror the HdrColor annotator's pointer outputs; outputs mirror the rgb annotator's, so it slots in front of the ZED Stream node. The output buffer is complete when the node's exec fires."""
+    )
+    {
+        token node:type = "sl.sensor.camera.ZED_HdrToSrgb"
+        int node:typeVersion = 1
+
+        # 16 attributes
+        custom float inputs:blurScale = 0.0 (
+            docs="""Exposure time over the motion vectors' time step: the fraction of each vector the image is smeared along; 0 or less = no motion blur"""
+        )
+        custom uint64 inputs:bufferSize = 0 (
+            docs="""Size of the HdrColor buffer in bytes"""
+        )
+        custom bool inputs:cameraMtf = false (
+            docs="""Apply a real ZED X's sharpness instead of the renderer's"""
+        )
+        custom int inputs:cudaDeviceIndex = -1 (
+            docs="""CUDA device holding the buffer; negative means host memory (unsupported)"""
+        )
+        custom uint64 inputs:dataPtr = 0 (
+            docs="""Device pointer to the HdrColor buffer (float16 RGBA)"""
+        )
+        custom uint inputs:exec (
+            docs="""Triggers the encode (connect the HdrColor annotator's exec)"""
+        )
+        custom uint inputs:eye = 0 (
+            docs="""Which lens this encoder images: 0 left (or a single camera), 1 right"""
+        )
+        custom uint inputs:height = 0 (
+            docs="""Image height in pixels"""
+        )
+        custom uint64 inputs:motionPtr = 0 (
+            docs="""Device pointer to the render product's MotionVectors buffer (float32 RGBA, pixels towards each pixel's previous position); 0 = no motion blur"""
+        )
+        custom uint64 inputs:motionSize = 0 (
+            docs="""Size of the MotionVectors buffer in bytes"""
+        )
+        custom float inputs:noiseGain = 0.0 (
+            docs="""Total sensor gain (analog x digital, i.e. the camera's exposure:iso / 100) whose sensor noise is added before the encode; 0 or less adds no noise"""
+        )
+        custom uint inputs:noiseSeed = 0 (
+            docs="""Decorrelates this encoder's noise from other encoders' (e.g. the other eye); the noise also changes every frame"""
+        )
+        custom int2 inputs:strides = (0, 0) (
+            docs="""Byte strides of the HdrColor buffer: (pixel, row); zeros for contiguous"""
+        )
+        custom float inputs:vignetteInvFocal = 0.0 (
+            docs="""1 / the focal length in pixels at this resolution, for the lens vignetting; 0 or less = no vignetting"""
+        )
+        custom float3 inputs:whiteBalance = (1.0, 1.0, 1.0) (
+            docs="""White balance gains (R, G, B) applied in linear light before the lens falloff and the noise, e.g. from the camera's auto white balance; (1, 1, 1) = none"""
+        )
+        custom uint inputs:width = 0 (
+            docs="""Image width in pixels"""
+        )
+
+        # 6 attributes
+        custom uint64 outputs:bufferSize (
+            docs="""Size of the sRGB buffer in bytes (width * height * 4)"""
+        )
+        custom int outputs:cudaDeviceIndex (
+            docs="""CUDA device holding the output buffer"""
+        )
+        custom uint64 outputs:dataPtr (
+            docs="""Device pointer to the sRGB RGBA8 buffer"""
+        )
+        custom uint outputs:exec (
+            docs="""Fires once the sRGB buffer is written"""
+        )
+        custom uint outputs:height (
+            docs="""Image height in pixels"""
+        )
+        custom uint outputs:width (
+            docs="""Image width in pixels"""
+        )
+    }
+}

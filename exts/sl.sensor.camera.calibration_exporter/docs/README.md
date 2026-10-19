@@ -1,6 +1,6 @@
 # Stereolabs ZED Calibration Exporter
 
-Generate a ZED-SDK-compatible calibration file for a **virtual stereo camera** - a stereo pair built
+Generate a ZED-SDK-compatible calibration file for a **virtual stereo camera**: a stereo pair built
 from two **ZED X One** mono cameras placed in an Isaac Sim stage. The ZED SDK needs this `.conf` file to
 treat the two independent mono streams as one calibrated stereo camera (for depth, tracking, etc.).
 
@@ -16,8 +16,8 @@ Use this together with the core `sl.sensor.camera` extension: this tool writes t
 4. Choose the **camera model** (base model) and the **lens type** (Wide, Narrow, or Fisheye). The lens
    list is filtered to the lenses available for the selected model.
 5. Set the **serial number**, or keep the generated one. It must start with `11` (valid range
-   `110000001`-`119999999`). Remember it - the streaming node needs the same value.
-6. Click **Generate**. The `.conf` file is written to the ZED SDK settings directory:
+   `110000001`-`119999999`). Remember it: the streaming node needs the same value.
+6. Click **Generate**. The `SN<serial>.conf` file (INI format) is written to the ZED SDK settings directory:
    - **Windows:** `C:/ProgramData/Stereolabs/settings/`
    - **Linux:** `/usr/local/zed/settings/`
 
@@ -30,13 +30,6 @@ prims, and set its **Serial Number** to the value you used above. On Play, the p
 ZED that the ZED SDK opens using the generated calibration.
 
 ![Virtual stereo Action Graph](../../../imgs/virtual_stereo_graph.gif)
-
-## Output
-
-The generated file is a ZED SDK `SN<serial>.conf` (INI format) saved in :
-
- - /usr/local/zed/settings/ On Linux.
- -  C:\ProgramData\Stereolabs\settings On Windows.
 
 ## Requirements
 

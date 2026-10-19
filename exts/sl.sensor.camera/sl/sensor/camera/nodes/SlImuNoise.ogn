@@ -1,0 +1,78 @@
+{
+    "ZED_ImuNoise": {
+        "version": 1,
+        "categories": {
+            "Stereolabs": "Nodes used with Stereolabs ZED cameras"
+        },
+        "description": "Adds a real ZED X IMU's noise to an IMU reading before it is streamed: white accelerometer noise at the sensor's noise density and output rate (the ZED SDK's own IMU parameters for a ZED X) and a small accelerometer bias drawn once per run. Orientation noise is off by default. Pass-through when disabled.",
+        "language": "Python",
+        "metadata": {
+            "uiName": "ZED IMU Noise",
+            "hidden": "true"
+        },
+        "inputs": {
+            "execIn": {
+                "type": "execution",
+                "description": "Triggers the node (connect the IMU reader's execOut)"
+            },
+            "orientation": {
+                "type": "quatd[4]",
+                "description": "IMU orientation (IJKR)",
+                "default": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            },
+            "linAcc": {
+                "type": "vectord[3]",
+                "description": "IMU linear acceleration, m/s^2",
+                "default": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "enabled": {
+                "type": "bool",
+                "default": true,
+                "description": "Add the noise; off passes the reading through unchanged"
+            },
+            "accNoise": {
+                "type": "float",
+                "default": 0.019,
+                "description": "Accelerometer white noise per sample, m/s^2 (noise density x sqrt(output rate))"
+            },
+            "accBias": {
+                "type": "float",
+                "default": 0.005,
+                "description": "Standard deviation of the per-run accelerometer bias, m/s^2 per axis"
+            },
+            "orientationNoise": {
+                "type": "float",
+                "default": 0.0,
+                "description": "Orientation jitter per sample, degrees; 0 = none"
+            },
+            "seed": {
+                "type": "uint",
+                "default": 0,
+                "description": "Decorrelates this IMU's noise from other cameras'"
+            }
+        },
+        "outputs": {
+            "execOut": {
+                "type": "execution",
+                "description": "Fires once the outputs are written"
+            },
+            "orientation": {
+                "type": "quatd[4]",
+                "description": "IMU orientation with the noise (IJKR)"
+            },
+            "linAcc": {
+                "type": "vectord[3]",
+                "description": "IMU linear acceleration with the noise and bias, m/s^2"
+            }
+        }
+    }
+}

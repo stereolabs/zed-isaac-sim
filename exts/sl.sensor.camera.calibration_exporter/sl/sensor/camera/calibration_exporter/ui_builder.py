@@ -1,4 +1,5 @@
 # SPDX-FileCopyrightText: Copyright (c) 2022-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 Stereolabs. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,6 +13,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Modified from the Isaac Sim UI extension template
+# (isaacsim.examples.extension/template_source_files). See THIRD_PARTY_NOTICES.md.
 
 import os
 from typing import List
@@ -26,13 +30,9 @@ from isaacsim.gui.components.element_wrappers import (
 )
 from isaacsim.gui.components.ui_utils import get_style
 
-from .calibration import (
-    write_stereo_calibration_file,
-    generate_virtual_sn,
-    get_base_models,
-    get_allowed_lens_types,
-    compose_model,
-)
+from sl.sensor.camera.utils import compose_model, get_allowed_lens_types
+
+from .calibration import generate_virtual_sn, get_mono_base_models, write_stereo_calibration_file
 
 class UIBuilder:
     def __init__(self):
@@ -49,37 +49,6 @@ class UIBuilder:
     ###################################################################################
     #           The Functions Below Are Called Automatically By extension.py
     ###################################################################################
-
-    def on_menu_callback(self):
-        """Callback for when the UI is opened from the toolbar.
-        This is called directly after build_ui().
-        """
-        pass
-
-    def on_timeline_event(self, event):
-        """Callback for Timeline events (Play, Pause, Stop)
-
-        Args:
-            event (omni.timeline.TimelineEventType): Event Type
-        """
-        pass
-
-    def on_physics_step(self, step):
-        """Callback for Physics Step.
-        Physics steps only occur when the timeline is playing
-
-        Args:
-            step (float): Size of physics step
-        """
-        pass
-
-    def on_stage_event(self, event):
-        """Callback for Stage Events
-
-        Args:
-            event (omni.usd.StageEventType): Event Type
-        """
-        pass
 
     def cleanup(self):
         """
@@ -108,7 +77,7 @@ class UIBuilder:
                 def pick_selected_prim(field: StringField):
                     selection = omni.usd.get_context().get_selection().get_selected_prim_paths()
                     if not selection:
-                        print("No prim selected in the stage")
+                        print("[ZED] No prim selected in the stage")
                         return
                     # Just take the first selected prim
                     selected_prim = selection[0]
@@ -146,7 +115,7 @@ class UIBuilder:
                     model_dropdown = DropDown(
                         "Camera model",
                         tooltip="Camera model used to create a virtual stereo camera",
-                        populate_fn=get_base_models,
+                        populate_fn=get_mono_base_models,
                         on_selection_fn=self._on_model_selection,
                     )
                     self.wrapped_ui_elements.append(model_dropdown)
@@ -169,7 +138,7 @@ class UIBuilder:
                     tooltip="Serial number of the stereo camera",
                     read_only=False,
                     multiline_okay=False,
-                    use_folder_picker=True
+                    use_folder_picker=False
                 )
                 self.wrapped_ui_elements.append(self.serial_number_field)
 
@@ -192,9 +161,10 @@ class UIBuilder:
 
     def _on_model_selection(self, item: str):
         self.base_model = item
-        # Re-filter the lens list for the new base; repopulate cascades into
-        # _on_lens_selection, which recomposes the composite token.
+        # Re-filter the lens list for the new base. repopulate() only calls back when the lens
+        # text changes (e.g. not for Wide -> Wide), so recompose the composite token here too.
         self.lens_dropdown.repopulate()
+        self._on_lens_selection(self.lens_dropdown.get_selection())
 
     def _on_lens_selection(self, item: str):
         self.lens_type = item

@@ -40,7 +40,7 @@ import _bootstrap  # noqa: E402,F401  (adds the sl.sensor.camera extension root 
 
 from isaaclab.app import AppLauncher
 
-from sl.sensor.camera.isaaclab_utils import add_zed_cli_args
+from sl.sensor.camera.isaaclab_utils import add_zed_cli_args, add_zed_kit_args
 from sl.sensor.camera.utils import get_resolution
 
 parser = argparse.ArgumentParser(description="Add a ZED X to an Isaac Lab scene and read stereo RGB + ZED depth.")
@@ -62,6 +62,8 @@ if get_resolution(args.camera_model, args.resolution) is None:
 if not args.enable_cameras:
     print("[ZED] Enabling cameras (--enable_cameras) - required for RGB/depth rendering.")
 args.enable_cameras = True
+# The ZED lens schema has to start with the app; Isaac Lab's apps do not load it.
+add_zed_kit_args(args)
 
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
@@ -79,7 +81,8 @@ from isaaclab.sim import SimulationContext
 from isaaclab.sensors import Camera
 
 from sl.sensor.camera.isaaclab_utils import (  # noqa: E402
-    depth_to_2d, make_camera_cfg, save_frame, unwrap_output, wait_for_camera_data,
+    apply_zed_optics, depth_to_2d, make_camera_cfg, save_frame, unwrap_output,
+    wait_for_camera_data,
 )
 from sl.sensor.camera.utils import get_baseline, get_camera_paths, get_camera_usd_path, is_stereo_camera  # noqa: E402
 
@@ -103,7 +106,7 @@ def build_scene():
     light = sim_utils.DomeLightCfg(intensity=1500.0, color=(0.85, 0.88, 0.95))
     light.func("/World/Light", light)
     sun = sim_utils.DistantLightCfg(intensity=2500.0, color=(1.0, 1.0, 0.95))
-    sun.func("/World/Sun", sun, orientation=(0.924, 0.0, -0.383, 0.0))  # ~45deg down
+    sun.func("/World/Sun", sun, orientation=(0.0, -0.383, 0.0, 0.924))  # (x, y, z, w), ~45deg down
 
     def mat(c):
         return sim_utils.PreviewSurfaceCfg(diffuse_color=c)
@@ -132,6 +135,8 @@ def build_scene():
     # the cameras are used exactly as authored, so the housing stays behind the lenses.
     xform.ClearXformOpOrder()
     xform.AddTranslateOp().Set(Gf.Vec3d(0.0, 0.0, 0.9))
+    # The USD ships one nominal lens for every variant; give the cameras the model's own.
+    apply_zed_optics(stage, args.camera_prim, args.camera_model, args.resolution)
 
 
 def main():
@@ -144,10 +149,22 @@ def main():
     build_scene()
 
     # Camera sensors attached to the EXISTING USD camera prims (spawn=None).
+    # ZED Sim2Real (the ZED X camera model) reads the cameras' linear HDR image instead of their RGB.
+    color = "rgb_hdr" if args.apply_zed_sim2real else "rgb"
     cam_left = Camera(make_camera_cfg(paths["left"], args.camera_model, args.resolution,
-                                      data_types=["rgb", "distance_to_image_plane"]))
+                                      data_types=[color, "distance_to_image_plane"]))
     cam_right = Camera(make_camera_cfg(paths["right"], args.camera_model, args.resolution,
-                                       data_types=["rgb"])) if stereo else None
+                                       data_types=[color])) if stereo else None
+    sim2real = None
+    if args.apply_zed_sim2real:
+        import omni.usd
+        from sl.sensor.camera.zed_sim2real import ZedSim2Real
+        # One auto exposure and white balance, shared by both eyes (the left drives, as on the camera).
+        sim2real = ZedSim2Real(1, camera_model=args.camera_model, resolution=args.resolution)
+        sim2real.prepare_cameras(omni.usd.get_context().get_stage(),
+                                 [paths[k] for k in ("left", "right") if k in paths])
+        if not sim2real.ok:
+            print("[ZED] --apply_zed_sim2real set but sl_zed_sim2real is unavailable; plain sRGB instead.")
 
     sim.reset()
     dt = sim.get_physics_dt()
@@ -156,22 +173,13 @@ def main():
           "several minutes (compiling, not hung). Subsequent runs are fast.")
 
     # Step until the camera annotators deliver populated frames.
-    if wait_for_camera_data(sim, [cam_left, cam_right], verbose=args.verbose) < 0:
+    if wait_for_camera_data(sim, [cam_left, cam_right], keys=(color, "distance_to_image_plane"),
+                            verbose=args.verbose) < 0:
         simulation_app.close()
         return
 
     if args.save_dir:
         os.makedirs(args.save_dir, exist_ok=True)
-
-    # Optional ZED Sim2Real camera model on the RGB tensors (same calibrated look as the
-    # streaming path). One auto-exposure state, shared by both eyes (left drives, right
-    # follows). No-op if the sl_zed_sim2real library is unavailable.
-    sim2real = None
-    if args.apply_zed_sim2real:
-        from sl.sensor.camera.zed_sim2real import ZedSim2Real
-        sim2real = ZedSim2Real(num_states=1)
-        if not sim2real.ok:
-            print("[ZED] --apply_zed_sim2real set but sl_zed_sim2real is unavailable; RGB left unmodified.")
 
     # Without --save_dir this is a console-only run: stream until the app/window closes
     # (Ctrl-C), ignoring --num_frames. With --save_dir, capture exactly --num_frames.
@@ -193,20 +201,19 @@ def main():
             print(f"[ZED] Kit shut down mid-step ({type(exc).__name__}) - exiting.")
             break
 
-        rgb_l = unwrap_output(cam_left.data.output, "rgb", index=0)
-        rgb_r = unwrap_output(cam_right.data.output, "rgb", index=0) if cam_right is not None else None
+        rgb_l = unwrap_output(cam_left.data.output, color, index=0)
+        rgb_r = unwrap_output(cam_right.data.output, color, index=0) if cam_right is not None else None
         depth = unwrap_output(cam_left.data.output, "distance_to_image_plane", index=0)
         if rgb_l is None or depth is None:
             if args.verbose:
-                print(f"  frame {i}: no data this step")
+                print(f"[ZED] frame {i}: no data this step")
             i += 1
             continue
 
-        # Degrade the RGB in place with the sim2real (left drives auto-exposure, right reuses it).
-        if sim2real is not None and sim2real.ok:
-            sim2real.apply(rgb_l, scene_lux=args.zed_sim2real_scene_lux, advance=True)
-            if rgb_r is not None:
-                sim2real.apply(rgb_r, scene_lux=args.zed_sim2real_scene_lux, advance=False)
+        # The real camera's image of the HDR render (auto exposure from the left eye, both eyes encoded).
+        if sim2real is not None:
+            rgb_l, rgb_r = sim2real.apply(rgb_l, rgb_r, dt=dt)
+            rgb_l, rgb_r = rgb_l[0], (rgb_r[0] if rgb_r is not None else None)
 
         d = depth_to_2d(depth)
         # Only pull depth to host when we actually need it (verbose stats or saving).
@@ -218,7 +225,7 @@ def main():
             vmax = float(d_np[valid].max()) if valid.any() else float("nan")
             rshape = None if rgb_r is None else tuple(rgb_r.shape)
             print(
-                f"  frame {i}: rgb_l {tuple(rgb_l.shape)} | rgb_r {rshape} | "
+                f"[ZED] frame {i}: rgb_l {tuple(rgb_l.shape)} | rgb_r {rshape} | "
                 f"depth {tuple(d.shape)} [{vmin:.2f}, {vmax:.2f}] m"
             )
 

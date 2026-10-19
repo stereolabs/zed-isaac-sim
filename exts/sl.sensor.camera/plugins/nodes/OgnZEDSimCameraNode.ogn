@@ -96,10 +96,6 @@
                 "type": "double",
                 "description": "simulation time"
             },
-            "systemTime": {
-                "type": "double",
-                "description": "system time"
-            },
             "bufferSizeLeft": {
                 "type": "uint64",
                 "description": "Size (in bytes) of the buffer (0 if the input is a texture)"
@@ -132,29 +128,15 @@
                 "description": "Enable Left+Depth streaming mode instead of Left+Right",
                 "default": false
             },
-            "applyZedSim2Real": {
-                "type": "bool",
-                "description": "Apply the Imatest-calibrated ZED Sim2Real camera model (MTF, vignetting, AE, bloom, AWB, tone, sharpening, sensor noise) to the frames before streaming",
-                "default": false,
-                "metadata": {
-                    "uiName": "Apply ZED Sim2Real"
-                }
+            "depthWidth": {
+                "type": "uint",
+                "description": "Width of the streamed depth map in pixels (Left+Depth mode). Must match the depth buffer.",
+                "default": 896
             },
-            "zedSim2RealSceneLux": {
-                "type": "float",
-                "description": "Absolute scene illuminance in lux for the sim2real's gain-ceiling AE and gain-coupled noise. 0 = bright scene",
-                "default": 0.0,
-                "metadata": {
-                    "uiName": "ZED Sim2Real scene lux"
-                }
-            },
-            "zedSim2RealAeTarget": {
-                "type": "float",
-                "description": "Override the sim2real AE set-point (median display luma 0..1). <=0 = calibrated default (~0.45). Raise to brighten the modeled image, e.g. to sit closer to the raw render's tone mapping.",
-                "default": -1.0,
-                "metadata": {
-                    "uiName": "ZED Sim2Real AE target"
-                }
+            "depthHeight": {
+                "type": "uint",
+                "description": "Height of the streamed depth map in pixels (Left+Depth mode). Must match the depth buffer.",
+                "default": 560
             },
             "orientation": {
                 "type": "quatd[4]",

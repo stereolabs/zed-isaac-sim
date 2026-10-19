@@ -10,6 +10,65 @@ namespace sl
         YUV = 2
     };
 
+    /**
+     * @brief Status returned by the sim-streamer entry points (init_streamer / stream_* / ingest_imu).
+     *
+     * 0 is success, positive values are errors, negative values are warnings (streaming continues).
+     */
+    enum class SIM_STREAMER_STATUS : int
+    {
+        /** The frame arrived faster than the configured FPS and was skipped. Benign. */
+        FRAME_DROPPED = -1,
+        SUCCESS = 0,
+        /** Unspecified failure. */
+        FAILURE = 1,
+        /** The serial number is not a valid virtual camera. */
+        INVALID_SERIAL_NUMBER = 2,
+        /** A streamer with this id already exists. */
+        STREAMER_ALREADY_CREATED = 3,
+        /** Unexpected error while creating or opening the streamer. */
+        INTERNAL_ERROR = 4,
+        /** The streaming port must be even. */
+        INVALID_PORT = 5,
+        /** The streaming session could not be created on the port; it is likely already in use. */
+        PORT_UNAVAILABLE = 6,
+        /** The hardware video encoder could not be loaded; check the GPU and its driver. */
+        ENCODER_LOAD_FAILED = 7,
+        /** The hardware video encoder rejected the configuration (codec / resolution / FPS). */
+        ENCODER_CREATION_FAILED = 8,
+        /** Stream or ingest call on an unknown streamer id, or before a successful init. */
+        STREAMER_NOT_OPENED = 9,
+        /** Null buffer, or a call that does not match the streamer configuration. */
+        INVALID_INPUT = 10,
+        /** The frame could not be encoded or sent. */
+        ENCODING_FAILED = 11,
+        /** Returned by the loader when the library or a symbol is missing.
+         *  Never returned by the library itself. */
+        LIB_NOT_LOADED = 100,
+    };
+
+    inline const char* toString(SIM_STREAMER_STATUS status)
+    {
+        switch (status)
+        {
+        case SIM_STREAMER_STATUS::FRAME_DROPPED: return "FRAME_DROPPED";
+        case SIM_STREAMER_STATUS::SUCCESS: return "SUCCESS";
+        case SIM_STREAMER_STATUS::FAILURE: return "FAILURE";
+        case SIM_STREAMER_STATUS::INVALID_SERIAL_NUMBER: return "INVALID_SERIAL_NUMBER";
+        case SIM_STREAMER_STATUS::STREAMER_ALREADY_CREATED: return "STREAMER_ALREADY_CREATED";
+        case SIM_STREAMER_STATUS::INTERNAL_ERROR: return "INTERNAL_ERROR";
+        case SIM_STREAMER_STATUS::INVALID_PORT: return "INVALID_PORT";
+        case SIM_STREAMER_STATUS::PORT_UNAVAILABLE: return "PORT_UNAVAILABLE";
+        case SIM_STREAMER_STATUS::ENCODER_LOAD_FAILED: return "ENCODER_LOAD_FAILED";
+        case SIM_STREAMER_STATUS::ENCODER_CREATION_FAILED: return "ENCODER_CREATION_FAILED";
+        case SIM_STREAMER_STATUS::STREAMER_NOT_OPENED: return "STREAMER_NOT_OPENED";
+        case SIM_STREAMER_STATUS::INVALID_INPUT: return "INVALID_INPUT";
+        case SIM_STREAMER_STATUS::ENCODING_FAILED: return "ENCODING_FAILED";
+        case SIM_STREAMER_STATUS::LIB_NOT_LOADED: return "LIB_NOT_LOADED";
+        }
+        return "UNKNOWN";
+    }
+
     struct StreamingParameters
     {
         /**

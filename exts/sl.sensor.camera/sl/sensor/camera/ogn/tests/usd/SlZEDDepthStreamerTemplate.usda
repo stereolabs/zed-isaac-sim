@@ -12,13 +12,13 @@ def OmniGraph "TestGraph"
     token pipelineStage = "pipelineStageSimulation"
 
     def OmniGraphNode "Template_sl_sensor_camera_ZED_Depth" (
-        docs="""Captures RGB and simulated stereo depth from a ZED camera using Isaac Sim's renderer (no ZED SDK required)."""
+        docs="""SDK-free capture from a ZED camera using Isaac Sim's renderer: RGB images and optionally simulated stereo depth. Nothing is streamed and no ZED SDK is required."""
     )
     {
         token node:type = "sl.sensor.camera.ZED_Depth"
-        int node:typeVersion = 1
+        int node:typeVersion = 2
 
-        # 7 attributes
+        # 8 attributes
         custom token inputs:cameraModel = "ZED_X" (
             docs="""ZED Camera model. Determines intrinsics and stereo baseline."""
         )
@@ -39,6 +39,9 @@ def OmniGraph "TestGraph"
         )
         custom token inputs:resolution = "SVGA" (
             docs="""Render resolution for RGB and depth."""
+        )
+        custom bool inputs:saveDepth = true (
+            docs="""Write the depth map (EXR) alongside the RGB frames. Turn off to record images only: depth costs an extra render annotator and a float32 EXR per frame, which dominates capture I/O. Depth is a stereo feature and is unavailable on mono cameras."""
         )
     }
 }

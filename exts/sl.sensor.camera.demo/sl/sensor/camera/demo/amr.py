@@ -16,7 +16,8 @@ import omni.ui as ui
 import omni.kit.app
 from pxr import UsdGeom, Gf
 
-from ._common import make_zed_graph, mount_zed_nested, add_floor_logos, add_physics_ground
+from ._common import (make_zed_graph, mount_zed_nested, add_floor_logos,
+                      add_physics_ground, hide_asset_camera, steer_to_waypoint, AISLE_LOGOS)
 
 import isaacsim.core.experimental.utils.stage as stage_utils
 import isaacsim.core.experimental.utils.app as app_utils
@@ -41,7 +42,6 @@ RIGS = {
 }
 FRONT_PORT, BACK_PORT = 30000, 30002              # single-cam streams use 30000; "Both" adds 30002 for the rear
 STREAM_OPTIONS = ["FRONT", "BACK", "BOTH"]
-LOGOS = [(-8.3, 10.5), (-8.3, 4.5), (-8.3, -1.5)]  # Stereolabs floor decals (exact transforms from the humanoid scene)
 
 
 class ZedAmrDemo:
@@ -76,7 +76,7 @@ class ZedAmrDemo:
     def _set_status(self, msg: str) -> None:
         if self._status is not None:
             self._status.text = msg
-        print(f"[ZED amr] {msg}")
+        print(f"[ZED][amr] {msg}")
 
     def _selected_stream(self) -> str:
         if self._stream_combo is None:
@@ -124,6 +124,7 @@ class ZedAmrDemo:
         # warehouse + invisible high-friction drive ground at z~0
         stage_utils.add_reference_to_stage(
             root + "/Isaac/Environments/Simple_Warehouse/warehouse.usd", "/World/Warehouse")
+        hide_asset_camera(stage, "/World/Warehouse")
         add_physics_ground(stage, "/World/DriveGround", scale=60, friction=0.9)
 
         # iw.hub AMR at the start of the aisle, facing up it
@@ -154,7 +155,7 @@ class ZedAmrDemo:
 
         # Stereolabs floor decals (transparent-alpha) along the lane
         demo_path = mgr.get_extension_path(mgr.get_enabled_extension_id("sl.sensor.camera.demo"))
-        add_floor_logos(stage, demo_path, LOGOS)
+        add_floor_logos(stage, demo_path, AISLE_LOGOS)
 
         self._art = Articulation("/World/iw_hub")
         await world.reset_async()
@@ -165,10 +166,6 @@ class ZedAmrDemo:
             self._set_status(f"Running - Front:{FRONT_PORT} + Rear:{BACK_PORT}. Open ZED Studio/Depth Viewer at 127.0.0.1")
         else:
             self._set_status(f"Running - {which.title()} on {FRONT_PORT}. Open ZED Studio/Depth Viewer at 127.0.0.1")
-
-    def _yaw(self, q):
-        w, x, y, z = [float(v) for v in q]
-        return math.atan2(2.0*(w*z + x*y), 1.0 - 2.0*(y*y + z*z))
 
     def _on_step(self, dt, context=None):
         art, S = self._art, self._state
@@ -181,18 +178,14 @@ class ZedAmrDemo:
                 S["widx"] = art.get_dof_indices(["left_wheel_joint", "right_wheel_joint"])
                 S["ready"] = True; return
             p, q = art.get_world_poses()
-            pos = p.numpy()[0]; quat = q.numpy()[0]
-            tx, ty = WP[S["idx"]]; dx, dy = tx - float(pos[0]), ty - float(pos[1])
-            if (dx*dx + dy*dy) ** 0.5 < WP_TOL:
-                S["idx"] = (S["idx"] + 1) % len(WP); tx, ty = WP[S["idx"]]; dx, dy = tx - float(pos[0]), ty - float(pos[1])
-            err = (math.atan2(dy, dx) - self._yaw(quat) + math.pi) % (2*math.pi) - math.pi
+            S["idx"], err = steer_to_waypoint(p.numpy()[0], q.numpy()[0], WP, S["idx"], WP_TOL)
             lin = CRUISE if abs(err) < 0.5 else SLOW
             ang = max(-AMAX, min(AMAX, KANG * err))
             vL = (lin - ang * L / 2.0) / R
             vR = (lin + ang * L / 2.0) / R
             art.set_dof_velocity_targets(np.array([[vL, vR]]), dof_indices=S["widx"])
         except Exception as e:
-            print("[ZED amr] step error:", repr(e))
+            print("[ZED][amr] step error:", repr(e))
 
     def stop(self) -> None:
         if self._cb is not None:

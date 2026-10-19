@@ -24,8 +24,7 @@ _*/
 /temp.py
 /release
 
-tests/rtsp/deps
-tests/rtsp/src/build
+/tests/
 .nvcode
 .nvidia-omniverse
 _conan
@@ -40,3 +39,8 @@ source/
 # build outputs + downloaded ZED runtime library (populated by build.bat/build.sh)
 exts/sl.sensor.camera/bin/
 exts/sl.sensor.camera/sl/sensor/camera/ogn/__ogn_files_prebuilt
+
+# local only: never part of a public release
+exts/sl.sensor.camera.internal/
+/internal/
+.claude/

@@ -23,8 +23,9 @@
 # For headless rendering (no GUI), add --headless
 #
 # Output (when --output_dir is set):
-#   rgb_000000.png   - left RGB image
-#   depth_000000.exr - depth map (float32, meters)
+#   rgb_left_000000.png  - left RGB image
+#   rgb_right_000000.png - right RGB image (stereo models)
+#   depth_000000.exr     - depth map (float32, meters)
 # ******************************************************************************
 
 import argparse
@@ -69,12 +70,14 @@ def parse_args():
 
 args = parse_args()
 
+import numpy as np  # noqa: E402  (before SimulationApp: the Kit importer breaks numpy's DLL path)
+import numpy.fft  # noqa: E402,F401  (lazy submodule; isaacsim.core.* reaches it through scipy, too late by then)
+
 # SimulationApp must be created before any omni imports
-from isaacsim import SimulationApp
+from isaacsim import SimulationApp  # noqa: E402
 
 simulation_app = SimulationApp({"headless": args.headless})
 
-import numpy as np
 from isaacsim.core.api import World
 from isaacsim.core.experimental.objects import DomeLight, GroundPlane
 from isaacsim.core.experimental.prims import XformPrim
@@ -116,12 +119,12 @@ def main():
     # Open the stage before constructing World: World binds to the current stage on
     # creation, so swapping the stage out from under it afterwards leaves it stale.
     if args.usd_path:
-        print(f"[Depth] Loading scene: {args.usd_path}")
+        print(f"[ZED][Depth] Loading scene: {args.usd_path}")
         open_stage(args.usd_path)
         while is_stage_loading():
             simulation_app.update()
     else:
-        print("[Depth] No --usd_path given; building a minimal ground + dome-light scene.")
+        print("[ZED][Depth] No --usd_path given; building a minimal ground + dome-light scene.")
         _build_minimal_scene()
 
     # Use the camera already in the scene if --camera_prim is given; otherwise spawn one.
@@ -129,9 +132,9 @@ def main():
         camera_prim = args.camera_prim
     else:
         camera_prim = DEFAULT_CAMERA_PRIM
-        print(f"[Depth] No --camera_prim given; spawning {args.camera_model} at {camera_prim}.")
+        print(f"[ZED][Depth] No --camera_prim given; spawning {args.camera_model} at {camera_prim}.")
         if not _spawn_zed(camera_prim):
-            print(f"[Depth] No USD asset for model '{args.camera_model}'.")
+            print(f"[ZED][Depth] No USD asset for model '{args.camera_model}'.")
             simulation_app.close()
             sys.exit(1)
 
@@ -146,30 +149,31 @@ def main():
     )
 
     if camera._init_failed:
-        print("[Depth] Failed to set up camera. Check prim path and model.")
+        print("[ZED][Depth] Failed to set up camera. Check prim path and model.")
         camera.destroy()
         simulation_app.close()
         sys.exit(1)
 
     MAX_INIT_FRAMES = 120
-    print(f"[Depth] Stepping simulation, waiting for depth sensor to initialize...")
+    print(f"[ZED][Depth] Stepping simulation, waiting for depth sensor to initialize...")
     for i in range(MAX_INIT_FRAMES):
         world.step(render=True)
         if camera.try_initialize():
-            print(f"[Depth] Depth sensor ready after {i + 1} frames")
+            print(f"[ZED][Depth] Depth sensor ready after {i + 1} frames")
             break
     else:
-        print(f"[Depth] Failed to initialize depth sensor after {MAX_INIT_FRAMES} frames.")
+        print(f"[ZED][Depth] Failed to initialize depth sensor after {MAX_INIT_FRAMES} frames.")
         camera.destroy()
         simulation_app.close()
         sys.exit(1)
 
-    print(f"[Depth] Capturing {args.num_frames} frames...")
+    print(f"[ZED][Depth] Capturing {args.num_frames} frames...")
     # The render pipeline delivers empty buffers for the first few ticks after the sensor
     # reports ready, so count captured frames (not steps) and allow slack for that warmup.
     WARMUP_SLACK_STEPS = 60
+    max_steps = args.num_frames + WARMUP_SLACK_STEPS
     captured = 0
-    for _ in range(args.num_frames + WARMUP_SLACK_STEPS):
+    for _ in range(max_steps):
         if captured >= args.num_frames:
             break
         world.step(render=True)
@@ -187,6 +191,11 @@ def main():
         if rgba.size == 0 or depth.size == 0:
             continue
 
+        # Count saved frames, not ticks: save_frame() returns False when nothing was written,
+        # and a skipped frame leaves its index unspent so the numbering stays gap-free.
+        if args.output_dir and not camera.save_frame(args.output_dir):
+            continue
+
         valid_mask = np.isfinite(depth) & (depth > 0)
         valid_depth = depth[valid_mask]
         valid_pct = 100.0 * valid_mask.sum() / depth.size if depth.size > 0 else 0.0
@@ -194,24 +203,23 @@ def main():
         depth_max = valid_depth.max() if valid_depth.size > 0 else float("nan")
 
         print(
-            f"  Frame {captured}: rgba {rgba.shape} {rgba.dtype} | "
+            f"[ZED][Depth] Frame {captured}: rgba {rgba.shape} {rgba.dtype} | "
             f"depth {depth.shape} {depth.dtype} [{depth_min:.3f}, {depth_max:.3f}] m "
             f"({valid_pct:.1f}% valid)"
         )
 
-        if args.output_dir:
-            camera.save_frame(args.output_dir)
         captured += 1
 
     if captured < args.num_frames:
-        print(f"[Depth] Warning: only captured {captured}/{args.num_frames} frames "
+        print(f"[ZED][Depth] Warning: only captured {captured}/{args.num_frames} frames "
               f"(render pipeline never delivered enough data).")
     if args.output_dir:
-        print(f"[Depth] Saved {captured} frames to {args.output_dir}")
+        print(f"[ZED][Depth] Saved {captured} frames to {args.output_dir}")
 
+    # destroy() closes the frame writer, which is what finishes the recording, so it runs first.
     camera.destroy()
     simulation_app.close()
-    print("[Depth] Done.")
+    print("[ZED][Depth] Done.")
 
 
 if __name__ == "__main__":

@@ -18,10 +18,7 @@ def OmniGraph "TestGraph"
         token node:type = "sl.sensor.camera.OgnZEDSimCameraNode"
         int node:typeVersion = 3
 
-        # 26 attributes
-        custom bool inputs:applyZedSim2Real = false (
-            docs="""Apply the Imatest-calibrated ZED Sim2Real camera model (MTF, vignetting, AE, bloom, AWB, tone, sharpening, sensor noise) to the frames before streaming"""
-        )
+        # 24 attributes
         custom uint inputs:bitrate = 8000 (
             docs="""streaming bitrate (in Kbps). Only used for network transport layer mode (not IPC)"""
         )
@@ -45,6 +42,12 @@ def OmniGraph "TestGraph"
         )
         custom uint64 inputs:dataPtrRight = 0 (
             docs="""Pointer to the raw data (cuda device pointer or host pointer)"""
+        )
+        custom uint inputs:depthHeight = 560 (
+            docs="""Height of the streamed depth map in pixels (Left+Depth mode). Must match the depth buffer."""
+        )
+        custom uint inputs:depthWidth = 896 (
+            docs="""Width of the streamed depth map in pixels (Left+Depth mode). Must match the depth buffer."""
         )
         custom uint inputs:execIn = 0 (
             docs="""Triggers execution"""
@@ -82,20 +85,11 @@ def OmniGraph "TestGraph"
         custom bool inputs:streamDepth = false (
             docs="""Enable Left+Depth streaming mode instead of Left+Right"""
         )
-        custom double inputs:systemTime = 0.0 (
-            docs="""system time"""
-        )
         custom token inputs:transportLayerMode = "BOTH" (
             docs="""Communication protocol used to send data to the ZED SDK."""
         )
         custom uint inputs:width = 960 (
             docs="""Camera stream width in pixels."""
-        )
-        custom float inputs:zedSim2RealAeTarget = -1.0 (
-            docs="""Override the sim2real AE set-point (median display luma 0..1). <=0 = calibrated default (~0.45). Raise to brighten the modeled image, e.g. to sit closer to the raw render's tone mapping."""
-        )
-        custom float inputs:zedSim2RealSceneLux = 0.0 (
-            docs="""Absolute scene illuminance in lux for the sim2real's gain-ceiling AE and gain-coupled noise. 0 = bright scene"""
         )
     }
 }

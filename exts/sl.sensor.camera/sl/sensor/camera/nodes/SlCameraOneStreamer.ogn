@@ -1,6 +1,6 @@
 {
     "ZED_Camera_One": {
-        "version": 4,
+        "version": 5,
         "categories": {
             "Stereolabs": "Nodes used with the Stereolabs ZED SDK"
         },
@@ -153,44 +153,65 @@
             },
             "applyZedSim2Real": {
                 "type": "bool",
-                "description": [
-                    "Post-process the streamed frames with the calibrated ZED Sim2Real camera model",
-                    "so the simulated image matches a real ZED X.",
-                    "",
-                    "Models: lens blur (MTF), vignetting, auto-exposure, white balance,",
-                    "tone curve, sharpening and gain-coupled sensor noise.",
-                    "",
-                    "Can be toggled live while playing."
-                ],
-                "default": false,
+                "default": true,
+                "description": "Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting and sharpness, each with its own switch below. Off streams the render as is (the scene's own camera exposure, plain sRGB). Can be toggled live.",
                 "metadata": {
-                    "uiName": "Apply",
+                    "uiName": "Apply ZED Sim2Real",
                     "uiGroup": "ZED Sim2Real"
                 }
             },
-            "zedSim2RealSceneLux": {
-                "type": "float",
-                "description": [
-                    "Assumed scene illuminance (lux) for low-light modeling.",
-                    "Only used when Apply is on; tunable live while playing.",
-                    "",
-                    "0 or less = bright scene: no extra darkening or added noise.",
-                    "A positive value simulates a dimmer scene: the lower the lux,",
-                    "the darker and noisier the image (gain-coupled sensor noise),",
-                    "matching how a real ZED gains up in low light."
-                ],
-                "default": 0.0,
+            "autoExposure": {
+                "type": "bool",
+                "default": true,
+                "description": "Real-camera auto exposure: meters the rendered HDR image and drives the cameras' exposure time and gain (exposure:time / exposure:iso) like a real ZED X. Off keeps the scene's own camera exposure. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.",
                 "metadata": {
-                    "uiName": "Scene Lux",
+                    "uiName": "Auto exposure",
                     "uiGroup": "ZED Sim2Real"
                 }
             },
-            "zedSim2RealAeTarget": {
-                "type": "float",
-                "description": "Override the ZED Sim2Real AE set-point (median display luma 0..1). <=0 = calibrated default (~0.45). Raise to brighten the modeled image.",
-                "default": -1.0,
+            "autoWhiteBalance": {
+                "type": "bool",
+                "default": true,
+                "description": "Real-camera auto white balance: estimates the light's colour from the rendered image and balances it like a real ZED X, including its limits (warm lights such as tungsten keep part of their orange cast). Off streams the render's own colours. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.",
                 "metadata": {
-                    "uiName": "ZED Sim2Real AE target"
+                    "uiName": "Auto white balance",
+                    "uiGroup": "ZED Sim2Real"
+                }
+            },
+            "sensorNoise": {
+                "type": "bool",
+                "default": true,
+                "description": "Sensor noise of a real ZED X, following the camera's gain (exposure:iso): nearly clean in daylight, visible grain in dim scenes, snow at maximum gain in the dark. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.",
+                "metadata": {
+                    "uiName": "Sensor noise",
+                    "uiGroup": "ZED Sim2Real"
+                }
+            },
+            "motionBlur": {
+                "type": "bool",
+                "default": true,
+                "description": "Motion blur over each frame's exposure time, as on a real ZED X: sharp in daylight (sub-millisecond exposures), smeared indoors and in the dark (up to the full frame time). Follows the auto exposure, or the camera's exposure:time when it is off, per camera and per frame. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.",
+                "metadata": {
+                    "uiName": "Motion blur",
+                    "uiGroup": "ZED Sim2Real"
+                }
+            },
+            "vignetting": {
+                "type": "bool",
+                "default": true,
+                "description": "Lens vignetting of a real ZED X: the image darkens towards its edges. Scaled by field angle, so narrower lenses darken less; not applied to fisheye lenses. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.",
+                "metadata": {
+                    "uiName": "Vignetting",
+                    "uiGroup": "ZED Sim2Real"
+                }
+            },
+            "cameraSharpness": {
+                "type": "bool",
+                "default": true,
+                "description": "Sharpness of a real ZED X instead of the renderer's: the render is much crisper than the camera, which softens fine detail and sharpens edges with light halos. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.",
+                "metadata": {
+                    "uiName": "Camera sharpness",
+                    "uiGroup": "ZED Sim2Real"
                 }
             }
         }
