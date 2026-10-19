@@ -28,6 +28,18 @@
       "version": 1,
       "uiName": "ZED Depth",
       "language": "Python"
+    },
+    "ZED_HdrToSrgb": {
+      "description": "Encodes a render product's linear HdrColor into the sRGB RGBA8 image streamed by the ZED node",
+      "version": 1,
+      "uiName": "ZED HDR to sRGB",
+      "language": "Python"
+    },
+    "ZED_ImuNoise": {
+      "description": "Adds a real ZED X IMU's noise and bias to the IMU reading streamed by the ZED node",
+      "version": 1,
+      "uiName": "ZED IMU Noise",
+      "language": "Python"
     }
   }
 }

@@ -1,235 +1,249 @@
-"""Python binding for the ZED Sim2Real camera model (the ``sl_zed_sim2real`` shared library).
+"""ZED Sim2Real for Isaac Lab: the ZED X camera model on camera tensors.
 
-Applies the same calibrated "ZED X look" the streaming path uses, but to in-process
-frames: GPU torch tensors (Isaac Lab tensor path) or host numpy arrays (dataset capture).
-It is a thin ctypes wrapper over the library's C ABI (``include/sl_zed_sim2real.h``); the
-heavy lifting (CUDA kernels, auto-exposure) lives in the library, so this is the same
-implementation the C++ streaming plugin runs, not a reimplementation.
+The same camera model the streamed images get (the ``sl_zed_sim2real`` library, see camera_model_lib.py),
+for in-process frames: from Isaac Lab's linear HDR output (``"rgb_hdr"``) to the image a real ZED X
+outputs, with its auto exposure, auto white balance, sensor noise at the chosen gain, lens vignetting
+and sharpness. One auto exposure and white balance per env; both eyes of an env share them (the left
+drives, as on the real camera).
 
-Kit-free: depends only on ctypes (+ torch or numpy at call time), so it imports in
-standalone Isaac Lab / Isaac Sim scripts.
+The cameras render at a fixed reference exposure (:meth:`ZedSim2Real.prepare_cameras`, once, before
+the sensors start) and each env's exposure is applied to its linear image as a gain: the renderer's
+HDR image scales linearly with exposure, so this matches rendering each env at its own exposure.
 
-Typical use (Isaac Lab, one independent auto-exposure state per env)::
+Kit-free (ctypes, and torch at call time)::
 
     from sl.sensor.camera.zed_sim2real import ZedSim2Real
-    sim2real = ZedSim2Real(num_states=num_envs)      # None -> library unavailable, calls no-op
+    cam_cfg = make_camera_cfg(paths["left"], "ZED_X", "SVGA", data_types=["rgb_hdr"])
+    sim2real = ZedSim2Real(num_envs, camera_model="ZED_X", resolution="SVGA")
+    sim2real.prepare_cameras(stage, left_and_right_prim_paths)   # before sim.reset()
     ...
-    rgb = unwrap_output(cam.data.output, "rgb")   # (N, H, W, C) uint8 cuda tensor
-    sim2real.apply(rgb, scene_lux=0.0)                # degrades rgb in place
+    rgb_l, rgb_r = sim2real.apply(cam_l.data.output["rgb_hdr"], cam_r.data.output["rgb_hdr"], dt=1 / 30)
+
+Faults set through the environment (SL_SIM2REAL_SOIL, SL_SIM2REAL_EYE_EV, ...; see the library's
+header) apply here too.
 """
 from __future__ import annotations
 
 import ctypes
-import os
-from pathlib import Path
-from typing import List, Optional
+from typing import Iterable, Optional
 
-# Must match SL_ZED_SIM2REAL_ABI_VERSION in include/sl_zed_sim2real.h. Bump both together when
-# the C ABI changes; the loader refuses a library that reports a different value.
-_ABI_VERSION = 1
+from . import camera_model_lib
 
-# ------------------------------------------------------------------ library loading
-_LIB = None
-_LOAD_TRIED = False
-_WARNED_FAILURE = False
+# Exposure the cameras render at (exposure:time, s; gain 1); each env's auto exposure scales from it.
+REFERENCE_EXPOSURE_S = 1e-3
 
 
-def _candidate_paths() -> List[Path]:
-    """Where to look for the shared library, most specific first."""
-    if os.name == "nt":
-        name = "sl_zed_sim2real.dll"
-    else:
-        name = "libsl_zed_sim2real.so"
-    env = os.environ.get("SL_ZED_SIM2REAL_PATH")
-    cands: List[Path] = []
-    if env:
-        p = Path(env)
-        cands.append(p / name if p.is_dir() else p)
-    # exts/sl.sensor.camera/bin/  (parents: camera, sensor, sl, sl.sensor.camera)
-    ext_root = Path(__file__).resolve().parents[3]
-    cands.append(ext_root / "bin" / name)
-    cands.append(Path(name))  # let the OS loader search its default paths
-    return cands
+def _torch(t):
+    """A torch tensor from a tensor or an Isaac Lab output (ProxyArray, ``.torch``)."""
+    return t.torch if hasattr(t, "torch") else t
 
 
-def _load():
-    """Load the library once; return the CDLL handle or None if unavailable."""
-    global _LIB, _LOAD_TRIED
-    if _LOAD_TRIED:
-        return _LIB
-    _LOAD_TRIED = True
-    for path in _candidate_paths():
-        try:
-            lib = ctypes.CDLL(str(path))
-        except OSError:
-            continue
-        _bind(lib)
-        abi = lib.sl_zed_sim2real_abi_version()
-        if abi != _ABI_VERSION:
-            print(f"[ZED] sl_zed_sim2real ABI mismatch (lib {abi}, expected {_ABI_VERSION}) "
-                  f"at {path}; ZED Sim2Real disabled")
-            continue
-        _LIB = lib
-        return _LIB
-    return None
+def _srgb8(linear):
+    """Plain sRGB of a linear (..., 3) float tensor, as uint8 (no camera model)."""
+    import torch
+
+    v = linear.float().clamp(0.0, 1.0)
+    v = torch.where(v <= 0.0031308, 12.92 * v, 1.055 * v.clamp(min=0.0031308) ** (1 / 2.4) - 0.055)
+    return (v * 255.0 + 0.5).clamp(0, 255).to(torch.uint8)
 
 
-def _bind(lib) -> None:
-    """Declare the C ABI signatures (see include/sl_zed_sim2real.h)."""
-    P = ctypes.c_void_p
-    lib.sl_zed_sim2real_abi_version.restype = ctypes.c_int
-    lib.sl_zed_sim2real_engine_create.restype = P
-    lib.sl_zed_sim2real_engine_destroy.argtypes = [P]
-    lib.sl_zed_sim2real_state_create.restype = P
-    lib.sl_zed_sim2real_state_create.argtypes = [ctypes.c_uint]
-    lib.sl_zed_sim2real_state_destroy.argtypes = [P]
-    lib.sl_zed_sim2real_process_device.restype = ctypes.c_int
-    lib.sl_zed_sim2real_process_device.argtypes = [
-        P, P, P, ctypes.c_int, ctypes.c_int, P, ctypes.c_int, ctypes.c_float, ctypes.c_int]
-    lib.sl_zed_sim2real_process_host.restype = ctypes.c_int
-    lib.sl_zed_sim2real_process_host.argtypes = [
-        P, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_int]
-    # per-stream overrides (v0.2.0, additive; absent in older libraries)
-    if hasattr(lib, "sl_zed_sim2real_state_set_ae_target"):
-        lib.sl_zed_sim2real_state_set_ae_target.argtypes = [P, ctypes.c_float]
-        lib.sl_zed_sim2real_state_set_noise.argtypes = [P] + [ctypes.c_float] * 3
-
-
-def available() -> bool:
-    """True if the shared library loaded and can process frames."""
-    return _load() is not None
-
-
-# ------------------------------------------------------------------ high-level API
 class ZedSim2Real:
-    """Holds the GPU engine (shared scratch) and one auto-exposure state per stream/env.
+    """The ZED X camera model on batches of Isaac Lab camera frames.
 
-    If the library is unavailable, every method is a safe no-op and :pyattr:`ok` is False,
-    so callers can wire it in unconditionally.
+    Args:
+        num_envs: frames per batch (one auto exposure / white balance each).
+        camera_model, resolution: the ZED camera and resolution the sensors render (for the lens falloff).
+        fps: the camera's frame rate (auto exposure ranges and dynamics).
+        auto_exposure, auto_white_balance, sensor_noise, vignetting, camera_sharpness: the camera
+            model's effects, as on the ZED Camera Helper node.
+        seed: decorrelates this instance's noise from other instances'.
     """
 
-    def __init__(self, num_states: int = 1):
-        self._lib = _load()
-        self._engine = None
-        self._states: List[Optional[ctypes.c_void_p]] = []
+    def __init__(self, num_envs: int = 1, camera_model: str = "ZED_X", resolution: str = "SVGA",
+                 fps: float = 30.0, *, auto_exposure: bool = True, auto_white_balance: bool = True,
+                 sensor_noise: bool = True, vignetting: bool = True, camera_sharpness: bool = True, seed: int = 0):
+        self._lib = camera_model_lib.lib()
+        self.num_envs = int(num_envs)
+        self.fps = float(fps)
+        self.auto_exposure = bool(auto_exposure)
+        self.auto_white_balance = bool(auto_white_balance)
+        self.sensor_noise = bool(sensor_noise)
+        self.camera_sharpness = bool(camera_sharpness)
+        self.seed = int(seed)
+        self._frame = 0
+        self._inv_f = 0.0
+        if vignetting:
+            from .utils import LensType, get_lens_type, get_pinhole_parameters
+
+            params = get_pinhole_parameters(camera_model, resolution) or {}
+            if params.get("focal_length_px") and get_lens_type(camera_model) != LensType.FISHEYE:
+                self._inv_f = 1.0 / float(params["focal_length_px"])
+        self._encoder = None
+        self._meters, self._ae, self._awb = [], [], []
+        self._buf = self._out = None
+        from .auto_exposure import AeLimits, Photometry, ZedAutoExposure, zedx_image_level
+
+        self._photometry = Photometry()
+        self._target = zedx_image_level()
         if self._lib is None:
             return
-        self._engine = self._lib.sl_zed_sim2real_engine_create()
-        # Seed each state with its index so per-env sensor noise is decorrelated.
-        self._states = [self._lib.sl_zed_sim2real_state_create(i) for i in range(max(1, num_states))]
+        from .auto_white_balance import ZedAutoWhiteBalance
+
+        self._encoder = self._lib.sl_zed_sim2real_encoder_create()
+        limits = AeLimits(fps=self.fps)
+        for _ in range(self.num_envs):
+            self._meters.append(self._lib.sl_zed_sim2real_meter_create(0))
+            self._ae.append(ZedAutoExposure(limits, photometry=self._photometry))
+            self._awb.append(ZedAutoWhiteBalance())
 
     @property
     def ok(self) -> bool:
-        return self._lib is not None and self._engine is not None
+        """False when the library is unavailable: apply() then returns plain sRGB."""
+        return self._encoder is not None
 
-    def _ensure_states(self, n: int) -> None:
-        while len(self._states) < n:
-            self._states.append(self._lib.sl_zed_sim2real_state_create(len(self._states)))
+    def prepare_cameras(self, stage, camera_prim_paths: Iterable[str], fstop: Optional[float] = None) -> int:
+        """Render the cameras at the reference exposure, with the ZED X's responsivity (so the auto exposure
+        picks the real camera's exposure time and gain for the scene's light). Call once, before the sensors
+        start. Returns the number of camera prims set."""
+        from pxr import Sdf
 
-    def set_ae_target(self, target01: float, state_index: int = 0) -> None:
-        """Override the AE set-point (median display luma 0..1) for one stream,
-        e.g. to match a real capture whose metering differs from the calibrated
-        default. <=0 restores the default. No-op on libraries older than v0.2.0."""
-        if not self.ok or not hasattr(self._lib, "sl_zed_sim2real_state_set_ae_target"):
-            return
-        self._ensure_states(state_index + 1)
-        self._lib.sl_zed_sim2real_state_set_ae_target(self._states[state_index], float(target01))
+        from .auto_exposure import RTX_AUTO_EXPOSURE_ATTR, zedx_responsivity
 
-    def set_noise(self, noise_gain: float = -1.0, salt_p: float = -1.0,
-                  salt_amp: float = -1.0, state_index: int = 0) -> None:
-        """Override the noise block for one stream (base gain on the sensor-noise
-        tables, residue-speckle probability/amplitude). <=0 keeps each default.
-        No-op on libraries older than v0.2.0."""
-        if not self.ok or not hasattr(self._lib, "sl_zed_sim2real_state_set_noise"):
-            return
-        self._ensure_states(state_index + 1)
-        self._lib.sl_zed_sim2real_state_set_noise(
-            self._states[state_index], float(noise_gain), float(salt_p), float(salt_amp))
+        n = 0
+        for path in camera_prim_paths:
+            prim = stage.GetPrimAtPath(path)
+            if not prim or not prim.IsValid():
+                continue
+            f_attr = prim.GetAttribute("exposure:fStop")
+            f = float(fstop or (f_attr.Get() if f_attr and f_attr.Get() else 5.0))
+            values = {"exposure:time": REFERENCE_EXPOSURE_S, "exposure:iso": 100.0,
+                      "exposure:responsivity": zedx_responsivity(self._target, f)}
+            for name, value in values.items():
+                attr = prim.GetAttribute(name) or prim.CreateAttribute(name, Sdf.ValueTypeNames.Float)
+                attr.Set(float(value))
+            rtx_ae = prim.GetAttribute(RTX_AUTO_EXPOSURE_ATTR) or prim.CreateAttribute(RTX_AUTO_EXPOSURE_ATTR,
+                                                                                         Sdf.ValueTypeNames.Bool)
+            rtx_ae.Set(False)
+            self._photometry.fstop = f
+            self._photometry.responsivity = values["exposure:responsivity"]
+            n += 1
+        return n
 
-    def apply(self, rgb, scene_lux: float = 0.0, advance: bool = True, stream=None):
-        """Apply the sim2real to a GPU uint8 RGB(A) tensor, in place.
+    def exposure(self, env: int = 0):
+        """An env's auto exposure state (exposure_s, analog_gain, digital_gain, scene_lux, ...); None without
+        the library."""
+        return self._ae[env].state if self.ok else None
 
-        rgb: torch.Tensor, ``(H, W, C)`` or ``(N, H, W, C)``, ``uint8``, on CUDA, C in {3, 4}.
-             One state per leading env is used (created on demand). A 3-channel tensor is
-             padded to RGBA internally and the RGB result copied back.
-        advance: update auto-exposure from this frame (False to reuse, e.g. a stereo right
-                 eye sharing the left eye's state).
-        Returns rgb (unchanged object) for convenience; no-op if the library is unavailable.
-        """
-        if not self.ok or rgb is None:
-            return rgb
-        import torch  # local import keeps this module importable without torch
+    def white_balance(self, env: int = 0):
+        """An env's white balance gains (R, G, B); None before the first metered frame or without the library."""
+        return self._awb[env].gains if self.ok else None
 
-        if rgb.dtype != torch.uint8 or not rgb.is_cuda:
-            raise ValueError("ZedSim2Real.apply expects a uint8 CUDA tensor")
-        batched = rgb.ndim == 4
-        frames = rgb if batched else rgb.unsqueeze(0)
-        n, h, w, c = frames.shape
-        if c not in (3, 4):
-            raise ValueError(f"ZedSim2Real.apply expects 3 or 4 channels, got {c}")
-        # We write the result back into `rgb`; a non-contiguous tensor can't be updated in place
-        # correctly here. Fail loud rather than silently degrade the wrong memory.
-        if not rgb.is_contiguous():
-            raise ValueError("ZedSim2Real.apply expects a contiguous tensor; call .contiguous() first")
-        self._ensure_states(n)
-        # The kernels run on the caller's current CUDA stream, i.e. the same stream Isaac Lab's
-        # renderer/tensor path uses in these single-stream scripts. If you drive rendering on a
-        # separate stream, pass its handle explicitly to avoid a read-before-write hazard.
-        if stream is None:
-            stream = torch.cuda.current_stream(rgb.device).cuda_stream
+    def apply(self, hdr_left, hdr_right=None, dt: Optional[float] = None):
+        """Encode one batch. ``hdr_left`` / ``hdr_right``: Isaac Lab ``"rgb_hdr"`` outputs, (N, H, W, 3 or 4)
+        float on the GPU, rendered at the reference exposure. ``dt``: time since the previous batch (the
+        camera's frame period by default). Returns ``(rgb_left, rgb_right)``, (N, H, W, 3) uint8 on the same
+        device (``rgb_right`` None without ``hdr_right``)."""
+        import torch
 
-        for i in range(n):
-            frame = frames[i]                                   # (H, W, C) view (contiguous)
-            if c == 4:
-                ok = self._lib.sl_zed_sim2real_process_device(
-                    self._engine, self._states[i], ctypes.c_void_p(frame.data_ptr()),
-                    w, h, ctypes.c_void_p(stream), 1, float(scene_lux), int(advance))
-            else:                                               # pad RGB -> RGBA, copy back
-                rgba = torch.empty((h, w, 4), dtype=torch.uint8, device=frame.device)
-                rgba[..., :3] = frame
-                rgba[..., 3] = 255
-                ok = self._lib.sl_zed_sim2real_process_device(
-                    self._engine, self._states[i], ctypes.c_void_p(rgba.data_ptr()),
-                    w, h, ctypes.c_void_p(stream), 1, float(scene_lux), int(advance))
-                if ok:
-                    frame.copy_(rgba[..., :3])
-            if not ok:
-                self._warn_failure_once()
-        return rgb
+        left = _torch(hdr_left)
+        right = _torch(hdr_right) if hdr_right is not None else None
+        if left.dim() == 3:
+            left = left.unsqueeze(0)
+            right = right.unsqueeze(0) if right is not None else None
+        n, h, w = int(left.shape[0]), int(left.shape[1]), int(left.shape[2])
+        if n != self.num_envs:
+            raise ValueError(f"ZedSim2Real was made for {self.num_envs} envs, got a batch of {n}")
+        dt = float(dt) if dt else 1.0 / self.fps
+        if self.ok and self.auto_exposure:
+            scale = torch.tensor([ae.state.total / REFERENCE_EXPOSURE_S for ae in self._ae], device=left.device,
+                                 dtype=torch.float32)
+        else:
+            scale = torch.ones(n, device=left.device, dtype=torch.float32)
+        outs = []
+        for eye, hdr in enumerate((left, right)):
+            if hdr is None:
+                outs.append(None)
+                continue
+            buf = self._scaled(hdr, scale, eye)
+            if not self.ok:
+                outs.append(_srgb8(buf[..., :3]))
+                continue
+            outs.append(self._encode(buf, eye, n, h, w))
+            if eye == 0:
+                self._meter(buf, n, h, w, dt)
+        self._frame += 1
+        return outs[0], outs[1]
+
+    # ---- internals ---------------------------------------------------------------------------
+    def _scaled(self, hdr, scale, eye):
+        """The eye's frames at each env's exposure, as the RGBA float16 the library reads."""
+        import torch
+
+        n, h, w = int(hdr.shape[0]), int(hdr.shape[1]), int(hdr.shape[2])
+        if self._buf is None or tuple(self._buf.shape[1:4]) != (n, h, w) or self._buf.device != hdr.device:
+            self._buf = torch.empty((2, n, h, w, 4), dtype=torch.float16, device=hdr.device)
+            self._buf[..., 3] = 1.0
+            self._out = torch.empty((2, n, h, w, 4), dtype=torch.uint8, device=hdr.device)
+        buf = self._buf[eye]
+        buf[..., :3] = (hdr[..., :3].float() * scale.view(n, 1, 1, 1)).clamp_(0.0, 65000.0)
+        return buf
 
     @staticmethod
-    def _warn_failure_once() -> None:
-        global _WARNED_FAILURE
-        if not _WARNED_FAILURE:
-            _WARNED_FAILURE = True
-            print("[ZED] sl_zed_sim2real GPU processing failed; frames pass through unmodified")
+    def _stream(t):
+        import torch
 
-    def apply_numpy(self, rgba, scene_lux: float = 0.0, advance: bool = True, state_index: int = 0):
-        """Apply the sim2real to a host numpy uint8 array ``(H, W, 4)`` (RGBA), in place (CPU path)."""
-        if not self.ok or rgba is None:
-            return rgba
-        import numpy as np
+        return ctypes.c_void_p(torch.cuda.current_stream(t.device).cuda_stream)
 
-        if rgba.dtype != np.uint8 or rgba.ndim != 3 or rgba.shape[2] != 4:
-            raise ValueError("ZedSim2Real.apply_numpy expects a (H, W, 4) uint8 array")
-        rgba = np.ascontiguousarray(rgba)
-        h, w = rgba.shape[0], rgba.shape[1]
-        self._ensure_states(state_index + 1)
-        ptr = rgba.ctypes.data_as(ctypes.c_char_p)
-        self._lib.sl_zed_sim2real_process_host(
-            self._states[state_index], ptr, w, h, 1, float(scene_lux), int(advance))
-        return rgba
+    def _encode(self, buf, eye, n, h, w):
+        out = self._out[eye]
+        stream = self._stream(buf)
+        for i in range(n):
+            ae, awb = self._ae[i].state, self._awb[i].gains
+            if not self.sensor_noise:
+                gain = 0.0
+            else:
+                gain = ae.analog_gain * ae.digital_gain if self.auto_exposure else 1.0
+            wb = awb if (self.auto_white_balance and awb) else (0.0, 0.0, 0.0)
+            p = camera_model_lib.EncodeParams(
+                seed=(self._frame * 7919 + (self.seed * 4096 + i * 2 + eye) * 104729) & 0x7FFFFFFF,
+                gain=float(gain), vignette_inv_f=float(self._inv_f), blur_scale=0.0, light_gain=1.0,
+                white_balance=camera_model_lib.f3(wb), sharpness=1 if self.camera_sharpness else 0, edge_noise=1,
+                eye=eye)
+            ok = self._lib.sl_zed_sim2real_encode_device(self._encoder, buf[i].data_ptr(), w * 8, 8, w, h,
+                                                         out[i].data_ptr(), None, ctypes.byref(p), stream)
+            if not ok:
+                raise RuntimeError("ZED X camera model: GPU encode failed")
+        return out[..., :3].contiguous()
+
+    def _meter(self, buf, n, h, w, dt):
+        """Meter the left eye's frames; the auto exposure and white balance act on the previous batch's."""
+        stream = self._stream(buf)
+        for i in range(n):
+            awb = self._awb[i]
+            wb = awb.gains if (self.auto_white_balance and awb.gains) else (0.0, 0.0, 0.0)
+            view = camera_model_lib.MeterView(vignette_inv_f=float(self._inv_f), white_balance=camera_model_lib.f3(wb),
+                                              neutral_ref=camera_model_lib.f2(awb.neutral),
+                                              roi=camera_model_lib.f4((0.0, 0.0, 0.0, 0.0)))
+            img = camera_model_lib.MeterImage(data=buf[i].data_ptr(), row_stride=w * 8, pixel_stride=8,
+                                              element_bytes=2, w=w, h=h)
+            stats = camera_model_lib.MeterStats()
+            if not self._lib.sl_zed_sim2real_meter_update(self._meters[i], ctypes.byref(img), ctypes.byref(view),
+                                                          self._frame, stream, ctypes.byref(stats)):
+                continue  # the first result arrives one batch later
+            if self.auto_exposure:
+                self._ae[i].update(stats, dt)
+            if self.auto_white_balance:
+                awb.update_stats(stats, dt, self._ae[i].state.error_ev or 0.0)
 
     def close(self) -> None:
-        if self._lib is None:
+        """Free the library's buffers (also on garbage collection)."""
+        if self._encoder is None:
             return
-        for s in self._states:
-            if s:
-                self._lib.sl_zed_sim2real_state_destroy(s)
-        self._states = []
-        if self._engine:
-            self._lib.sl_zed_sim2real_engine_destroy(self._engine)
-            self._engine = None
+        for m in self._meters:
+            self._lib.sl_zed_sim2real_meter_destroy(m)
+        self._meters = []
+        self._lib.sl_zed_sim2real_encoder_destroy(self._encoder)
+        self._encoder = None
 
     def __del__(self):
         try:

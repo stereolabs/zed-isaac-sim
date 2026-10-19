@@ -18,8 +18,8 @@ except ImportError:
 class LensType(Enum):
     """Lens fitted to a camera model.
 
-    - WIDE: standard wide-angle lens (formerly ``is_4mm == False``)
-    - NARROW: 4mm narrow-angle lens (formerly ``is_4mm == True``)
+    - WIDE: standard wide-angle lens
+    - NARROW: 4mm narrow-angle lens
     - FISHEYE: fisheye lens (OpenCV fisheye distortion model)
     """
     WIDE = "Wide"
@@ -51,7 +51,7 @@ _ZED_XONE_S_FISHEYE_SPECIFICATIONS = {
     "HD1080": {
         "resolution": [1920, 1080],
         "focal_length": {"standard": 460},
-        "optical_center": [960, 480]
+        "optical_center": [960, 540]
     },
     "SVGA": {
         "resolution": [960, 600],
@@ -67,11 +67,11 @@ _DISTORTION_COEFFICIENTS = {
 
 _ZED_XONE_UHD_SPECIFICATIONS = {
     "HD4K": {
-        "resolution": [3856, 2180],
+        "resolution": [3840, 2160],
         "focal_length": {"standard": 1550}
     },
     "QHDPLUS": {
-        "resolution": [3856, 2180],
+        "resolution": [3200, 1800],
         "focal_length": {"standard": 1550}
     },
     "HD1200": {
@@ -108,25 +108,25 @@ _ZED_M_SPECIFICATIONS = {
 
 # ZED 2i specifications. Classic ZED SDK resolution family (HD2K/HD1080/HD720/VGA), 120mm
 # baseline, 2 um pixels. The 2.1mm (standard/Wide) lens is the same optics class as the ZED
-# Mini, so its rectified fx values match the ZED_M factory values; the 4mm (Narrow) fx scales
-# by the focal ratio 4.0/2.1. HD2K and HD1080 share fx (FHD is a crop of 2K); HD720/VGA are
+# Mini, so its rectified fx values match the ZED_M factory values; the 4mm (Narrow) fx values
+# are the ZED SDK's nominal ones. HD2K and HD1080 share fx (FHD is a crop of 2K); HD720/VGA are
 # downscales.
 _ZED_2I_SPECIFICATIONS = {
     "HD2K": {
         "resolution": [2208, 1242],
-        "focal_length": {"standard": 1059.6, "4mm": 2018.5}
+        "focal_length": {"standard": 1059.6, "4mm": 1952.5}
     },
     "HD1080": {
         "resolution": [1920, 1080],
-        "focal_length": {"standard": 1059.6, "4mm": 2018.5}
+        "focal_length": {"standard": 1059.6, "4mm": 1952.5}
     },
     "HD720": {
         "resolution": [1280, 720],
-        "focal_length": {"standard": 529.8, "4mm": 1009.3}
+        "focal_length": {"standard": 529.8, "4mm": 976.25}
     },
     "VGA": {
         "resolution": [672, 376],
-        "focal_length": {"standard": 264.9, "4mm": 504.6}
+        "focal_length": {"standard": 264.9, "4mm": 488.125}
     }
 }
 
@@ -151,31 +151,6 @@ _CAMERA_CONFIGS = {
     "ZED_2i": {"base_model": "ZED_2i", "lens_type": LensType.WIDE, "is_stereo": True, "pixel_size": 2, "baseline_mm": 120.0},
     "ZED_2i_4MM": {"base_model": "ZED_2i", "lens_type": LensType.NARROW, "is_stereo": True, "pixel_size": 2, "baseline_mm": 120.0},
 }
-
-# Resolutions supported by each camera model, in the order they should appear in
-# the Resolution dropdown. This is the single source of truth shared by the OGN
-# node property templates (UI filtering) and the runtime validation in annotators.py.
-# It mirrors the model dispatch in get_resolution()/get_focal_length() below.
-# When adding a new camera model, add its supported resolutions here.
-_MODEL_ALLOWED_RESOLUTIONS = {
-    "ZED_X":               ["HD1200", "HD1080", "SVGA"],
-    "ZED_XM":              ["HD1200", "HD1080", "SVGA"],
-    "ZED_X_4MM":           ["HD1200", "HD1080", "SVGA"],
-    "ZED_XM_4MM":          ["HD1200", "HD1080", "SVGA"],
-    "ZED_X_Nano":          ["HD1200", "HD1080", "SVGA"],
-    "ZED_XONE_GS":         ["HD1200", "HD1080", "SVGA"],
-    "ZED_XONE_GS_4MM":     ["HD1200", "HD1080", "SVGA"],
-    "ZED_XONE_UHD":        ["HD4K", "QHDPLUS", "HD1200", "HD1080"],
-    "ZED_XONE_S":          ["HD1200", "HD1080", "SVGA"],
-    "ZED_XONE_S_4MM":      ["HD1200", "HD1080", "SVGA"],
-    "ZED_XONE_S_FISHEYE":  ["HD1200", "HD1080", "SVGA"],
-    "ZED_M":               ["HD2K", "HD1080", "HD720", "VGA"],
-    "ZED_2i":              ["HD2K", "HD1080", "HD720", "VGA"],
-    "ZED_2i_4MM":          ["HD2K", "HD1080", "HD720", "VGA"],
-}
-
-# Fallback for unknown models: the union of all known resolutions.
-_DEFAULT_RESOLUTIONS = ["HD4K", "QHDPLUS", "HD1200", "HD1080", "SVGA"]
 
 # Reverse of _CAMERA_CONFIGS: (base_model, lens_type) -> full composite token.
 # Lets the UI expose base model and lens as two separate dropdowns and recompose
@@ -232,14 +207,16 @@ _MODEL_DEFAULT_RESOLUTION = {
 def get_allowed_resolutions(camera_model: str) -> List[str]:
     """Get the list of resolutions supported by a camera model.
 
+    Shared by the OGN node property templates (Resolution dropdown) and the runtime validation.
+
     Args:
         camera_model: The camera model name
 
     Returns:
-        Supported resolution names, in display order. Falls back to the union of
-        all known resolutions for unrecognized models.
+        Supported resolution names, in display order: those of the model's spec table (the
+        ZED X family's for unrecognized models, as get_resolution() uses).
     """
-    return _MODEL_ALLOWED_RESOLUTIONS.get(camera_model, _DEFAULT_RESOLUTIONS)
+    return list(_get_spec_dict(camera_model))
 
 
 def is_resolution_valid(camera_model: str, resolution: str) -> bool:
@@ -253,6 +230,28 @@ def is_resolution_valid(camera_model: str, resolution: str) -> bool:
         True if the resolution is supported by the model, False otherwise
     """
     return resolution in get_allowed_resolutions(camera_model)
+
+
+def resolve_resolution_token(camera_model: str, resolution: str) -> str:
+    """The resolution a camera will actually use, clamping an unsupported one with a warning.
+
+    For the OGN-driven paths, where the resolution is a settable graph attribute. The Isaac Lab
+    helpers are a plain Python API and raise instead.
+
+    Args:
+        camera_model: The camera model name
+        resolution: The requested resolution name
+
+    Returns:
+        `resolution` when the model supports it, else the model's first supported resolution
+    """
+    if is_resolution_valid(camera_model, resolution):
+        return resolution
+    allowed = get_allowed_resolutions(camera_model)
+    fallback = allowed[0] if allowed else resolution
+    _log_warn(f"[ZED] Resolution '{resolution}' is not supported by camera model "
+              f"'{camera_model}'. Falling back to '{fallback}'.")
+    return fallback
 
 
 def get_default_resolution(camera_model: str, ogn_default: Optional[str] = None) -> Optional[str]:
@@ -363,10 +362,10 @@ def compose_model(base_model: str, lens_type: str) -> str:
     return _MODEL_BY_BASE_LENS.get((base_model, lens_enum), base_model)
 
 
-# Maps a camera model to its resolution/focal-length specification dictionary.
-# Models not listed use the ZED X family specs (_ZEDX_SPECIFICATIONS). Keyed on the
-# full model token (not base_model) because ZED_XONE_S_FISHEYE and ZED_XONE_S share a
-# base_model but need different specs. Add new families (e.g. ZED 2i) here.
+# Maps a camera model to its resolution/focal-length specification dictionary, whose key order
+# is the Resolution dropdown order. Models not listed use the ZED X family specs
+# (_ZEDX_SPECIFICATIONS). Keyed on the full model token (not base_model) because
+# ZED_XONE_S_FISHEYE and ZED_XONE_S share a base_model but need different specs.
 _SPECIFICATIONS_BY_MODEL = {
     "ZED_XONE_UHD":       _ZED_XONE_UHD_SPECIFICATIONS,
     "ZED_XONE_S_FISHEYE": _ZED_XONE_S_FISHEYE_SPECIFICATIONS,
@@ -393,7 +392,7 @@ def get_resolution(camera_model: str, camera_resolution: str) -> Optional[List[i
     spec = _get_spec_dict(camera_model).get(camera_resolution)
 
     if spec is None:
-        _log_warn(f"Unknown resolution '{camera_resolution}' for camera model '{camera_model}'")
+        _log_warn(f"[ZED] Unknown resolution '{camera_resolution}' for camera model '{camera_model}'")
     return spec["resolution"] if spec else None
 
 def get_focal_length(camera_model: str, camera_resolution: List[int], lens_type: LensType) -> float:
@@ -412,12 +411,10 @@ def get_focal_length(camera_model: str, camera_resolution: List[int], lens_type:
     # and fisheye lenses use the "standard" focal length of their spec.
     focal_key = "4mm" if lens_type == LensType.NARROW else "standard"
 
-    # Find the specification by matching height
     for spec in _get_spec_dict(camera_model).values():
         if spec["resolution"][1] == height:
             return spec["focal_length"][focal_key]
 
-    # Default fallback
     return 741.6
 
 def get_camera_model(camera_model: str) -> str:
@@ -646,7 +643,7 @@ def get_supported_resolutions(camera_model: Optional[str] = None) -> List[str]:
         The resolution names accepted by :func:`get_resolution` for that model
     """
     if camera_model is not None:
-        return list(_get_spec_dict(camera_model).keys())
+        return get_allowed_resolutions(camera_model)
 
     resolutions = []
     for spec in (*_SPECIFICATIONS_BY_MODEL.values(), _ZEDX_SPECIFICATIONS):
@@ -707,7 +704,7 @@ def get_camera_usd_path(camera_model: str = "ZED_X") -> Optional[str]:
     ext_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     usd_path = os.path.join(ext_root, "data", "usd", f"{base}.usdc")
     if not os.path.isfile(usd_path):
-        _log_warn(f"No USD asset for camera model '{camera_model}' (expected {usd_path})")
+        _log_warn(f"[ZED] No USD asset for camera model '{camera_model}' (expected {usd_path})")
         return None
     return usd_path
 

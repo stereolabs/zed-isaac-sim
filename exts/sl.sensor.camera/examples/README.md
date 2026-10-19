@@ -12,7 +12,7 @@ Standalone example scripts for the ZED Isaac Sim / Isaac Lab integration, groupe
   [extension reference](../docs/README.md)).
 
 > "ZED depth" in these examples is *simulated* depth from the renderer
-> (`distance_to_image_plane`) - **not** the ZED SDK's stereo-matched depth, which only comes from
+> (`distance_to_image_plane`), **not** the ZED SDK's stereo-matched depth, which only comes from
 > the streaming path. `isaaclab/` and `isaac_sim/` capture identical data and differ only in
 > framework and delivery (Isaac Lab GPU tensors vs. numpy/disk).
 

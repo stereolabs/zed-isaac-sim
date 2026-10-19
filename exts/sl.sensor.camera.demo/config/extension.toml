@@ -1,7 +1,7 @@
 [package]
 version = "1.0.0"
 title = "Stereolabs ZED Warehouse Demos"
-description = "Turnkey warehouse demos with robot-mounted ZED X cameras streaming to the ZED SDK: Franka pick-place, Unitree H1 humanoid, and iw.hub AMR. Adds entries to the Isaac Examples browser (Load & Run)."
+description = "Turnkey warehouse demos with robot-mounted ZED cameras streaming to the ZED SDK: Franka pick-place, Unitree H1 humanoid, and iw.hub AMR. Adds entries to the Isaac Examples browser (Load & Run)."
 category = "Stereolabs"
 keywords = ["Stereolabs", "ZED", "Demo", "Pick", "Place", "Franka", "Humanoid", "AMR", "Example"]
 authors = ["Stereolabs"]
@@ -10,7 +10,7 @@ readme = "docs/README.md"
 
 [package.target]
 platform = ["windows-x86_64", "linux-x86_64"]
-kit = ["110.1.2"]
+kit = ["110.1.2", "110.3.0"] # Isaac Sim 6.0 and 6.1
 
 [dependencies]
 "sl.sensor.camera" = {}
@@ -18,7 +18,8 @@ kit = ["110.1.2"]
 # so these packages aren't in the registry at build time and would fail the dependency solver.
 # They resolve at runtime inside Isaac Sim. See CLAUDE.md "isaacsim.* deps break precache".
 "isaacsim.examples.browser" = { optional = true }
-"isaacsim.robot.experimental.manipulators.examples" = { optional = true }
+"isaacsim.robot_motion.examples" = { optional = true }                      # pick-place, Isaac Sim 6.1
+"isaacsim.robot.experimental.manipulators.examples" = { optional = true }   # pick-place, Isaac Sim 6.0
 "isaacsim.robot_motion.motion_generation" = { optional = true }
 "isaacsim.robot.policy.examples" = { optional = true }
 "isaacsim.core.api" = { optional = true }

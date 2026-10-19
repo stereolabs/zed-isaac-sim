@@ -37,13 +37,13 @@ import _bootstrap  # noqa: E402,F401  (adds the sl.sensor.camera extension root 
 
 from isaaclab.app import AppLauncher
 
-from sl.sensor.camera.isaaclab_utils import add_zed_cli_args
+from sl.sensor.camera.isaaclab_utils import add_zed_cli_args, add_zed_kit_args
 from sl.sensor.camera.utils import get_resolution
 
 parser = argparse.ArgumentParser(description="Record ZED-observation HDF5 demos by keyboard teleop (cube stacking).")
-add_zed_cli_args(parser)
+add_zed_cli_args(parser, capture=False, sim2real=False)
 parser.add_argument("--dataset_file", type=str, default="./datasets/zed_stack_demos.hdf5",
-                    help="File path to export recorded demos.")
+                    help="File path to export recorded demos. Must not exist yet.")
 parser.add_argument("--step_hz", type=int, default=30, help="Environment stepping rate in Hz.")
 parser.add_argument("--num_demos", type=int, default=0, help="Number of demonstrations to record (0 = infinite).")
 parser.add_argument("--num_success_steps", type=int, default=10,
@@ -63,6 +63,8 @@ if get_resolution(args.camera_model, args.resolution) is None:
 if not args.enable_cameras:
     print("[ZED] Enabling cameras (--enable_cameras) - required for RGB/depth rendering.")
 args.enable_cameras = True
+# The ZED lens schema has to start with the app; Isaac Lab's apps do not load it.
+add_zed_kit_args(args)
 # Keyboard teleop needs a focused GUI window.
 if getattr(args, "headless", False):
     print("[ZED] WARNING: --headless -> no Kit window; keyboard teleop is UNAVAILABLE. "
@@ -89,7 +91,9 @@ from isaaclab.managers import DatasetExportMode, EventTermCfg, ObservationTermCf
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
-from sl.sensor.camera.isaaclab_utils import author_zed_link_joint, make_zed_usd_link_mount  # noqa: E402
+from sl.sensor.camera.isaaclab_utils import (  # noqa: E402
+    apply_zed_optics, author_zed_link_joint, make_zed_usd_link_mount,
+)
 from sl.sensor.camera.utils import get_baseline, get_pinhole_parameters  # noqa: E402
 
 _TASK = "IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor"
@@ -98,7 +102,7 @@ _W, _H = _P["width"], _P["height"]
 
 # Wrist ZED placement in the panda_hand frame (SL-demo convention: translate + RotateXYZ deg).
 _WRIST_LOCALPOS0 = (0.018, 0.0, 0.034)
-_WRIST_ROT_EULER_DEG = (0.0, 90.0, 0.0)
+_WRIST_ROT_EULER_DEG = (0.0, -90.0, -180.0)
 
 
 class RateLimiter:
@@ -131,6 +135,9 @@ def _author_wrist_zed_joint(env, env_ids=None, **kwargs):
     for i in range(env.scene.num_envs):
         author_zed_link_joint(env.sim.stage, f"/World/envs/env_{i}/Robot/panda_hand",
                               f"/World/envs/env_{i}/wrist_zed", _WRIST_LOCALPOS0, _WRIST_ROT_EULER_DEG)
+        # Before the sensors read the prim, at sim.reset().
+        apply_zed_optics(env.sim.stage, f"/World/envs/env_{i}/wrist_zed",
+                         args.camera_model, args.resolution)
 
 
 def configure_cameras(env_cfg):
@@ -168,6 +175,11 @@ def main():
     # Actual file the recorder writes (it appends .hdf5 to dataset_filename); used below to
     # report the result and to remove an empty stub after a no-success run.
     dataset_path = os.path.join(output_dir, output_file_name + ".hdf5")
+    # The recorder opens the file in "w" mode, which would wipe a previous session's demos.
+    if os.path.exists(dataset_path):
+        print(f"[ZED] {dataset_path} already exists and recording would overwrite it. "
+              "Pass another --dataset_file, or move the file away.")
+        return
 
     env_cfg = parse_env_cfg(_TASK, device=args.device, num_envs=1)
     env_cfg.env_name = _TASK

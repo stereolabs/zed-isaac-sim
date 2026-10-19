@@ -2,13 +2,13 @@
 
 Turnkey demo scenes for the ZED Isaac Sim integration. Enabling this extension adds three entries to
 the Isaac **Examples** browser under the **Stereolabs** category, each building a complete warehouse
-scene with a robot-mounted ZED X streaming to the ZED SDK.
+scene with robot-mounted ZED cameras streaming to the ZED SDK.
 
 ## Prerequisites
 
 - A full **Isaac Sim** install (the scenes reference the Isaac asset library).
 - The core **`sl.sensor.camera`** extension enabled (the demos enable it automatically if needed).
-- To view the streams: a ZED SDK app - **ZED Explorer**, **ZED Studio**, or the **ZED Depth Viewer** -
+- To view the streams: a ZED SDK app (**ZED Explorer**, **ZED Studio**, or the **ZED Depth Viewer**)
   set to receive on `127.0.0.1`.
 
 ## Running a demo
@@ -20,11 +20,11 @@ stream.
 
 | Demo | Robot & scene | ZED mount | Stream |
 |---|---|---|---|
-| **ZED Pick-Place Integration** | Franka arm on a workbench in the Simple Warehouse; continuously picks a random cube and drops it in a KLT bin. | Wrist-mounted ZED X. | `127.0.0.1:30000` |
-| **ZED Humanoid Integration** | Unitree H1 humanoid in the warehouse. | Front and rear ZED X. | `127.0.0.1:30000` |
+| **ZED Pick-Place Integration** | Franka arm on a workbench in the Simple Warehouse; continuously picks a random cube and drops it in a KLT bin (Isaac Sim 6.0); on 6.1 there is no bin and the two cubes alternate between their bench positions. | Wrist-mounted ZED X Nano. | `127.0.0.1:30000` |
+| **ZED Humanoid Integration** | Unitree H1 humanoid walking up and down a warehouse aisle. | Head-mounted ZED Mini (stereo) plus two ZED X One fisheye peripherals. | ZED Mini `127.0.0.1:30000`, fisheyes `127.0.0.1:30002` and `30004` |
 | **ZED AMR Integration** | Idealworks iw.hub AMR patrolling a warehouse aisle. | Front and rear ZED X, selectable stream. | Front `127.0.0.1:30000`, rear `127.0.0.1:30002` (Both mode) |
 
-For the AMR, pick **Front**, **Rear**, or **Both** in the demo panel before **Load & Run** - Both runs
+For the AMR, pick **Front**, **Rear**, or **Both** in the demo panel before **Load & Run**. Both runs
 two streams (front on `30000`, rear on `30002`).
 
 ## Troubleshooting
@@ -34,5 +34,5 @@ two streams (front on `30000`, rear on `30002`).
 - **First run is slow.** The first rendered frame compiles RTX shaders (can take minutes on a cold
   cache); it is compiling, not stuck.
 
-Assets: the environment and robots are referenced from the Isaac asset library; the ZED X model is
+Assets: the environment and robots are referenced from the Isaac asset library; the ZED models are
 bundled with the `sl.sensor.camera` extension.

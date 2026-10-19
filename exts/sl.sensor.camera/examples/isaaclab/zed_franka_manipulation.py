@@ -1,14 +1,15 @@
 # ******************************************************************************
 # File Name          : zed_franka_manipulation.py
 # Description        : Isaac Lab flagship demo port. Autonomous Franka pick-and-lift
-#                      driven by a Warp state machine (no human, no policy). A real ZED_X
-#                      USD model rides the gripper and its authored stereo cameras deliver
-#                      stereo RGB + render-based depth as (N, H, W, C) tensors. No ZED SDK.
+#                      driven by a Warp state machine (no human, no policy). A real ZED USD
+#                      model (ZED X Nano by default) rides the gripper and its authored
+#                      stereo cameras deliver stereo RGB + render-based depth as
+#                      (N, H, W, C) tensors. No ZED SDK.
 #
 # Mirrors Isaac Lab's scripts/environments/state_machine/lift_cube_sm.py on task
 # IsaacContrib-Lift-Cube-Franka-IK-Abs. The PickAndLiftSm class and the infer_state_machine
 # Warp kernel are copied verbatim from that script (BSD-3-Clause, The Isaac Lab Project
-# Developers). The ZED delta: the ZED_X.usdc model is spawned as a rigid body rigidly fixed
+# Developers). The ZED delta: the ZED model is spawned as a rigid body rigidly fixed
 # to panda_hand (fixed joint authored by a prestartup event) so it tracks the gripper, and
 # its authored CameraLeft/CameraRight are read directly (no pinhole).
 #
@@ -34,11 +35,11 @@ import _bootstrap  # noqa: E402,F401  (adds the sl.sensor.camera extension root 
 
 from isaaclab.app import AppLauncher
 
-from sl.sensor.camera.isaaclab_utils import add_zed_cli_args
+from sl.sensor.camera.isaaclab_utils import add_zed_cli_args, add_zed_kit_args
 from sl.sensor.camera.utils import get_resolution
 
-parser = argparse.ArgumentParser(description="Autonomous Franka pick-and-lift state machine with a ZED table-view pair.")
-add_zed_cli_args(parser, default_model="ZED_X_Nano")
+parser = argparse.ArgumentParser(description="Autonomous Franka pick-and-lift state machine with a wrist-mounted ZED.")
+add_zed_cli_args(parser, default_model="ZED_X_Nano", sim2real=False)
 parser.add_argument("--num_envs", type=int, default=4, help="Number of environments to simulate.")
 parser.add_argument("--disable_fabric", action="store_true", help="Disable fabric and use USD I/O operations.")
 parser.add_argument("--save_every", type=int, default=10, help="Save one batch every N steps when --save_dir is set.")
@@ -55,6 +56,8 @@ if get_resolution(args.camera_model, args.resolution) is None:
 if not args.enable_cameras:
     print("[ZED] Enabling cameras (--enable_cameras) - required for RGB/depth rendering.")
 args.enable_cameras = True
+# The ZED lens schema has to start with the app; Isaac Lab's apps do not load it.
+add_zed_kit_args(args)
 
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
@@ -80,7 +83,8 @@ from isaaclab_tasks.core.lift.lift_env_cfg import LiftEnvCfg
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 from sl.sensor.camera.isaaclab_utils import (  # noqa: E402
-    author_zed_link_joint, depth_to_2d, make_zed_usd_link_mount, save_batch_frames, unwrap_output,
+    apply_zed_optics, author_zed_link_joint, depth_to_2d, make_zed_usd_link_mount,
+    save_batch_frames, unwrap_output,
 )
 from sl.sensor.camera.utils import get_baseline  # noqa: E402
 
@@ -302,7 +306,7 @@ class PickAndLiftSm:
 # Arm-mounted ZED placed like the Stereolabs SL Isaac-Sim demo (extension.py): parented in
 # the panda_hand frame with a local translate + RotateXYZ(deg). Tune in-engine if needed.
 _ZED_ARM_LOCALPOS0 = (0.018, 0.0, 0.034)
-_ZED_ARM_ROT_EULER_DEG = (0.0, 90.0, 0.0)       # RotateXYZ degrees (SL demo placement, faces forward)
+_ZED_ARM_ROT_EULER_DEG = (0.0, -90.0, -180.0)   # RotateXYZ degrees (SL demo placement, faces forward)
 
 
 def _author_zed_arm_joints(env, env_ids=None, **kwargs):
@@ -314,6 +318,8 @@ def _author_zed_arm_joints(env, env_ids=None, **kwargs):
     for i in range(env.scene.num_envs):
         author_zed_link_joint(env.sim.stage, f"/World/envs/env_{i}/Robot/panda_hand",
                               f"/World/envs/env_{i}/zed", _ZED_ARM_LOCALPOS0, _ZED_ARM_ROT_EULER_DEG)
+        # Before the sensors read the prim, at sim.reset().
+        apply_zed_optics(env.sim.stage, f"/World/envs/env_{i}/zed", args.camera_model, args.resolution)
 
 
 def _read_and_save(env, save_dir, saved):
@@ -341,7 +347,7 @@ def main():
         num_envs=args.num_envs,
         use_fabric=not args.disable_fabric,
     )
-    # Arm-mounted ZED: the real ZED_X model rides the gripper (spawned as a rigid body, rigidly
+    # Arm-mounted ZED: the real ZED model rides the gripper (spawned as a rigid body, rigidly
     # fixed to panda_hand via the prestartup-event joint below) and its authored CameraLeft/
     # CameraRight are the stereo sensors (no pinhole). prestartup (USD-level) joint authoring
     # requires scene replication off.

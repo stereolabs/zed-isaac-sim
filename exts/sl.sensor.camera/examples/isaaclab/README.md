@@ -1,14 +1,14 @@
 # ZED in Isaac Lab - stereo RGB + depth as tensors
 
 Use a simulated ZED stereo camera inside [Isaac Lab](https://isaac-sim.github.io/IsaacLab/) and read
-its stereo RGB pair and depth map as in-process tensors - no ZED SDK, no network streaming. This is
+its stereo RGB pair and depth map as in-process tensors, with no ZED SDK and no network streaming. This is
 the path for reinforcement-learning and imitation-learning workflows. It complements the streaming
 path (the ZED Camera Helper OmniGraph nodes), which remains the right choice for sim-to-real
-validation of the full ZED SDK pipeline - see the [repository overview](../../../../README.md) for
+validation of the full ZED SDK pipeline. See the [repository overview](../../../../README.md) for
 all three data paths.
 
 > **Note:** the depth captured here is Isaac Sim's simulated renderer depth
-> (`distance_to_image_plane`) - clean, dense ground truth, ideal as an RL observation or supervision
+> (`distance_to_image_plane`): clean, dense ground truth, usable as an RL observation or supervision
 > signal. It is **not** the ZED SDK's stereo-matched depth and does not reproduce real ZED depth
 > noise or holes. For genuine ZED SDK depth, use the streaming path (see the
 > [extension reference](../../docs/README.md)).
@@ -20,17 +20,17 @@ The ZED USD models (e.g. [`ZED_X.usdc`](../../data/usd/)) ship with authored `Ca
 +Z up. The scripts reference
 that USD, attach an Isaac Lab `Camera` sensor to each authored prim, and read `rgb` and
 `distance_to_image_plane` every simulation step. To place or mount the camera, always transform the
-**whole USD root** - the stereo rig moves rigidly with it. Never move the `CameraLeft` /
+**whole USD root**: the stereo rig moves rigidly with it. Never move the `CameraLeft` /
 `CameraRight` prims individually: that breaks the stereo baseline and can put the camera housing in
 frame.
 
 ## Requirements
 
 - An [Isaac Lab](https://isaac-sim.github.io/IsaacLab/) installation (verified on Isaac Lab 3.0 /
-  Kit 110.1.2), with the `sl.sensor.camera` extension from this repository (v5.2.0 or newer)
-  available on `sys.path`.
+  Kit 110.3.0, Isaac Sim 6.1), with the `sl.sensor.camera` extension from this repository (v5.3.0 or
+  newer) available on `sys.path`.
   Each example imports the shared [`_bootstrap.py`](../_bootstrap.py), which handles this
-  automatically - no install step is needed.
+  automatically, so no install step is needed.
 - Launch the scripts through the Isaac Lab launcher: `isaaclab.bat` (Windows) or `./isaaclab.sh`
   (Linux).
 - Cameras are enabled automatically: RGB and depth are render-based, so every example script
@@ -47,7 +47,7 @@ frame.
 RGB + depth tensors:
 
 ```bash
-# Windows - headless, save 10 frames
+# Windows: headless, save 10 frames
 isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_single.py --resolution SVGA --num_frames 10 --save_dir C:\zed_lab_out
 
 # Linux
@@ -77,7 +77,7 @@ Shared by all examples in this folder (via `add_zed_cli_args`):
 
 | Argument | Default | Description |
 | --- | --- | --- |
-| `--camera_model` | `ZED_X` | Stereo ZED model: `ZED_X`, `ZED_XM`, `ZED_X_4MM`, `ZED_XM_4MM`, `ZED_X_Nano`. Sets the baseline and camera prim paths. |
+| `--camera_model` | `ZED_X` (`ZED_X_Nano` in `zed_franka_manipulation.py`) | Stereo ZED model: `ZED_X`, `ZED_XM`, `ZED_X_4MM`, `ZED_XM_4MM`, `ZED_X_Nano`. Sets the baseline and camera prim paths. |
 | `--resolution` | `SVGA` | Capture resolution. ZED X family: `HD1200` (1920x1200), `HD1080` (1920x1080), `SVGA` (960x600). Validated against the selected model. |
 | `--camera_prim` | `/World/ZED_X` | Stage path where the ZED USD is referenced. Must be the model root (its children are `base_link/<model>/CameraLeft\|CameraRight`). Put it under a robot link to mount it. |
 | `--robot_usd` | `None` | Optional robot USD referenced at `/World/Robot`. When set, also pass `--camera_prim` pointing under the robot. (`zed_single.py`) |
@@ -102,7 +102,7 @@ The most relevant of the standard `AppLauncher` arguments (run with `-h` for the
 ```
 [ZED] baseline = 0.120 m, stereo = True, 960x600.
 [ZED] Streaming data after 1 frames.
-  frame 0: rgb_l (600, 960, 3) | rgb_r (600, 960, 3) | depth (600, 960) [1.05, 4.89] m (94.6% valid)
+[ZED] frame 0: rgb_l (600, 960, 3) | rgb_r (600, 960, 3) | depth (600, 960) [1.05, 4.89] m (94.6% valid)
 ```
 
 **Saved files** (when `--save_dir` is set), one set per frame:
@@ -136,16 +136,16 @@ batched as `(num_envs, H, W, C)` tensors.
 Extra arguments: `--num_envs` (default `4`). With `--save_dir`, one frame set is saved per
 environment (`left_env00.png`, ...).
 
-> This referencing pattern - rather than `InteractiveScene`'s cloner - is deliberate: the cloner
+> This referencing pattern, rather than `InteractiveScene`'s cloner, is deliberate: the cloner
 > makes the embedded camera prims non-enumerable.
 
 ### Flagship demo ports
 
-Three ports of flagship Isaac Lab demos. Each mounts the real
-`ZED_X.usdc` model rigidly to a robot link and reads its authored `CameraLeft` / `CameraRight` - no
-ad-hoc pinhole cameras, so intrinsics and baseline match real hardware. The mount pose (a translate
-plus `RotateXYZ` in the link frame) is exposed as per-demo constants near the top of each script -
-tune them in the viewport. All three accept the shared script arguments.
+Three ports of flagship Isaac Lab demos. Each mounts a real ZED USD model (`ZED_X.usdc`, or
+`ZED_X_Nano.usdc` on the Franka wrist) rigidly to a robot link and reads its authored `CameraLeft` /
+`CameraRight`, not ad-hoc pinhole cameras, so intrinsics and baseline match real hardware. The mount
+pose (a translate plus `RotateXYZ` in the link frame) is exposed as per-demo constants near the top
+of each script; tune them in the viewport. All three accept the shared script arguments.
 
 #### [`zed_quadruped.py`](zed_quadruped.py) - walking ANYmal-C on rough terrain
 
@@ -159,8 +159,8 @@ robots).
 ./isaaclab.sh -p exts/sl.sensor.camera/examples/isaaclab/zed_quadruped.py --command 1 0 0 --save_dir /tmp/zed_quad --num_frames 5 --save_every 10   # headless walk
 ```
 
-Keyboard ([Isaac Lab `Se2Keyboard`](https://isaac-sim.github.io/IsaacLab/)) - **click the 3D
-viewport to focus it first**: `↑`/`↓` walk forward/back, `←`/`→` strafe, `Z`/`X` turn, `L` reset.
+Keyboard ([Isaac Lab `Se2Keyboard`](https://isaac-sim.github.io/IsaacLab/)), after **clicking the
+3D viewport to focus it**: `↑`/`↓` walk forward/back, `←`/`→` strafe, `Z`/`X` turn, `L` reset.
 For a non-interactive / headless walk, pass `--command VX VY WZ` (m/s, m/s, rad/s) instead of using
 the keyboard.
 
@@ -170,12 +170,13 @@ depth statistics and the live command (with `--verbose`). If the robot tips over
 recover.
 
 > The walking policy is downloaded from the Isaac Lab Nucleus server on first run
-> (`Policies/ANYmal-C/HeightScan/policy.pt`) - needs network access.
+> (`Policies/ANYmal-C/HeightScan/policy.pt`), which needs network access.
 
 #### [`zed_franka_manipulation.py`](zed_franka_manipulation.py) - autonomous Franka pick-and-lift
 
-An autonomous state machine (no human, no policy) picks and lifts a cube while the ZED X rides the
-Franka **wrist** (`panda_hand`). Fully headless-able, so it doubles as a CI check.
+An autonomous state machine (no human, no policy) picks and lifts a cube while a ZED X Nano (the
+script's default `--camera_model`) rides the Franka **wrist** (`panda_hand`). Fully headless-able, so
+it doubles as a CI check.
 
 ```bash
 ./isaaclab.sh -p exts/sl.sensor.camera/examples/isaaclab/zed_franka_manipulation.py --headless --num_envs 4 --num_frames 5 --save_dir /tmp/zed_franka
@@ -206,20 +207,20 @@ Keyboard controls: arrow keys and `WASDQE` move the end-effector, `K` / `L` togg
 for the fuller walkthrough this script's keyboard path mirrors.
 
 **What counts as a successful demo.** A demonstration is exported only when the task's success
-condition (`cubes_stacked`) holds - which is stricter than the cubes merely touching. All of the
+condition (`cubes_stacked`) holds, which is stricter than the cubes merely touching. All of the
 following must be true at the same time:
 
 1. **All three cubes stacked in the required order** - blue (bottom), red (middle), green (top).
    The cubes have fixed identities; any other order does not count.
 2. **Each pair aligned and one cube-height apart** - horizontal offset below ~4 cm, vertical gap
-   ~4.7 cm, with the upper cube genuinely above the lower.
+   ~4.7 cm, with the upper cube above the lower.
 3. **Gripper released** - the jaws must return to fully open; success does not register while you
    are still holding the top cube.
 4. **Held for `--num_success_steps` consecutive steps** (default `10`) - the tower must stay
    stable; a momentary touch does not count.
 
 When all four hold, the console prints `[ZED] Recorded N successful demonstrations.` and the demo
-is flushed to disk immediately. If you never see that line, nothing was recorded - closing the
+is flushed to disk immediately. If you never see that line, nothing was recorded; closing the
 window then removes the empty file. The `grasp_1` / `stack_1` / `grasp_2` subtask terms in the
 console show how far an attempt got.
 
@@ -234,25 +235,27 @@ python -c "import h5py; f = h5py.File('/tmp/demos/zed_stack.hdf5'); f.visit(prin
 
 ## Using the sensor in your own script
 
-The `sl.sensor.camera` package is importable without enabling the Kit extension - a plain
+The `sl.sensor.camera` package is importable without enabling the Kit extension: a plain
 `sys.path` insert is enough (the shipped examples use [`../_bootstrap.py`](../_bootstrap.py) for
-this) - and its helpers (`utils`, `isaaclab_utils`) do the ZED-specific lifting:
+this). Its helpers (`utils`, `isaaclab_utils`) handle the ZED-specific setup:
 
 ```python
 import sys
 sys.path.insert(0, r"/path/to/zed-isaac-sim/exts/sl.sensor.camera")  # this repo's core extension root
 
 from isaaclab.app import AppLauncher
-from sl.sensor.camera.isaaclab_utils import add_zed_cli_args  # shared --camera_model/--resolution/... args
+from sl.sensor.camera.isaaclab_utils import add_zed_cli_args, add_zed_kit_args  # shared --camera_model/--resolution/... args
 # ... parse args, then force cameras on (RGB/depth are render-based) like the examples do:
 args.enable_cameras = True
+add_zed_kit_args(args)  # starts the lens-distortion schema the ZED optics need; Isaac Lab's apps omit it
 app = AppLauncher(args).app
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
 from isaaclab.sensors import Camera
 
-from sl.sensor.camera.isaaclab_utils import make_camera_cfg, unwrap_output, wait_for_camera_data
+from sl.sensor.camera.isaaclab_utils import (apply_zed_optics, make_camera_cfg, unwrap_output,
+                                             wait_for_camera_data)
 from sl.sensor.camera.utils import get_camera_paths, get_camera_usd_path
 
 sim = SimulationContext(sim_utils.SimulationCfg(device=args.device))
@@ -262,7 +265,11 @@ root = "/World/Robot/wrist/ZED_X"
 zed = sim_utils.UsdFileCfg(usd_path=get_camera_usd_path(args.camera_model))
 zed.func(root, zed)
 
-# 2) Attach Camera sensors to the authored stereo prims (spawn=None => use the existing prims).
+# 2) Give the authored cameras the model's own field of view and lens: the USD ships one
+#    nominal lens for every variant.
+apply_zed_optics(sim.stage, root, args.camera_model, args.resolution)
+
+# 3) Attach Camera sensors to the authored stereo prims (spawn=None => use the existing prims).
 paths = get_camera_paths(root, args.camera_model)   # {"left": .../CameraLeft, "right": ..., "imu": ...}
 left  = Camera(make_camera_cfg(paths["left"],  args.camera_model, args.resolution,
                                data_types=["rgb", "distance_to_image_plane"]))
@@ -282,7 +289,7 @@ while app.is_running():
 ```
 
 To mount the ZED on a robot, spawn the model as a rigid body and fix it to the robot link with a
-`FixedJoint` - the `make_zed_usd_link_mount` and `author_zed_link_joint` helpers in
+`FixedJoint`. The `make_zed_usd_link_mount` and `author_zed_link_joint` helpers in
 `isaaclab_utils` implement this pattern, which is what all the robot-mounted examples use (a plain
 nested reference does not track a moving link when Fabric is enabled).
 
@@ -292,7 +299,7 @@ nested reference does not track a moving link when Fabric is enabled).
   holes. For genuine ZED SDK depth and tracking, use the streaming path.
 - **Frozen reported pose on robot mounts.** For a ZED mounted on a joint-driven link (all the robot
   demos), the images and depth track the link correctly, but the sensor's reported `data.pos_w` /
-  `quat_w_world` stay frozen at the spawn pose - a known Isaac Lab quirk. Consume the pixels and
+  `quat_w_world` stay frozen at the spawn pose, a known Isaac Lab quirk. Consume the pixels and
   depth; if you need the live camera pose (e.g. for depth-to-world reprojection), derive it from
   the link body pose (`data.body_pose_w`) composed with the mount offset.
 - **Keyboard teleop needs a focused GUI window.** `zed_quadruped.py` and `zed_record_demos.py`
@@ -303,7 +310,7 @@ nested reference does not track a moving link when Fabric is enabled).
 
 ## Troubleshooting
 
-- **Empty / all-zero frames** (own scripts). `--enable_cameras` is missing - RGB and depth are
+- **Empty / all-zero frames** (own scripts). `--enable_cameras` is missing: RGB and depth are
   render-based. The shipped examples force the flag on automatically.
 - **First run seems to hang for minutes.** The first rendered frame compiles RTX shaders on a cold
   cache; it is compiling, not stuck. Later runs are fast.
@@ -313,7 +320,7 @@ nested reference does not track a moving link when Fabric is enabled).
   the ZED USD with `InteractiveScene`.
 - **Out of memory with many environments.** Lower `--num_envs` or `--resolution` (`SVGA` is the
   lightest), or run headless.
-- **Keyboard controls do nothing.** The Kit window must be focused, and a GUI is required - see
+- **Keyboard controls do nothing.** The Kit window must be focused, and a GUI is required. See
   [Known limitations](#known-limitations).
-- **`data.pos_w` is frozen** on a robot-mounted ZED - expected; see
+- **`data.pos_w` is frozen** on a robot-mounted ZED. This is expected; see
   [Known limitations](#known-limitations).

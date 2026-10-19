@@ -45,11 +45,11 @@ import _bootstrap  # noqa: E402,F401  (adds the sl.sensor.camera extension root 
 
 from isaaclab.app import AppLauncher
 
-from sl.sensor.camera.isaaclab_utils import add_zed_cli_args
+from sl.sensor.camera.isaaclab_utils import add_zed_cli_args, add_zed_kit_args
 from sl.sensor.camera.utils import get_resolution
 
 parser = argparse.ArgumentParser(description="Walking ANYmal-C with a ZED stereo pair on the base link, keyboard-steered.")
-add_zed_cli_args(parser)
+add_zed_cli_args(parser, sim2real=False)
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments (robots) to spawn.")
 parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabric API and use USD instead.")
 parser.add_argument("--save_every", type=int, default=10, help="Save one batch every N steps when --save_dir is set.")
@@ -71,6 +71,8 @@ if get_resolution(args.camera_model, args.resolution) is None:
 if not args.enable_cameras:
     print("[ZED] Enabling cameras (--enable_cameras) - required for RGB/depth rendering.")
 args.enable_cameras = True
+# The ZED lens schema has to start with the app; Isaac Lab's apps do not load it.
+add_zed_kit_args(args)
 # Keyboard teleop needs a focused GUI window, so open the Kit visualizer - unless running
 # headless (cameras still render via --enable_cameras, but keyboard input is unavailable)
 # or the user explicitly selected another visualizer.
@@ -114,7 +116,8 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
 from sl.sensor.camera.isaaclab_utils import (  # noqa: E402
-    author_zed_link_joint, depth_to_2d, make_zed_usd_link_mount, save_batch_frames, unwrap_output,
+    apply_zed_optics, author_zed_link_joint, depth_to_2d, make_zed_usd_link_mount,
+    save_batch_frames, unwrap_output,
 )
 from sl.sensor.camera.utils import get_baseline  # noqa: E402
 
@@ -123,14 +126,12 @@ _W, _H = get_resolution(args.camera_model, args.resolution)
 # ZED mounted on the ANYmal base link, looking forward (+X of the base). Placement is a local
 # translate + RotateXYZ(deg) in the base frame - the SL-demo convention. Tune in-engine.
 _ZED_BASE_LOCALPOS0 = (0.38, 0.0, 0.16)         # on the front of the body, just high enough to clear it
-_ZED_BASE_ROT_EULER_DEG = (180.0, 0.0, 0.0)     # authored ZED camera looks +X (base forward)
+_ZED_BASE_ROT_EULER_DEG = (0.0, 0.0, 0.0)       # authored ZED camera looks +X (base forward)
 
-# Robot spawn yaw about Z (degrees) - orients its forward/walking direction. NOTE: the onboard ZED
-# view rolls with the spawn yaw (an Isaac Lab joint-mounted-camera quirk: roll ~ yaw mod 180 deg), so
-# only EVEN multiples of 180 (0, 180) keep the horizon level. 90/270 roll the image 90 deg.
-_ROBOT_SPAWN_YAW_DEG = 180.0
+# Robot spawn yaw about Z (degrees) - orients its forward/walking direction.
+_ROBOT_SPAWN_YAW_DEG = 0.0
 _h = math.radians(_ROBOT_SPAWN_YAW_DEG) / 2.0
-_ROBOT_SPAWN_QUAT = (math.cos(_h), 0.0, 0.0, math.sin(_h))  # (w, x, y, z)
+_ROBOT_SPAWN_QUAT = (0.0, 0.0, math.sin(_h), math.cos(_h))  # (x, y, z, w)
 
 # GUI follow-cam distances (meters): how far BEHIND the robot the viewport sits, how high, and how
 # far AHEAD of it to aim. Applied each step by _update_follow_cam so the camera tracks the base
@@ -157,6 +158,8 @@ def _author_zed_base_joint(env, env_ids=None, **kwargs):
     for i in range(env.scene.num_envs):
         author_zed_link_joint(env.sim.stage, f"/World/envs/env_{i}/Robot/base",
                               f"/World/envs/env_{i}/zed", _ZED_BASE_LOCALPOS0, _ZED_BASE_ROT_EULER_DEG)
+        # Before the sensors read the prim, at sim.reset().
+        apply_zed_optics(env.sim.stage, f"/World/envs/env_{i}/zed", args.camera_model, args.resolution)
 
 
 # ==============================================================================
@@ -323,7 +326,7 @@ def main():
             v_x_sensitivity=1.0, v_y_sensitivity=0.6, omega_z_sensitivity=1.0, sim_device=env.device))
         keyboard.reset()
         print("[ZED] Keyboard steering ready - click the 3D viewport to focus it, then:")
-        print(str(keyboard))
+        print("\n".join(f"[ZED] {line}" for line in str(keyboard).splitlines()))
 
     print(f"[ZED] {args.num_envs} env(s), walking ANYmal-C, "
           f"baseline = {get_baseline(args.camera_model) * 1e-3:.3f} m, {_W}x{_H}.")
@@ -357,7 +360,7 @@ def main():
         with torch.inference_mode():
             if args.reset_every and step > 0 and step % args.reset_every == 0:
                 obs, _ = env.reset()
-                print("[INFO]: Resetting environment...")
+                print("[ZED] Resetting environment...")
             action = policy(obs["policy"])
             try:
                 obs, _ = env.step(action)
@@ -403,7 +406,7 @@ def main():
         if args.verbose and d is not None:
             valid = np.isfinite(d) & (d > 0)
             per_env = " ".join(f"env{e}:{100.0 * valid[e].mean():.0f}%" for e in range(d.shape[0]))
-            print(f"  step {step}: cmd(vx={_CMD['vx']:.1f} vy={_CMD['vy']:.1f} wz={_CMD['wz']:.1f}) | "
+            print(f"[ZED] step {step}: cmd(vx={_CMD['vx']:.1f} vy={_CMD['vy']:.1f} wz={_CMD['wz']:.1f}) | "
                   f"rgb_l {tuple(rgb_l.shape)} | depth {tuple(depth.shape)} | valid[{per_env}]")
 
         if want_save:

@@ -20,9 +20,12 @@ using LibHandle = void*;
 #define CloseLib dlclose
 #endif
 
+// Minimum bundled sl_zed version. 5.5.0 is the first version returning
+// SIM_STREAMER_STATUS codes (0 = success); older libs return 1 on success
+// and would be misread, so they must be rejected here.
 #define ZED_SDK_VERSION_MAJOR 5
-#define ZED_SDK_VERSION_MINOR 4
-#define ZED_SDK_VERSION_PATCH 1
+#define ZED_SDK_VERSION_MINOR 5
+#define ZED_SDK_VERSION_PATCH 0
 
 namespace sl
 {
@@ -65,8 +68,6 @@ namespace sl
         typedef int (*StreamYUVFunc)(int, unsigned char*, unsigned char*, long long, float, float, float, float, float, float, float);
         typedef int (*StreamLeftAndDepthFunc)(int, unsigned char*, float*, long long, float, float, float, float, float, float, float);
         typedef void (*CloseStreamerFunc)(int);
-        typedef void (*DestroyInstanceFunc)();
-        typedef int (*IngestImuFunc)(int, long long, float, float, float, float, float, float, float, float, float, float);
         typedef bool (*IsSNValidFunc)(int);
         typedef SimCameraInfo* (*GetVirtualCameraInfoFunc)(int*);
 
@@ -76,9 +77,7 @@ namespace sl
         StreamYUVFunc stream_yuv;
         StreamLeftAndDepthFunc stream_left_and_depth;
         CloseStreamerFunc close_streamer;
-        DestroyInstanceFunc destroy_instance;
         GetVirtualCameraInfoFunc get_virtual_camera_info;
-        IngestImuFunc ingest_imu;
         IsSNValidFunc is_sn_valid;
 
         bool loaded;
@@ -91,9 +90,7 @@ namespace sl
             stream_yuv = nullptr;
             stream_left_and_depth = nullptr;
             close_streamer = nullptr;
-            destroy_instance = nullptr;
             get_virtual_camera_info = nullptr;
-            ingest_imu = nullptr;
             is_sn_valid = nullptr;
         }
 
@@ -103,7 +100,6 @@ namespace sl
 
         bool load_lib(const std::string& zed_lib_path)
         {
-            // load the lib
             hLibrary = LoadLib(zed_lib_path.c_str());
             if (!hLibrary) {
                 loaded = false;
@@ -123,9 +119,7 @@ namespace sl
             stream_yuv = (StreamYUVFunc)GetFunc(hLibrary, "stream_yuv");
             stream_left_and_depth = (StreamLeftAndDepthFunc)GetFunc(hLibrary, "stream_left_and_depth");
             close_streamer = (CloseStreamerFunc)GetFunc(hLibrary, "close_streamer");
-            destroy_instance = (DestroyInstanceFunc)GetFunc(hLibrary, "destroy_instance");
             get_virtual_camera_info = (GetVirtualCameraInfoFunc)GetFunc(hLibrary, "get_virtual_camera_info");
-            ingest_imu = (IngestImuFunc)GetFunc(hLibrary, "ingest_imu");
             is_sn_valid = (IsSNValidFunc)GetFunc(hLibrary, "is_sn_valid");
 
             loaded = true;
@@ -146,9 +140,7 @@ namespace sl
             stream_yuv = nullptr;
             stream_left_and_depth = nullptr;
             close_streamer = nullptr;
-            destroy_instance = nullptr;
             get_virtual_camera_info = nullptr;
-            ingest_imu = nullptr;
             is_sn_valid = nullptr;
         }
 
@@ -201,21 +193,23 @@ namespace sl
             return false;
         }
 
+        // Returns a SIM_STREAMER_STATUS as an int (0 = SUCCESS; see types_c.h).
         int initStreamer(int streamer_id, struct StreamingParameters* streaming_params) {
             if (!loaded || !init_streamer) {
                 std::cerr << "[ZED] Error with init_streamer function call" << std::endl;
-                return -1;
+                return static_cast<int>(SIM_STREAMER_STATUS::LIB_NOT_LOADED);
             }
 
             if (streaming_params->transport_layer_mode == 1)
             {
-                CARB_LOG_INFO("IPC stream enabled");
+                CARB_LOG_INFO("[ZED] IPC stream enabled");
             }
             CARB_LOG_INFO("[ZED] Initializing streamer with ID %d on port %d", streamer_id, streaming_params->port);
 
             return init_streamer(streamer_id, streaming_params);
         }
 
+        // Returns a SIM_STREAMER_STATUS as an int (0 = SUCCESS, FRAME_DROPPED is benign; see types_c.h).
         int stream(sl::INPUT_FORMAT input, int streamer_id, unsigned char* left, unsigned char* right,
                        long long timestamp_ns, float qw, float qx, float qy, float qz,
                        float lin_acc_x, float lin_acc_y, float lin_acc_z)
@@ -224,7 +218,7 @@ namespace sl
             {
                 if (!loaded || !stream_rgb) {
                     std::cerr << "[ZED] Error with stream_rgb function call" << std::endl;
-                    return -1;
+                    return static_cast<int>(SIM_STREAMER_STATUS::LIB_NOT_LOADED);
                 }
                 return stream_rgb(streamer_id, left, right, timestamp_ns, qw, qx, qy, qz,
                     lin_acc_x, lin_acc_y, lin_acc_z);
@@ -233,20 +227,21 @@ namespace sl
             {
                 if (!loaded || !stream_yuv) {
                     std::cerr << "[ZED] Error with stream_yuv function call" << std::endl;
-                    return -1;
+                    return static_cast<int>(SIM_STREAMER_STATUS::LIB_NOT_LOADED);
                 }
                 return stream_yuv(streamer_id, left, right, timestamp_ns, qw, qx, qy, qz,
                     lin_acc_x, lin_acc_y, lin_acc_z);
             }
         }
 
+        // Returns a SIM_STREAMER_STATUS as an int (0 = SUCCESS, FRAME_DROPPED is benign; see types_c.h).
         int streamLeftAndDepth(int streamer_id, unsigned char* left, float* depth,
                        long long timestamp_ns, float qw, float qx, float qy, float qz,
                        float lin_acc_x, float lin_acc_y, float lin_acc_z)
         {
             if (!loaded || !stream_left_and_depth) {
                 std::cerr << "[ZED] Error with stream_left_and_depth function call" << std::endl;
-                return -1;
+                return static_cast<int>(SIM_STREAMER_STATUS::LIB_NOT_LOADED);
             }
             return stream_left_and_depth(streamer_id, left, depth, timestamp_ns, qw, qx, qy, qz,
                 lin_acc_x, lin_acc_y, lin_acc_z);
@@ -258,14 +253,6 @@ namespace sl
                 return;
             }
             close_streamer(streamer_id);
-        }
-
-        void destroyInstance() {
-            if (!loaded || !destroy_instance) {
-                std::cerr << "[ZED] Error with destroy_instance function call" << std::endl;
-                return;
-            }
-            destroy_instance();
         }
 
         bool isSNValid(int serial_number) {
@@ -283,17 +270,6 @@ namespace sl
                 return nullptr;
             }
             return get_virtual_camera_info(size_out);
-        }
-
-        int ingestIMU(int streamer_id, long long timestamp_ns, float vx, float vy, float vz,
-                      float lin_acc_x, float lin_acc_y, float lin_acc_z,
-                      float qw, float qx, float qy, float qz) {
-            if (!loaded || !ingest_imu) {
-                std::cerr << "[ZED] Error with ingest_imu function call " << std::endl;
-                return -1;
-            }
-            return ingest_imu(streamer_id, timestamp_ns, vx, vy, vz,
-                             lin_acc_x, lin_acc_y, lin_acc_z, qw, qx, qy, qz);
         }
     };
 

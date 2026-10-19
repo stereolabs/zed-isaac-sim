@@ -10,13 +10,15 @@ output unwrapping, warmup, and frame saving.
 Import-safe without a Kit app: only stdlib + numpy at module level. ``torch``,
 ``cv2`` and ``isaaclab`` are imported lazily inside the functions that need
 them, so this module never makes them dependencies of the extension.
+
+Frame writing and the camera optics come from ``frames`` and ``optics``, shared with the
+ZED Capture node.
 """
 
 import os
 from typing import Optional
 
-import numpy as np
-
+from .frames import depth_to_2d, to_numpy, write_depth, write_rgb  # noqa: F401 (re-exported)
 from .utils import (
     get_camera_paths,
     get_camera_usd_path,
@@ -27,11 +29,13 @@ from .utils import (
 
 
 def add_zed_cli_args(parser, default_model: str = "ZED_X",
-                     default_resolution: str = "SVGA", stereo_only: bool = True):
+                     default_resolution: str = "SVGA", stereo_only: bool = True,
+                     capture: bool = True, sim2real: bool = True):
     """Add the ZED demo arguments shared by the example scripts to a parser.
 
     Adds --camera_model / --resolution (choices derived from the spec tables,
-    so new models are picked up automatically), --num_frames and --save_dir.
+    so new models are picked up automatically), and the --num_frames / --save_dir
+    and --apply_zed_sim2real options a script can turn off when it does not use them.
     Validate the model/resolution pair
     after parsing with ``get_resolution(args.camera_model, args.resolution)``
     (the resolution choices are the union over all models).
@@ -41,6 +45,8 @@ def add_zed_cli_args(parser, default_model: str = "ZED_X",
         default_model: default for --camera_model
         default_resolution: default for --resolution
         stereo_only: restrict --camera_model to stereo models
+        capture: add --num_frames and --save_dir
+        sim2real: add --apply_zed_sim2real
 
     Returns:
         The parser, for chaining.
@@ -51,34 +57,55 @@ def add_zed_cli_args(parser, default_model: str = "ZED_X",
     parser.add_argument("--resolution", type=str, default=default_resolution,
                         choices=get_supported_resolutions(),
                         help="RGB/depth capture resolution.")
-    parser.add_argument("--num_frames", type=int, default=10,
-                        help="Frames to capture when --save_dir is set; ignored (streams indefinitely) if omitted.")
-    parser.add_argument("--save_dir", type=str, default=None,
-                        help="Dir to save per-frame stereo+depth. If omitted, streams to console only (no files).")
-    parser.add_argument("--apply_zed_sim2real", action="store_true",
-                        help="Apply the calibrated ZED Sim2Real camera model to the RGB tensors "
-                             "(needs the sl_zed_sim2real library; see zed_sim2real.py).")
-    parser.add_argument("--zed_sim2real_scene_lux", type=float, default=0.0,
-                        help="Scene illuminance for the sim2real model; <=0 means a bright scene "
-                             "(no gain ceiling / noise boost).")
+    if capture:
+        parser.add_argument("--num_frames", type=int, default=10,
+                            help="Frames to capture when --save_dir is set; ignored (streams indefinitely) if omitted.")
+        parser.add_argument("--save_dir", type=str, default=None,
+                            help="Dir to save per-frame stereo+depth. If omitted, streams to console only (no files).")
+    if sim2real:
+        parser.add_argument("--apply_zed_sim2real", action="store_true",
+                            help="Apply ZED Sim2Real, the ZED X camera model, to the RGB tensors: the cameras "
+                                 "render HDR (rgb_hdr) and get the real camera's auto exposure, white balance, "
+                                 "noise, vignetting and sharpness (needs the sl_zed_sim2real library; see "
+                                 "zed_sim2real.py).")
     return parser
 
 
+# Kit extensions the ZED cameras need that Isaac Lab's apps do not start: the lens is authored with
+# the OmniLensDistortion USD schema, which full Isaac Sim loads through its RTX sensor extensions. A
+# schema extension only registers its schemas when it starts with the app, so enabling it from the
+# script is too late.
+_KIT_EXTENSIONS = ("omni.usd.schema.omni_lens_distortion",)
+
+
+def add_zed_kit_args(args):
+    """Have ``AppLauncher(args)`` start the Kit extensions the ZED cameras need.
+
+    Call on the parsed arguments, before ``AppLauncher(args)``. Keeps any ``--kit_args`` given.
+
+    Returns:
+        ``args``, for chaining.
+    """
+    kit_args = (getattr(args, "kit_args", None) or "").split()
+    for ext in _KIT_EXTENSIONS:
+        if ext not in kit_args:
+            kit_args += ["--enable", ext]
+    args.kit_args = " ".join(kit_args)
+    return args
+
+
 def make_camera_cfg(prim_path: str, camera_model: str, camera_resolution: str,
-                    data_types=("rgb",), spawn_pinhole: bool = False,
-                    clipping_range=(0.03, 20.0), offset=None, update_period: float = 0.0):
-    """Build an ``isaaclab.sensors.CameraCfg`` sized from the ZED spec tables.
+                    data_types=("rgb",), update_period: float = 0.0):
+    """Build an ``isaaclab.sensors.CameraCfg`` for a ZED USD's authored camera prim.
+
+    The sensor attaches to the existing prim (``spawn=None``) - the real ZED camera, with its
+    real baseline - so pair it with :func:`apply_zed_optics`. Sized from the ZED spec tables.
 
     Args:
         prim_path: sensor prim path (regex env paths supported by Isaac Lab work).
         camera_model: ZED camera model name.
         camera_resolution: resolution name (e.g. "SVGA").
         data_types: annotators to attach (e.g. ["rgb", "distance_to_image_plane"]).
-        spawn_pinhole: False attaches to an EXISTING USD camera prim (spawn=None,
-            e.g. the ZED USD's authored CameraLeft/CameraRight); True spawns a new
-            pinhole camera with the ZED focal length / aperture (both in mm).
-        clipping_range: near/far clip in meters (spawned pinhole only).
-        offset: optional ``CameraCfg.OffsetCfg`` mount pose (spawned pinhole only).
         update_period: sensor update period in seconds (0.0 = every step).
 
     Returns:
@@ -87,74 +114,15 @@ def make_camera_cfg(prim_path: str, camera_model: str, camera_resolution: str,
     Raises:
         ValueError: if the resolution is unknown for the camera model.
     """
-    import isaaclab.sim as sim_utils
     from isaaclab.sensors import CameraCfg
 
     params = get_pinhole_parameters(camera_model, camera_resolution)
     if params is None:
         raise ValueError(f"Unknown resolution '{camera_resolution}' for camera model '{camera_model}'")
 
-    spawn = None
-    if spawn_pinhole:
-        spawn = sim_utils.PinholeCameraCfg(
-            focal_length=params["focal_length_mm"],
-            horizontal_aperture=params["horizontal_aperture_mm"],
-            clipping_range=clipping_range,
-        )
-    kwargs = dict(prim_path=prim_path, update_period=update_period,
-                  height=int(params["height"]), width=int(params["width"]),
-                  data_types=list(data_types), spawn=spawn)
-    if offset is not None:
-        kwargs["offset"] = offset
-    return CameraCfg(**kwargs)
-
-
-def make_stereo_camera_cfgs(prim_base: str, camera_model: str, camera_resolution: str,
-                            offset_pos, offset_rot, data_types=("rgb",),
-                            depth_on_left: bool = True, **kwargs):
-    """Build a (left_cfg, right_cfg) spawned-pinhole pair separated by the ZED baseline.
-
-    Both eyes are spawned pinhole cameras (``make_camera_cfg(spawn_pinhole=True)``)
-    so they track a joint-driven robot link via the fabric body pose - a
-    ``spawn=None`` camera pointed at prims inside a referenced USD stays frozen at
-    the authored pose. The pair is offset by +/-baseline/2 along the mount's local Y
-    (the ZED stereo axis), matching the real camera geometry.
-
-    Args:
-        prim_base: prim path without the _left/_right suffix
-            (e.g. "{ENV_REGEX_NS}/Robot/base/zed").
-        camera_model: ZED camera model name.
-        camera_resolution: resolution name (e.g. "SVGA").
-        offset_pos: (x, y, z) mount position of the stereo center; the pair is
-            offset +/-baseline/2 on Y from this point.
-        offset_rot: (w, x, y, z) mount rotation, ROS convention.
-        data_types: annotators to attach to both eyes (e.g. ["rgb"]).
-        depth_on_left: add "distance_to_image_plane" to the left camera's data_types.
-        **kwargs: forwarded to :func:`make_camera_cfg` (e.g. clipping_range,
-            update_period).
-
-    Returns:
-        A (left_cfg, right_cfg) tuple of CameraCfg objects.
-    """
-    from isaaclab.sensors import CameraCfg
-
-    baseline = get_pinhole_parameters(camera_model, camera_resolution)["baseline_m"]
-    x, y, z = offset_pos
-    left_types = list(data_types)
-    if depth_on_left and "distance_to_image_plane" not in left_types:
-        left_types.append("distance_to_image_plane")
-
-    left_cfg = make_camera_cfg(
-        f"{prim_base}_left", camera_model, camera_resolution, data_types=left_types,
-        spawn_pinhole=True,
-        offset=CameraCfg.OffsetCfg(pos=(x, y + baseline / 2.0, z), rot=offset_rot, convention="ros"),
-        **kwargs)
-    right_cfg = make_camera_cfg(
-        f"{prim_base}_right", camera_model, camera_resolution, data_types=list(data_types),
-        spawn_pinhole=True,
-        offset=CameraCfg.OffsetCfg(pos=(x, y - baseline / 2.0, z), rot=offset_rot, convention="ros"),
-        **kwargs)
-    return left_cfg, right_cfg
+    return CameraCfg(prim_path=prim_path, update_period=update_period,
+                     height=int(params["height"]), width=int(params["width"]),
+                     data_types=list(data_types), spawn=None)
 
 
 def make_zed_usd_link_mount(zed_prim_path: str, camera_model: str, camera_resolution: str,
@@ -197,6 +165,40 @@ def make_zed_usd_link_mount(zed_prim_path: str, camera_model: str, camera_resolu
     return model_cfg, left_cfg, right_cfg
 
 
+def apply_zed_optics(stage, zed_prim_path: str, camera_model: str, camera_resolution: str) -> bool:
+    """Author the ZED model's optics on the authored cameras of a ZED USD placed in the stage.
+
+    The assets ship one nominal lens for every variant, so the prims need the model's real focal
+    length and lens; this is the same call the streaming and capture paths make
+    (``optics.apply_camera_optics``).
+
+    Call once the ZED USD is on the stage and before the ``Camera`` sensors initialize - Isaac Lab
+    reads focal length and aperture off the prim when the sensor starts, so authoring afterwards
+    changes the image but not the reported intrinsics.
+
+    Args:
+        stage: the USD stage holding the placed ZED.
+        zed_prim_path: prim path the ZED USD was referenced at (one env; not a regex).
+        camera_model / camera_resolution: ZED spec selectors.
+
+    Returns:
+        True if every camera of the model was authored.
+    """
+    from .optics import apply_camera_optics   # pxr; kept out of this module's import-time deps
+
+    paths = get_camera_paths(zed_prim_path, camera_model)
+    eyes = [paths[key] for key in ("left", "right") if key in paths]
+    authored = True
+    for path in eyes:
+        prim = stage.GetPrimAtPath(path)
+        if not prim.IsValid():
+            print(f"[ZED] No camera prim at {path}; its optics are left as authored.")
+            authored = False
+            continue
+        authored = apply_camera_optics(prim, camera_model, camera_resolution) and authored
+    return authored
+
+
 def author_zed_link_joint(stage, link_prim_path: str, zed_prim_path: str,
                           local_pos, euler_deg, joint_name: str = "fixjoint") -> bool:
     """Author a ``UsdPhysics.FixedJoint`` fixing the ZED rigid body to a robot link.
@@ -210,24 +212,15 @@ def author_zed_link_joint(stage, link_prim_path: str, zed_prim_path: str,
     """
     import math
     import torch
-    from pxr import Gf, Sdf, UsdPhysics
     from isaaclab.utils.math import quat_from_euler_xyz
 
-    if not stage.GetPrimAtPath(zed_prim_path).IsValid():
-        return False
-    jpath = Sdf.Path(f"{zed_prim_path}/{joint_name}")
-    if stage.GetPrimAtPath(jpath).IsValid():
-        return True
+    from .mounting import author_fixed_joint
+
     rx, ry, rz = (float(v) * math.pi / 180.0 for v in euler_deg)
-    q = quat_from_euler_xyz(torch.tensor(rx), torch.tensor(ry), torch.tensor(rz)).reshape(-1).tolist()
-    joint = UsdPhysics.FixedJoint.Define(stage, jpath)
-    joint.CreateBody0Rel().SetTargets([link_prim_path])
-    joint.CreateBody1Rel().SetTargets([zed_prim_path])
-    joint.CreateLocalPos0Attr().Set(Gf.Vec3f(*[float(v) for v in local_pos]))
-    joint.CreateLocalRot0Attr().Set(Gf.Quatf(*[float(v) for v in q]))
-    joint.CreateLocalPos1Attr().Set(Gf.Vec3f(0.0, 0.0, 0.0))
-    joint.CreateLocalRot1Attr().Set(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
-    return True
+    # Isaac Lab returns (x, y, z, w); author_fixed_joint takes (w, x, y, z).
+    x, y, z, w = quat_from_euler_xyz(torch.tensor(rx), torch.tensor(ry), torch.tensor(rz)).reshape(-1).tolist()
+    return author_fixed_joint(stage, link_prim_path, zed_prim_path, local_pos, (w, x, y, z),
+                              joint_name=joint_name)
 
 
 def unwrap_output(output, key: str, index: Optional[int] = None):
@@ -288,67 +281,23 @@ def wait_for_camera_data(sim, cameras, keys=("rgb", "distance_to_image_plane"),
     return -1
 
 
-def depth_to_2d(depth):
-    """Strip a trailing 1-channel: (..., H, W, 1) -> (..., H, W); pass through otherwise.
-
-    Works on numpy arrays and torch tensors; returns None for None.
-    """
-    if depth is None:
-        return None
-    if len(depth.shape) >= 3 and depth.shape[-1] == 1:
-        return depth[..., 0]
-    return depth
-
-
-def _to_numpy(x):
-    if x is None:
-        return None
-    if hasattr(x, "detach"):  # torch tensor (possibly on GPU)
-        x = x.detach().cpu().numpy()
-    return np.asarray(x)
-
-
-def _import_cv2():
-    # Some OpenCV builds gate the EXR writer behind this env var.
-    os.environ.setdefault("OPENCV_IO_ENABLE_OPENEXR", "1")
-    try:
-        import cv2
-        return cv2
-    except ImportError:
-        return None
-
-
-def _write_frame(cv2, out_dir, suffix, left, right, depth):
-    """Write one frame's files; numpy fallback when cv2 is unavailable."""
-    if cv2 is None:
-        np.save(os.path.join(out_dir, f"left_{suffix}.npy"), left)
-        if right is not None:
-            np.save(os.path.join(out_dir, f"right_{suffix}.npy"), right)
-        if depth is not None:
-            np.save(os.path.join(out_dir, f"depth_{suffix}.npy"), depth.astype(np.float32))
-        return
-    cv2.imwrite(os.path.join(out_dir, f"left_{suffix}.png"),
-                cv2.cvtColor(left[:, :, :3], cv2.COLOR_RGB2BGR))
+def _write_set(out_dir: str, suffix: str, left, right, depth) -> None:
+    """One frame's files: left_/right_<suffix>.png + depth_<suffix>.exr."""
+    write_rgb(os.path.join(out_dir, f"left_{suffix}.png"), left)
     if right is not None:
-        cv2.imwrite(os.path.join(out_dir, f"right_{suffix}.png"),
-                    cv2.cvtColor(right[:, :, :3], cv2.COLOR_RGB2BGR))
+        write_rgb(os.path.join(out_dir, f"right_{suffix}.png"), right)
     if depth is not None:
-        try:
-            cv2.imwrite(os.path.join(out_dir, f"depth_{suffix}.exr"), depth.astype(np.float32))
-        except cv2.error:
-            np.save(os.path.join(out_dir, f"depth_{suffix}.npy"), depth.astype(np.float32))
-            print("[ZED] OpenCV EXR writer unavailable, depth saved as .npy instead.", flush=True)
+        write_depth(os.path.join(out_dir, f"depth_{suffix}"), depth)
 
 
 def save_frame(out_dir: str, index: int, rgb_left, rgb_right=None, depth_2d=None) -> None:
     """Save one frame: left_/right_{index:06d}.png + depth_{index:06d}.exr.
 
     Accepts torch tensors (CPU or GPU) or numpy arrays; RGB is (H, W, C>=3),
-    depth is (H, W) in meters. Falls back to .npy files when cv2 is missing.
+    depth is (H, W) in meters. Written by the shared writer in ``frames``.
     """
     os.makedirs(out_dir, exist_ok=True)
-    _write_frame(_import_cv2(), out_dir, f"{index:06d}",
-                 _to_numpy(rgb_left), _to_numpy(rgb_right), _to_numpy(depth_2d))
+    _write_set(out_dir, f"{index:06d}", rgb_left, rgb_right, depth_2d)
 
 
 def save_batch_frames(out_dir: str, rgb_left, rgb_right=None, depth_nhw=None,
@@ -356,14 +305,13 @@ def save_batch_frames(out_dir: str, rgb_left, rgb_right=None, depth_nhw=None,
     """Save one file set per batch entry: left_env00.png, depth_env00.exr, ...
 
     Accepts torch tensors or numpy arrays; RGB is (N, H, W, C>=3), depth is
-    (N, H, W) in meters. Falls back to .npy files when cv2 is missing.
+    (N, H, W) in meters.
     """
     os.makedirs(out_dir, exist_ok=True)
-    cv2 = _import_cv2()
-    left = _to_numpy(rgb_left)
-    right = _to_numpy(rgb_right)
-    depth = _to_numpy(depth_nhw)
+    left = to_numpy(rgb_left)
+    right = to_numpy(rgb_right)
+    depth = to_numpy(depth_nhw)
     for e in range(left.shape[0]):
-        _write_frame(cv2, out_dir, name_fmt.format(e),
-                     left[e], None if right is None else right[e],
-                     None if depth is None else depth[e])
+        _write_set(out_dir, name_fmt.format(e), left[e],
+                   None if right is None else right[e],
+                   None if depth is None else depth[e])

@@ -2,7 +2,8 @@ r"""Support for simplified access to data on nodes of type sl.sensor.camera.ZED_
 
 GENERATED CODE. DO NOT MODIFY.
 
-Captures RGB and simulated stereo depth from a ZED camera using Isaac Sim's renderer (no ZED SDK required).
+SDK-free capture from a ZED camera using Isaac Sim's renderer: RGB images and optionally simulated stereo depth. Nothing
+is streamed and no ZED SDK is required.
 """
 
 import sys
@@ -31,6 +32,7 @@ class SlZEDDepthStreamerDatabase(og.Database):
             inputs.lensType
             inputs.outputDir
             inputs.resolution
+            inputs.saveDepth
 
     Predefined Tokens:
         tokens.ZED_X
@@ -63,11 +65,12 @@ class SlZEDDepthStreamerDatabase(og.Database):
     INTERFACE = og.Database._get_interface([
         ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Camera model. Determines intrinsics and stereo baseline.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_X,ZED_XM,ZED_X_Nano,ZED_M,ZED_2i', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_X", "ZED_XM", "ZED_X_Nano", "ZED_M", "ZED_2i"]', ogn.MetadataKeys.DEFAULT: '"ZED_X"'}, True, "ZED_X", False, ''),
         ('inputs:cameraPrim', 'target', 0, 'ZED Camera Prim', 'ZED Camera prim (e.g. /World/ZED_X).', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0', 'uiGroup': 'Camera Selection'}, True, None, False, ''),
-        ('inputs:enableSave', 'bool', 0, 'Enable Save', 'Save RGB (PNG) and depth (EXR) to disk each frame.', {ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
+        ('inputs:enableSave', 'bool', 0, 'Enable Save', 'Save RGB (PNG) and depth (EXR) to disk each frame.', {'uiGroup': 'Capture', ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
         ('inputs:execIn', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('inputs:lensType', 'token', 0, 'Lens Type', 'Lens fitted to the camera. Options shown depend on the selected camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'Wide,Narrow', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["Wide", "Narrow"]', ogn.MetadataKeys.DEFAULT: '"Wide"'}, True, "Wide", False, ''),
-        ('inputs:outputDir', 'string', 0, 'Output Directory', 'Directory to save frames. Required when Enable Save is on.', {ogn.MetadataKeys.DEFAULT: '""'}, True, "", False, ''),
+        ('inputs:outputDir', 'string', 0, 'Output Directory', 'Directory to save frames. Required when Enable Save is on.', {'uiGroup': 'Capture', ogn.MetadataKeys.DEFAULT: '""'}, True, "", False, ''),
         ('inputs:resolution', 'token', 0, 'Resolution', 'Render resolution for RGB and depth.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD2K,HD1200,HD1080,HD720,SVGA,VGA', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD2K", "HD1200", "HD1080", "HD720", "SVGA", "VGA"]', ogn.MetadataKeys.DEFAULT: '"SVGA"'}, True, "SVGA", False, ''),
+        ('inputs:saveDepth', 'bool', 0, 'Save Depth', 'Write the depth map (EXR) alongside the RGB frames. Turn off to record images only: depth costs an extra render annotator and a float32 EXR per frame, which dominates capture I/O. Depth is a stereo feature and is unavailable on mono cameras.', {'uiGroup': 'Capture', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
     ])
 
     class tokens:
@@ -95,14 +98,14 @@ class SlZEDDepthStreamerDatabase(og.Database):
         return role_data
 
     class ValuesForInputs(og.DynamicAttributeAccess):
-        LOCAL_PROPERTY_NAMES = {"cameraModel", "enableSave", "execIn", "lensType", "outputDir", "resolution", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
+        LOCAL_PROPERTY_NAMES = {"cameraModel", "enableSave", "execIn", "lensType", "outputDir", "resolution", "saveDepth", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
         """Helper class that creates natural hierarchical access to input attributes"""
         def __init__(self, node: og.Node, attributes, dynamic_attributes: og.DynamicAttributeInterface):
             """Initialize simplified access for the attribute data"""
             context = node.get_graph().get_default_graph_context()
             super().__init__(context, node, attributes, dynamic_attributes)
-            self._batchedReadAttributes = [self._attributes.cameraModel, self._attributes.enableSave, self._attributes.execIn, self._attributes.lensType, self._attributes.outputDir, self._attributes.resolution]
-            self._batchedReadValues = ["ZED_X", False, 0, "Wide", "", "SVGA"]
+            self._batchedReadAttributes = [self._attributes.cameraModel, self._attributes.enableSave, self._attributes.execIn, self._attributes.lensType, self._attributes.outputDir, self._attributes.resolution, self._attributes.saveDepth]
+            self._batchedReadValues = ["ZED_X", False, 0, "Wide", "", "SVGA", True]
 
         @property
         def cameraPrim(self):
@@ -164,6 +167,14 @@ class SlZEDDepthStreamerDatabase(og.Database):
         @resolution.setter
         def resolution(self, value):
             self._batchedReadValues[5] = value
+
+        @property
+        def saveDepth(self):
+            return self._batchedReadValues[6]
+
+        @saveDepth.setter
+        def saveDepth(self, value):
+            self._batchedReadValues[6] = value
 
         def __getattr__(self, item: str):
             if item in self.LOCAL_PROPERTY_NAMES:
@@ -310,10 +321,10 @@ class SlZEDDepthStreamerDatabase(og.Database):
                 needs_initializing = initialize_type_function(node_type)
             if needs_initializing:
                 node_type.set_metadata(ogn.MetadataKeys.EXTENSION, "sl.sensor.camera")
-                node_type.set_metadata(ogn.MetadataKeys.UI_NAME, "ZED Depth")
+                node_type.set_metadata(ogn.MetadataKeys.UI_NAME, "ZED Capture")
                 node_type.set_metadata(ogn.MetadataKeys.CATEGORIES, "Stereolabs")
                 node_type.set_metadata(ogn.MetadataKeys.CATEGORY_DESCRIPTIONS, "Stereolabs,Nodes used with Stereolabs ZED cameras")
-                node_type.set_metadata(ogn.MetadataKeys.DESCRIPTION, "Captures RGB and simulated stereo depth from a ZED camera using Isaac Sim's renderer (no ZED SDK required).")
+                node_type.set_metadata(ogn.MetadataKeys.DESCRIPTION, "SDK-free capture from a ZED camera using Isaac Sim's renderer: RGB images and optionally simulated stereo depth. Nothing is streamed and no ZED SDK is required.")
                 node_type.set_metadata(ogn.MetadataKeys.LANGUAGE, "Python")
                 SlZEDDepthStreamerDatabase.INTERFACE.add_to_node_type(node_type)
 
@@ -328,7 +339,7 @@ class SlZEDDepthStreamerDatabase(og.Database):
     @staticmethod
     def register(node_type_class):
         SlZEDDepthStreamerDatabase.NODE_TYPE_CLASS = node_type_class
-        og.register_node_type(SlZEDDepthStreamerDatabase.abi, 1)
+        og.register_node_type(SlZEDDepthStreamerDatabase.abi, 2)
 
     @staticmethod
     def deregister():

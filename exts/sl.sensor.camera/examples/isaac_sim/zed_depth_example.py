@@ -54,7 +54,7 @@ def _on_physics_step(dt):
     depth = _camera.get_depth()
 
     if rgba is None or depth is None:
-        print(f"[Depth] Step {_step_count}: waiting for first frame...")
+        print(f"[ZED][Depth] Step {_step_count}: waiting for first frame...")
         return
 
     if hasattr(rgba, 'numpy'):
@@ -67,7 +67,7 @@ def _on_physics_step(dt):
     depth_max = valid_depth.max() if valid_depth.size > 0 else float('nan')
 
     print(
-        f"[Depth] Step {_step_count}: "
+        f"[ZED][Depth] Step {_step_count}: "
         f"rgba {rgba.shape} {rgba.dtype} | "
         f"depth {depth.shape} {depth.dtype} "
         f"range [{depth_min:.3f}, {depth_max:.3f}] m"
@@ -80,6 +80,8 @@ def _on_physics_step(dt):
 def _on_timeline_event(event):
     global _camera, _step_count, _physics_sub
     if event.type == int(omni.timeline.TimelineEventType.PLAY):
+        if _camera is not None:  # resuming from Pause: the capture is still running
+            return
         _step_count = 0
         _camera = ZEDDepthCamera(
             camera_prim_path=CAMERA_PRIM_PATH,
@@ -88,13 +90,13 @@ def _on_timeline_event(event):
             device="cpu",
         )
         if _camera._init_failed:
-            print("[Depth] Failed to set up. Check CAMERA_PRIM_PATH and camera model.")
+            print("[ZED][Depth] Failed to set up. Check CAMERA_PRIM_PATH and camera model.")
             _camera = None
             return
 
-        print(f"[Depth] Camera created, waiting for render pipeline...")
+        print(f"[ZED][Depth] Camera created, waiting for render pipeline...")
         if SAVE_DIR:
-            print(f"[Depth] Will save to {SAVE_DIR}")
+            print(f"[ZED][Depth] Will save to {SAVE_DIR}")
 
         _physics_sub = _physx.get_physx_interface().subscribe_physics_step_events(_on_physics_step)
 
@@ -105,7 +107,7 @@ def _on_timeline_event(event):
         if _camera is not None:
             _camera.destroy()
             _camera = None
-        print("[Depth] Cleaned up.")
+        print("[ZED][Depth] Cleaned up.")
 
 
 # =============================================================================
@@ -113,4 +115,4 @@ def _on_timeline_event(event):
 # =============================================================================
 timeline = omni.timeline.get_timeline_interface()
 _timeline_sub = timeline.get_timeline_event_stream().create_subscription_to_pop(_on_timeline_event)
-print("[Depth] Script loaded. Press PLAY to start capturing.")
+print("[ZED][Depth] Script loaded. Press PLAY to start capturing.")

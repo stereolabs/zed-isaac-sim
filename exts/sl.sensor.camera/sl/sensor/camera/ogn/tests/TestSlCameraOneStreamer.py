@@ -22,7 +22,7 @@ class TestOgn(ogts.OmniGraphTestCase):
         database = SlCameraOneStreamerDatabase(test_node)
         self.assertTrue(test_node.is_valid())
         node_type_name = test_node.get_type_name()
-        self.assertEqual(og.GraphRegistry().get_node_type_version(node_type_name), 4)
+        self.assertEqual(og.GraphRegistry().get_node_type_version(node_type_name), 5)
 
         def _attr_error(attribute: og.Attribute, usd_test: bool) -> str:  # pragma no cover
             test_type = "USD Load" if usd_test else "Database Access"
@@ -34,7 +34,27 @@ class TestOgn(ogts.OmniGraphTestCase):
         self.assertTrue(attribute.is_valid())
         db_value = database.inputs.applyZedSim2Real
         database.inputs.applyZedSim2Real = db_value
-        expected_value = False
+        expected_value = True
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:autoExposure"))
+        attribute = test_node.get_attribute("inputs:autoExposure")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.autoExposure
+        database.inputs.autoExposure = db_value
+        expected_value = True
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:autoWhiteBalance"))
+        attribute = test_node.get_attribute("inputs:autoWhiteBalance")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.autoWhiteBalance
+        database.inputs.autoWhiteBalance = db_value
+        expected_value = True
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
@@ -55,6 +75,16 @@ class TestOgn(ogts.OmniGraphTestCase):
         db_value = database.inputs.cameraModel
         database.inputs.cameraModel = db_value
         expected_value = "ZED_XONE_GS"
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:cameraSharpness"))
+        attribute = test_node.get_attribute("inputs:cameraSharpness")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.cameraSharpness
+        database.inputs.cameraSharpness = db_value
+        expected_value = True
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
@@ -104,12 +134,32 @@ class TestOgn(ogts.OmniGraphTestCase):
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
 
+        self.assertTrue(test_node.get_attribute_exists("inputs:motionBlur"))
+        attribute = test_node.get_attribute("inputs:motionBlur")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.motionBlur
+        database.inputs.motionBlur = db_value
+        expected_value = True
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
         self.assertTrue(test_node.get_attribute_exists("inputs:resolution"))
         attribute = test_node.get_attribute("inputs:resolution")
         self.assertTrue(attribute.is_valid())
         db_value = database.inputs.resolution
         database.inputs.resolution = db_value
         expected_value = "SVGA"
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:sensorNoise"))
+        attribute = test_node.get_attribute("inputs:sensorNoise")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.sensorNoise
+        database.inputs.sensorNoise = db_value
+        expected_value = True
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
@@ -154,22 +204,12 @@ class TestOgn(ogts.OmniGraphTestCase):
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
 
-        self.assertTrue(test_node.get_attribute_exists("inputs:zedSim2RealAeTarget"))
-        attribute = test_node.get_attribute("inputs:zedSim2RealAeTarget")
+        self.assertTrue(test_node.get_attribute_exists("inputs:vignetting"))
+        attribute = test_node.get_attribute("inputs:vignetting")
         self.assertTrue(attribute.is_valid())
-        db_value = database.inputs.zedSim2RealAeTarget
-        database.inputs.zedSim2RealAeTarget = db_value
-        expected_value = -1.0
-        actual_value = og.Controller.get(attribute)
-        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
-        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
-
-        self.assertTrue(test_node.get_attribute_exists("inputs:zedSim2RealSceneLux"))
-        attribute = test_node.get_attribute("inputs:zedSim2RealSceneLux")
-        self.assertTrue(attribute.is_valid())
-        db_value = database.inputs.zedSim2RealSceneLux
-        database.inputs.zedSim2RealSceneLux = db_value
-        expected_value = 0.0
+        db_value = database.inputs.vignetting
+        database.inputs.vignetting = db_value
+        expected_value = True
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))

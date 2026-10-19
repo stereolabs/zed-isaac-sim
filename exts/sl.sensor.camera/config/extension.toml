@@ -1,5 +1,5 @@
 [package]
-version = "5.2.1" # Semantic Versioning is used: https://semver.org/
+version = "5.3.0" # Semantic Versioning is used: https://semver.org/
 
 # These fields are used primarily for display in the extension browser UI.
 title = "Stereolabs ZED Camera"
@@ -20,7 +20,7 @@ exclude = ["Ogn*Database.py"]
 
 [package.target]
 platform = ["windows-x86_64", "linux-x86_64"]
-kit = ["110.1.2"]
+kit = ["110.1.2", "110.3.0"] # Isaac Sim 6.0 and 6.1: one build serves both, the plugin ABI is identical
 
 [package.writeTarget]
 kit = true
@@ -30,15 +30,17 @@ kit = true
 "omni.graph.tools" = {}
 "omni.graph.ui" = {} # Property-panel node templates (model-filtered Resolution dropdown)
 "omni.usd.schema.omni_sensors" = {} # OmniSensorAPI schema -> omni:sensor:tickRate (multi-tick rendering)
+"omni.warp.core" = {} # GPU sRGB encode of the streamed images (ZED_HdrToSrgb node)
 "omni.kit.menu.utils" = { optional = true } # "ZED Cameras" lens panel menu entry (GUI only)
 "isaacsim.gui.components" = { optional = true } # "ZED Cameras" lens panel window (GUI only)
 
 
 [[test]]
+dependencies = ["omni.graph.action"] # OnPlaybackTick, for the streamer lifecycle test
 stdoutFailPatterns.exclude = [
     "*[ZED] A camera prim must be specified.*",
     "*[ZED] At least one camera prim must be specified.*",
-    "*[ZED Depth] No camera prim specified.*",
+    "*[ZED][Depth] No camera prim specified.*",
 ]
 
 [[python.module]]

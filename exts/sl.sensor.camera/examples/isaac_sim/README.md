@@ -1,7 +1,7 @@
 # SDK-free ZED depth capture in Isaac Sim
 
-Capture **RGB + depth** from a simulated ZED inside Isaac Sim using the renderer - **no ZED SDK, no
-streaming**. Both scripts are driven by `sl.sensor.camera.zed_depth.ZEDDepthCamera`, which pairs
+Capture **RGB + depth** from a simulated ZED inside Isaac Sim using the renderer, with **no ZED SDK
+and no streaming**. Both scripts are driven by `sl.sensor.camera.zed_depth.ZEDDepthCamera`, which pairs
 Replicator's `rgb` and `distance_to_image_plane` annotators.
 
 > The depth here is Isaac Sim's *renderer* depth (ground truth), **not** the ZED SDK's stereo-matched
@@ -57,7 +57,7 @@ For interactive use inside the Isaac Sim GUI (extension enabled):
 2. Paste the script into the **Script Editor** and edit the CONFIG block:
    `CAMERA_PRIM_PATH`, `CAMERA_MODEL`, `RESOLUTION`, `CAPTURE_INTERVAL` (capture every N physics steps),
    and `SAVE_DIR` (leave empty to only print stats).
-3. Execute the script, then press **Play** - RGB + depth are captured every `CAPTURE_INTERVAL` steps.
+3. Execute the script, then press **Play**: RGB + depth are captured every `CAPTURE_INTERVAL` steps.
 4. Press **Stop** to clean up.
 
 ## Output

@@ -1,47 +1,25 @@
-﻿import omni.usd
+﻿# SPDX-FileCopyrightText: Copyright (c) 2023-2026 Stereolabs. All rights reserved.
+# SPDX-License-Identifier: MIT
+import omni.usd
 import math
 import configparser
-from enum import Enum
 from pxr import Gf, UsdGeom
 import platform
 import carb
 import random
-from typing import Tuple
 
+from sl.sensor.camera.utils import (LensType, get_base_models, get_camera_model, get_distortion_coefficients,
+                                    get_lens_type, get_sdk_model_id, get_sim_lens_type_id, is_stereo_camera)
 
-class LensType(Enum):
-    """Lens fitted to a camera model.
-
-    - WIDE: standard wide-angle lens (formerly ``is_4mm == False``)
-    - NARROW: 4mm narrow-angle lens (formerly ``is_4mm == True``)
-    - FISHEYE: fisheye lens
-    """
-    WIDE = "Wide"
-    NARROW = "Narrow"
-    FISHEYE = "Fisheye"
-
-
-# Integer code written to the SN*.conf [SIM] section, read by the ZED SDK's sim
-# streamer. Kept backward-friendly: the old is_4mm 0/1 values keep their meaning
-# (0 = Wide, 1 = Narrow), with 2 = Fisheye added.
-_LENS_TYPE_CODE = {
-    LensType.WIDE: 0,
-    LensType.NARROW: 1,
-    LensType.FISHEYE: 2,
-}
-
-# OpenCV fisheye distortion coefficients [k1, k2, k3, k4] per camera model,
-# written to the [DISTO] section for fisheye lenses. Mirrors _DISTORTION_COEFFICIENTS
-# in sl.sensor.camera/sl/sensor/camera/utils.py; keep the two in sync.
-_DISTORTION_COEFFICIENTS = {
-    "ZED_XONE_S_FISHEYE": [0.07, 0.0061, -0.0018, -0.00037],
-}
 
 def quat_to_rodrigues(quat: Gf.Quatd):
     """
     Converts a quaternion to a Rodrigues rotation vector (3D vector)
     """
-    angle = 2.0 * math.acos(quat.GetReal())  # rotation angle
+    # q and -q are the same rotation; the one with a non-negative real part gives the short angle
+    if quat.GetReal() < 0.0:
+        quat = -quat
+    angle = 2.0 * math.acos(min(1.0, quat.GetReal()))
     sin_half_angle = math.sqrt(1 - quat.GetReal()**2)
 
     # If angle is very small, rotation axis is undefined, use zero
@@ -72,164 +50,98 @@ def generate_virtual_sn() -> int:
     return random.randint(RANDOM_SN_START_VALUE, RANDOM_SN_STOP_VALUE)
 
 
-# Base camera models offered by the exporter (ZED X One family only) and the lens
-# types available for each. Mirrors _CAMERA_CONFIGS in
-# sl.sensor.camera/sl/sensor/camera/utils.py; keep the two in sync.
-_BASE_LENS_TYPES = {
-    "ZED_XONE_UHD": [LensType.WIDE],
-    "ZED_XONE_GS": [LensType.WIDE, LensType.NARROW],
-    "ZED_XONE_S": [LensType.WIDE, LensType.NARROW, LensType.FISHEYE],
-}
+def get_mono_base_models() -> list:
+    """The base camera models the exporter offers: the mono ZED X One family, in display order."""
+    return [base for base in get_base_models() if not is_stereo_camera(base)]
 
-# (base_model, lens_type) -> composite token consumed by get_camera_config().
-_MODEL_BY_BASE_LENS = {
-    ("ZED_XONE_UHD", LensType.WIDE): "ZED_XONE_UHD",
-    ("ZED_XONE_GS", LensType.WIDE): "ZED_XONE_GS",
-    ("ZED_XONE_GS", LensType.NARROW): "ZED_XONE_GS_4MM",
-    ("ZED_XONE_S", LensType.WIDE): "ZED_XONE_S",
-    ("ZED_XONE_S", LensType.NARROW): "ZED_XONE_S_4MM",
-    ("ZED_XONE_S", LensType.FISHEYE): "ZED_XONE_S_FISHEYE",
-}
-
-
-def get_base_models() -> list:
-    """Get the base camera model names offered by the exporter, in display order."""
-    return list(_BASE_LENS_TYPES.keys())
-
-
-def get_allowed_lens_types(base_model: str) -> list:
-    """Get the lens type values available for a base model (LensType.value strings)."""
-    return [lens.value for lens in _BASE_LENS_TYPES.get(base_model, [LensType.WIDE])]
-
-
-def compose_model(base_model: str, lens_type: str) -> str:
-    """Recompose the composite camera model token from a base model and lens value.
-
-    Falls back to base_model when the (base, lens) pair is unknown.
-    """
-    try:
-        lens_enum = LensType(lens_type)
-    except ValueError:
-        return base_model
-    return _MODEL_BY_BASE_LENS.get((base_model, lens_enum), base_model)
-
-
-def get_camera_config(camera_model: str) -> Tuple[str, LensType]:
-    """
-    Returns configuration parameters for a given camera model.
-
-    Args:
-        camera_model (str): The name of the camera model.
-
-    Returns:
-        Tuple[str, LensType]: (model_code, lens_type)
-    """
-    camera_configs = {
-        "ZED_XONE_GS": ("30", LensType.WIDE),
-        "ZED_XONE_GS_4MM": ("30", LensType.NARROW),
-        "ZED_XONE_UHD": ("31", LensType.WIDE),
-        "ZED_XONE_S": ("30", LensType.WIDE),
-        "ZED_XONE_S_4MM": ("30", LensType.NARROW),
-        "ZED_XONE_S_FISHEYE": ("30", LensType.FISHEYE),
-    }
-
-    if camera_model not in camera_configs:
-        carb.log_warn(f"Unknown camera model '{camera_model}', defaulting to ZED_XONE_GS")
-
-    # Use get() to gracefully handle unknown models
-    return camera_configs.get(camera_model, camera_configs["ZED_XONE_GS"])
 
 def write_stereo_calibration_file(left_prim_path: str, right_prim_path: str, serial_number: str, camera_model:str):
     """
     Computes the relative transform between left and right camera prims
     and writes a stereo calibration file.
     """
+    # Real cameras' calibrations live in the same folder, so only a virtual serial is accepted.
+    serial_number = str(serial_number).strip()
+    if not serial_number.isdigit() or not RANDOM_SN_START_VALUE <= int(serial_number) <= RANDOM_SN_STOP_VALUE:
+        carb.log_error(f"[ZED] Invalid serial number '{serial_number}': a virtual stereo camera needs one "
+                       f"from {RANDOM_SN_START_VALUE} to {RANDOM_SN_STOP_VALUE}.")
+        return
+
     stage = omni.usd.get_context().get_stage()
     if stage is None:
-        carb.log_warn("No stage loaded")
+        carb.log_warn("[ZED] No stage loaded")
         return
 
     left_prim = stage.GetPrimAtPath(left_prim_path)
     right_prim = stage.GetPrimAtPath(right_prim_path)
     if not left_prim or not right_prim:
-        carb.log_warn("Invalid prim paths")
+        carb.log_warn("[ZED] Invalid prim paths")
         return
 
-    is_camera = False
+    # Rows are the image frame axes (x right, y down, z forward) expressed in the prim's frame.
     if left_prim.IsA(UsdGeom.Camera) and right_prim.IsA(UsdGeom.Camera):
-        is_camera = True
-
-    # Choose conversion matrix based on prim type
-    if is_camera:
-        # Camera prim: -Z forward, Y up -> image frame X right, Y down, Z forward
-        sim_to_image = Gf.Matrix4d(
-            1, 0, 0, 0,    # newX = oldX
-            0, 0, -1, 0,   # newY = -oldZ
-            0, 1, 0, 0,    # newZ = oldY
+        # USD camera: x right, y up, looking down -z
+        image_to_prim = Gf.Matrix4d(
+            1, 0, 0, 0,
+            0, -1, 0, 0,
+            0, 0, -1, 0,
             0, 0, 0, 1
         )
     else:
-        # Generic prim: X forward, Y left, Z up -> image frame X right, Y down, Z forward
-        sim_to_image = Gf.Matrix4d(
-            0, -1, 0, 0,   # newX = -oldY  (USD Y left -> image X right)
-            0,  0, -1, 0,  # newY = -oldZ  (USD Z up   -> image Y down)
-            1,  0, 0, 0,   # newZ =  oldX  (USD X fwd -> image Z fwd)
-            0,  0, 0, 1
+        # generic prim: x forward, y left, z up
+        image_to_prim = Gf.Matrix4d(
+            0, -1, 0, 0,
+            0, 0, -1, 0,
+            1, 0, 0, 0,
+            0, 0, 0, 1
         )
 
-    image_to_sim = sim_to_image.GetInverse()
+    # rigid part only, so an asset's scale does not scale the baseline
+    left_xform = UsdGeom.Xformable(left_prim).ComputeLocalToWorldTransform(0.0).RemoveScaleShear()
+    right_xform = UsdGeom.Xformable(right_prim).ComputeLocalToWorldTransform(0.0).RemoveScaleShear()
 
-    # Get transforms
-    left_xform = UsdGeom.Xformable(left_prim).ComputeLocalToWorldTransform(0.0)  # time=0.0
-    right_xform = UsdGeom.Xformable(right_prim).ComputeLocalToWorldTransform(0.0)
+    # pose of the right eye in the left eye's image frame
+    right_in_left = image_to_prim * (right_xform * left_xform.GetInverse()) * image_to_prim.GetInverse()
 
-    relative = right_xform * left_xform.GetInverse()
-    relative_img = sim_to_image * relative * sim_to_image.GetInverse()
+    # The SDK reads the file as OpenCV's stereo extrinsics, T = (-Baseline, TY, TZ) and
+    # R = (RX, CV, RZ), which map a point from the left eye frame into the right one: the
+    # inverse of the right eye's pose. Baseline, TY and TZ are in millimeters.
+    left_to_right = right_in_left.GetInverse()
+    rel_trans = left_to_right.ExtractTranslation() * UsdGeom.GetStageMetersPerUnit(stage) * 1000.0
+    rel_rot = quat_to_rodrigues(left_to_right.ExtractRotationQuat())
 
-    if left_xform is None or right_xform is None:
-        carb.log_warn("Prims do not have transform attributes")
-        return
-
-    # Convert USD GfMatrix4d to translation + rotation (Euler)
-    def decompose_gf_matrix(mat):
-        # mat is a Gf.Matrix4d
-        translation = mat.ExtractTranslation()
-        rotation =  quat_to_rodrigues(mat.ExtractRotationQuat())
-        return translation, rotation
-
-    rel_trans, rel_rot = decompose_gf_matrix(relative_img)
-    # Create config file
     cfg = configparser.ConfigParser()
     cfg['STEREO'] = {}
-    cfg['STEREO']['Baseline'] = f"{(rel_trans[0] * 1000):.6f}"
-    cfg['STEREO']['TY'] = f"{-rel_trans[1]:.6f}"
+    cfg['STEREO']['Baseline'] = f"{-rel_trans[0]:.6f}"
+    cfg['STEREO']['TY'] = f"{rel_trans[1]:.6f}"
     cfg['STEREO']['TZ'] = f"{rel_trans[2]:.6f}"
 
     cfg['STEREO']['CV_FHD'] = f"{rel_rot[1]:.8f}"
     cfg['STEREO']['CV_SVGA'] = f"{rel_rot[1]:.8f}"
     cfg['STEREO']['CV_FHD1200'] = f"{rel_rot[1]:.8f}"
     cfg['STEREO']['CV_QHDPLUS'] = f"{rel_rot[1]:.8f}"
+    cfg['STEREO']['CV_4K'] = f"{rel_rot[1]:.8f}"
 
     cfg['STEREO']['RX_FHD'] = f"{rel_rot[0]:.8f}"
     cfg['STEREO']['RX_SVGA'] = f"{rel_rot[0]:.8f}"
     cfg['STEREO']['RX_FHD1200'] = f"{rel_rot[0]:.8f}"
     cfg['STEREO']['RX_QHDPLUS'] = f"{rel_rot[0]:.8f}"
+    cfg['STEREO']['RX_4K'] = f"{rel_rot[0]:.8f}"
 
     cfg['STEREO']['RZ_FHD'] = f"{rel_rot[2]:.8f}"
     cfg['STEREO']['RZ_SVGA'] = f"{rel_rot[2]:.8f}"
     cfg['STEREO']['RZ_FHD1200'] = f"{rel_rot[2]:.8f}"
     cfg['STEREO']['RZ_QHDPLUS'] = f"{rel_rot[2]:.8f}"
+    cfg['STEREO']['RZ_4K'] = f"{rel_rot[2]:.8f}"
 
-    # auto detect camera model based on prim path
-
-    cam_model, lens_type = get_camera_config(camera_model)
+    lens_type = get_lens_type(camera_model)
     cfg['SIM'] = {}
-    cfg['SIM']['lens_type'] = str(_LENS_TYPE_CODE[lens_type])
-    cfg['SIM']['camera_model'] = cam_model
+    cfg['SIM']['lens_type'] = str(get_sim_lens_type_id(lens_type))
+    cfg['SIM']['camera_model'] = str(get_sdk_model_id(get_camera_model(camera_model)))
 
     # Fisheye cameras carry OpenCV fisheye distortion coefficients
     if lens_type == LensType.FISHEYE:
-        disto = _DISTORTION_COEFFICIENTS.get(camera_model)
+        disto = get_distortion_coefficients(camera_model)
         if disto:
             cfg['LEFT_DISTO'] = {}
             cfg['LEFT_DISTO']['k1'] = f"{disto[0]}"
@@ -243,12 +155,15 @@ def write_stereo_calibration_file(left_prim_path: str, right_prim_path: str, ser
             cfg['RIGHT_DISTO']['k3'] = f"{disto[2]}"
             cfg['RIGHT_DISTO']['k4'] = f"{disto[3]}"
         else:
-            carb.log_warn(f"No fisheye distortion coefficients for model '{camera_model}'")
+            carb.log_warn(f"[ZED] No fisheye distortion coefficients for model '{camera_model}'")
 
-    # Write to file
     full_path = get_calibration_file_path() + f"SN{serial_number}.conf"
 
-    with open(full_path, 'w') as f:
-        cfg.write(f)
+    try:
+        with open(full_path, 'w') as f:
+            cfg.write(f)
+    except OSError as exc:
+        carb.log_error(f"[ZED] Could not write the stereo calibration file {full_path}: {exc}")
+        return
 
-    carb.log_warn(f"Stereo calibration file saved to {full_path}")
+    carb.log_warn(f"[ZED] Stereo calibration file saved to {full_path}")
