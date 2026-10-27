@@ -2,6 +2,11 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [5.3.1]
+### Fixes
+- **Fixed GEN_1 positional tracking with IMU fusion inverting the camera's pitch** in streams and in SVOs recorded from them: a camera pitching down was tracked pitching up. A live receiver also reported `camera_imu_transform` as a 180° turn about the optical axis. It is now the identity, as in SVO recordings of the stream: `getSensorsData()` reports the same IMU orientation live and recorded.
+- **Fixed the ZED Mini and ZED 2i IMU being turned relative to the camera**: it had the left camera's optical axes instead of the camera body's, so a level camera at rest reported gravity sideways and a tilted orientation, in streams and in Isaac Sim's own IMU readings. The other cameras were not affected.
+
 ## [5.3.0]
 ### New features
 - **ZED Sim2Real is now a model of the ZED X camera**, replacing the 5.2.0 post-process. It turns the rendered HDR image into what a real ZED X outputs: auto exposure, auto white balance, sensor noise, motion blur, vignetting and sharpness. Depth the SDK computes from the stream gets frame-to-frame noise close to a real ZED X's. **Apply ZED Sim2Real**, now on by default, is the master switch, with a live switch per effect in the *ZED Sim2Real* group of the ZED Camera Helper and ZED Camera One Helper. The ZED Capture node applies it without auto exposure and motion blur, Isaac Lab (`--apply_zed_sim2real`) without motion blur. See [ZED Sim2Real camera model](README.md#zed-sim2real-camera-model).

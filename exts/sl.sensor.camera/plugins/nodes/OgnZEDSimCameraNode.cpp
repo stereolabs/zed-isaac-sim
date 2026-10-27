@@ -673,6 +673,12 @@ public:
                         state.m_zedStreamerParams.stream_depth = state.m_stream_depth;
                         state.m_zedStreamerParams.depth_width = state.m_depth_width;
                         state.m_zedStreamerParams.depth_height = state.m_depth_height;
+                        // The streamed IMU has the left camera's axes. Receivers read imu_cam_q as
+                        // w, x, y, z, so the header's default {0, 0, 0, 1} would be a half turn about z.
+                        state.m_zedStreamerParams.imu_cam_q[0] = 1.f;
+                        state.m_zedStreamerParams.imu_cam_q[1] = 0.f;
+                        state.m_zedStreamerParams.imu_cam_q[2] = 0.f;
+                        state.m_zedStreamerParams.imu_cam_q[3] = 0.f;
                         state.m_streamer_id = allocStreamerId();
                         state.m_zedStreamerInitStatus = state.m_zedStreamer.initStreamer(state.m_streamer_id, &state.m_zedStreamerParams);
 
@@ -863,8 +869,8 @@ public:
                         slot->ts_ns = state.m_epoch_base_ns +
                             static_cast<unsigned long long>((timestamp - state.m_sim_time_base) * 1e9);
                         slot->qw = static_cast<float>(converted_orientation.GetReal());
-                        slot->qx = -static_cast<float>(converted_orientation.GetImaginary()[0]);
-                        slot->qy = -static_cast<float>(converted_orientation.GetImaginary()[1]);
+                        slot->qx = static_cast<float>(converted_orientation.GetImaginary()[0]);
+                        slot->qy = static_cast<float>(converted_orientation.GetImaginary()[1]);
                         slot->qz = static_cast<float>(converted_orientation.GetImaginary()[2]);
                         slot->ax = static_cast<float>(converted_lin_acc[0]);
                         slot->ay = static_cast<float>(converted_lin_acc[1]);
