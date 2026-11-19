@@ -1,4 +1,4 @@
-# ZED in Isaac Lab - stereo RGB + depth as tensors
+# ZED in Isaac Lab: stereo RGB + depth as tensors
 
 Use a simulated ZED stereo camera inside [Isaac Lab](https://isaac-sim.github.io/IsaacLab/) and read
 its stereo RGB pair and depth map as in-process tensors, with no ZED SDK and no network streaming. This is
@@ -97,11 +97,11 @@ The most relevant of the standard `AppLauncher` arguments (run with `-h` for the
 | `--enable_cameras` | Turns on the renderer so the camera sensors produce data. Enabled automatically by all example scripts; required when launching your own script. |
 | `--headless` / `--viz` | Run without a GUI / select a viewer (`--viz kit` opens a window). Isaac Lab 3.0 runs headless unless `--viz` is given (`zed_quadruped.py` opens the Kit window itself), and deprecates `--headless` in favor of `--viz none`. |
 | `--device` | Compute device for the tensors, e.g. `cuda:0` (default) or `cpu`. |
-| `--verbose` | Also enables this script's per-frame log line and warmup heartbeat; off by default (only milestones and errors print). Note that it raises Kit logging to DEBUG as well. |
+| `--verbose` | Also enables this script's per-frame log line and warmup heartbeat; off by default (only milestones and errors print). It also raises Kit logging to DEBUG. |
 
 ## Output
 
-**Console** - milestones always print; the one-line-per-frame log requires `--verbose`:
+**Console**: milestones always print; the one-line-per-frame log requires `--verbose`:
 
 ```
 [ZED] baseline = 0.120 m, stereo = True, 960x600.
@@ -111,8 +111,8 @@ The most relevant of the standard `AppLauncher` arguments (run with `-h` for the
 
 **Saved files** (when `--save_dir` is set), one set per frame:
 
-- `left_NNNNNN.png`, `right_NNNNNN.png` - 8-bit RGB.
-- `depth_NNNNNN.exr` - float32 depth in **meters** (`inf` where nothing is in range, Isaac Lab's
+- `left_NNNNNN.png`, `right_NNNNNN.png`: 8-bit RGB.
+- `depth_NNNNNN.exr`: float32 depth in **meters** (`inf` where nothing is in range, Isaac Lab's
   default depth clipping). Falls back to `.npy` if OpenCV or its EXR writer is not available.
 
 **In code**, per camera sensor:
@@ -124,9 +124,9 @@ The most relevant of the standard `AppLauncher` arguments (run with `-h` for the
 ## Example scripts
 
 Beyond `zed_single.py` (covered above), the folder contains a vectorized example and three ports of
-flagship Isaac Lab demos, two of them driven from the keyboard.
+Isaac Lab demos, two of them driven from the keyboard.
 
-### `zed_multi_env.py` - vectorized capture (many environments)
+### `zed_multi_env.py`: vectorized capture (many environments)
 
 Batched capture across N environments: the ZED USD is referenced once per environment (a centered
 grid, 5 m pitch, each camera looking straight down at its own objects so envs stay out of each
@@ -140,19 +140,19 @@ batched as `(num_envs, H, W, C)` tensors.
 Extra arguments: `--num_envs` (default `4`). With `--save_dir`, one frame set is saved per
 environment (`left_env00.png`, ...).
 
-> This referencing pattern, rather than `InteractiveScene`'s cloner, is deliberate: the cloner
-> makes the embedded camera prims non-enumerable.
+> The script references the USD per environment instead of using `InteractiveScene`'s cloner,
+> which makes the embedded camera prims non-enumerable.
 
-### Flagship demo ports
+### Isaac Lab demo ports
 
-Three ports of flagship Isaac Lab demos. Each mounts a real ZED USD model (`ZED_X.usdc`, or
+Three ports of Isaac Lab demos. Each mounts a real ZED USD model (`ZED_X.usdc`, or
 `ZED_X_Nano.usdc` in `zed_franka_manipulation.py`) rigidly to a robot link and reads its authored
 `CameraLeft` / `CameraRight`, not ad-hoc pinhole cameras, so intrinsics and baseline match real
 hardware. The mount pose (a translate plus `RotateXYZ` in the link frame) is exposed as per-demo
 constants near the top of each script; tune them in the viewport. All three accept `--camera_model`
 and `--resolution`.
 
-#### [`zed_quadruped.py`](zed_quadruped.py) - walking ANYmal-C on rough terrain
+#### [`zed_quadruped.py`](zed_quadruped.py): walking ANYmal-C on rough terrain
 
 A single ANYmal-C **walking** on generated rough terrain, driven by the pretrained ANYmal-C
 HeightScan locomotion policy and steered live from the keyboard, with the ZED X on the **base
@@ -177,7 +177,7 @@ recover.
 > The walking policy is downloaded from the Isaac Lab Nucleus server on first run
 > (`Policies/ANYmal-C/HeightScan/policy.pt`), which needs network access.
 
-#### [`zed_franka_manipulation.py`](zed_franka_manipulation.py) - autonomous Franka pick-and-lift
+#### [`zed_franka_manipulation.py`](zed_franka_manipulation.py): autonomous Franka pick-and-lift
 
 An autonomous state machine (no human, no policy) picks and lifts a cube while a ZED X Nano (the
 script's default `--camera_model`) rides the Franka **wrist** (`panda_hand`). Fully headless-able, so
@@ -191,7 +191,7 @@ it doubles as a CI check.
 Saves a `zed_NNNNN/` batch (`{left,right}_envNN.png` + `depth_envNN.exr`) every `--save_every`
 steps; the sequence shows the approach -> grasp -> lift.
 
-#### [`zed_record_demos.py`](zed_record_demos.py) - imitation-learning HDF5 recording
+#### [`zed_record_demos.py`](zed_record_demos.py): imitation-learning HDF5 recording
 
 Keyboard-teleop demo recording on the Franka cube-stacking task: a human stacks the cubes while the
 recorder exports **successful demonstrations to HDF5**, with observations coming from the
@@ -216,13 +216,13 @@ for the fuller walkthrough this script's keyboard path mirrors.
 condition (`cubes_stacked`) holds, which is stricter than the cubes merely touching. All of the
 following must be true at the same time:
 
-1. **All three cubes stacked in the required order** - blue (bottom), red (middle), green (top).
+1. **All three cubes stacked in the required order**: blue (bottom), red (middle), green (top).
    The cubes have fixed identities; any other order does not count.
-2. **Each pair aligned and one cube-height apart** - horizontal offset below ~4 cm, vertical gap
+2. **Each pair aligned and one cube-height apart**: horizontal offset below ~4 cm, vertical gap
    ~4.7 cm, with the upper cube above the lower.
-3. **Gripper released** - the jaws must return to fully open; success does not register while you
+3. **Gripper released**: the jaws must return to fully open; success does not register while you
    are still holding the top cube.
-4. **Held for `--num_success_steps` consecutive steps** (default `10`) - the tower must stay
+4. **Held for `--num_success_steps` consecutive steps** (default `10`): the tower must stay
    stable; a momentary touch does not count.
 
 When all four hold, the console prints `[ZED] Recorded N successful demonstrations.` and the demo
@@ -305,7 +305,7 @@ nested reference does not track a moving link when Fabric is enabled).
   holes. For genuine ZED SDK depth and tracking, use the streaming path.
 - **Frozen reported pose on robot mounts.** For a ZED mounted on a joint-driven link (all the robot
   demos), the images and depth track the link correctly, but the sensor's reported `data.pos_w` /
-  `quat_w_world` stay frozen at the spawn pose, a known Isaac Lab quirk. Consume the pixels and
+  `quat_w_world` stay frozen at the spawn pose. Consume the pixels and
   depth; if you need the live camera pose (e.g. for depth-to-world reprojection), derive it from
   the link body pose (`data.body_pose_w`) composed with the mount offset.
 - **Keyboard teleop needs a focused GUI window.** `zed_quadruped.py` and `zed_record_demos.py`
@@ -325,7 +325,7 @@ nested reference does not track a moving link when Fabric is enabled).
   cache; it is compiling, not stuck. Later runs are fast.
 - **`Number of camera prims in the view (1) does not match the number of environments`.** Attach
   the cameras with the regex pattern from
-  [`zed_multi_env.py`](#zed_multi_envpy---vectorized-capture-many-environments) instead of cloning
+  [`zed_multi_env.py`](#zed_multi_envpy-vectorized-capture-many-environments) instead of cloning
   the ZED USD with `InteractiveScene`.
 - **Out of memory with many environments.** Lower `--num_envs` or `--resolution` (`SVGA` is the
   lightest), or run headless.

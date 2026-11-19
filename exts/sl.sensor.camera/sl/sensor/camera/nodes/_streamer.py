@@ -43,9 +43,8 @@ def report(state, message) -> None:
 
 
 def update_node_version(node, old_version, new_version) -> bool:
-    # v3 split the single composite "cameraModel" token (e.g. "ZED_X_4MM") into base model + lens.
-    # The OG runtime attributes aren't valid yet during an upgrade, so the migrations read and
-    # write the authored values on the USD prim. A migration hiccup must never abort node creation.
+    # The migrations work on the authored USD values (see _migration). A migration hiccup must never
+    # abort node creation.
     if old_version < 3 <= new_version:
         try:
             migrate_camera_model_to_base_lens(node)

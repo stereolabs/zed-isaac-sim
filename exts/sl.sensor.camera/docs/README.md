@@ -7,11 +7,11 @@ models for every ZED camera, and a Python API usable from standalone Isaac Lab /
 There are three ways to consume the data (this doc covers the streaming and SDK-free paths; the Isaac
 Lab path is documented under [`examples/isaaclab/`](../examples/isaaclab/README.md)):
 
-1. **Stream to the ZED SDK** - stereo RGB (+ optional depth) and IMU streamed over RTP or IPC. This is
+1. **Stream to the ZED SDK**: stereo RGB (+ optional depth) and IMU streamed over RTP or IPC. This is
    the only path that involves the ZED SDK.
-2. **Isaac Lab (in-process tensors)** - `isaaclab.sensors.Camera` delivers stereo RGB + depth as
+2. **Isaac Lab (in-process tensors)**: `isaaclab.sensors.Camera` delivers stereo RGB + depth as
    batched torch tensors on the GPU, for RL / imitation learning. Needs Isaac Lab.
-3. **SDK-free capture (to disk)** - `zed_depth.py` reads the same renderer depth via Replicator
+3. **SDK-free capture (to disk)**: `zed_depth.py` reads the same renderer depth via Replicator
    annotators and saves PNG/EXR. Plain Isaac Sim, no Isaac Lab.
 
 ## Compatibility
@@ -85,11 +85,11 @@ Its **Settings** tab holds two settings shared by every camera: **Camera mode** 
 
 ## OmniGraph nodes
 
-The extension registers three nodes, all under the **Stereolabs** category. Connect **On Playback Tick**
+The node library shows three nodes, all under the **Stereolabs** category. Connect **On Playback Tick**
 -> node `execIn` and configure the inputs in the Property panel. None of the nodes have output ports;
 data is delivered to the ZED SDK (or disk) as a side effect.
 
-### ZED Camera Helper - stereo streaming
+### ZED Camera Helper: stereo streaming
 
 Streams a stereo ZED (or its left + depth) to the ZED SDK.
 
@@ -110,7 +110,7 @@ Streams a stereo ZED (or its left + depth) to the ZED SDK.
 | `autoExposure`, `autoWhiteBalance`, `sensorNoise`, `motionBlur`, `vignetting`, `cameraSharpness` | bool | `true` | The camera model's effects, each on its own switch (needs **Apply ZED Sim2Real**). Editable live. |
 | `focusBlur` | bool | `false` | **Focus blur**: the lens's fixed-focus blur, from each eye's depth (needs **Apply ZED Sim2Real**; ZED X, X Mini and X One GS / S lenses). Renders a depth image per eye while on. Editable live. See [Focus blur](#focus-blur). |
 
-### ZED Camera One Helper - mono & virtual stereo streaming
+### ZED Camera One Helper: mono & virtual stereo streaming
 
 Streams a single ZED X One (mono), or pairs two of them into a virtual stereo ZED.
 
@@ -133,7 +133,7 @@ Streams a single ZED X One (mono), or pairs two of them into a virtual stereo ZE
 | `autoExposure`, `autoWhiteBalance`, `sensorNoise`, `motionBlur`, `vignetting`, `cameraSharpness` | bool | `true` | The camera model's effects, each on its own switch (needs **Apply ZED Sim2Real**). Editable live. |
 | `focusBlur` | bool | `false` | **Focus blur**: the lens's fixed-focus blur, from each eye's depth (needs **Apply ZED Sim2Real**; ZED X, X Mini and X One GS / S lenses). Renders a depth image per eye while on. Editable live. See [Focus blur](#focus-blur). |
 
-### ZED Capture - SDK-free RGB + depth capture
+### ZED Capture: SDK-free RGB + depth capture
 
 Captures RGB and depth from a ZED using Isaac Sim's renderer. Nothing is streamed and **no ZED SDK is
 required**; frames are optionally written to disk.
@@ -193,8 +193,7 @@ starts, instead of live. The auto exposure and the motion blur need the rate the
 Set **FPS** on the node, or `fps=` (e.g. `1 / rendering_dt`), to choose it: it also caps the render
 rate, as on a streamed camera. Without it the camera's own `omni:sensor:tickRate` is used, and without
 that the app's update rate, since the camera then renders once per update. An app that updates on the
-wall clock has no update rate: those two effects then stay off, with a warning. Two things to know
-when recording:
+wall clock has no update rate: those two effects then stay off, with a warning. When recording:
 
 - With the auto exposure, the exposure settles on a new scene in about half a second, as the real
   camera's does, so start saving on `exposure_state.converged` to keep over- and under-exposed frames

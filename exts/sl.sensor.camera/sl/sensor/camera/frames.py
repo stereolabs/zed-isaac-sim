@@ -1,8 +1,8 @@
 """Turn captured camera buffers into files on disk.
 
 Used by the ZED Capture node (``zed_depth``) and the Isaac Lab tensor helpers
-(``isaaclab_utils``). Callers own the file names - the two paths name their frames differently
-on purpose - and this module owns the encoding, the fallbacks and the array plumbing.
+(``isaaclab_utils``). Callers own the file names (the two paths name their frames differently
+on purpose); this module owns the encoding, the fallbacks and the array plumbing.
 
 :class:`CapturedFrame` and the writer protocol let a caller send a capture somewhere other than
 numbered PNGs without ``zed_depth`` knowing where: a writer owns the naming, whether to write a

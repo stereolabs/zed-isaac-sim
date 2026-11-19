@@ -66,7 +66,7 @@ class SlCameraOneStreamerDatabase(og.Database):
 
     # Imprint the generator and target ABI versions in the file for JIT generation
     GENERATOR_VERSION = (1, 81, 0)
-    TARGET_VERSION = (0, 0, 0)
+    TARGET_VERSION = (3, 1, 2)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}
@@ -77,7 +77,7 @@ class SlCameraOneStreamerDatabase(og.Database):
     #     Is_Required, DefaultValue, Is_Deprecated, DeprecationMsg
     # You should not need to access any of this data directly, use the defined database interfaces
     INTERFACE = og.Database._get_interface([
-        ('inputs:applyZedSim2Real', 'bool', 0, 'Apply ZED Sim2Real', "Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting and sharpness, each with its own switch below. Off streams the render as is (the scene's own camera exposure, plain sRGB). Can be toggled live.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
+        ('inputs:applyZedSim2Real', 'bool', 0, 'Apply ZED Sim2Real', "Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting, sharpness and focus blur, each with its own switch below. Off streams the render as is (the scene's own camera exposure, plain sRGB). Can be toggled live.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:autoExposure', 'bool', 0, 'Auto exposure', "Real-camera auto exposure: meters the rendered HDR image and drives the cameras' exposure time and gain (exposure:time / exposure:iso) like a real ZED X. Off keeps the scene's own camera exposure. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:autoWhiteBalance', 'bool', 0, 'Auto white balance', "Real-camera auto white balance: estimates the light's colour from the rendered image and balances it like a real ZED X, including its limits (warm lights such as tungsten keep part of their orange cast). Off streams the render's own colours. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:bitrate', 'uint', 0, 'Streaming Bitrate', 'Streaming bitrate (Kbps).', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '8000'}, True, 8000, False, ''),

@@ -22,7 +22,7 @@
             },
             "stream": {
                 "type": "bool",
-                "description": "stream",
+                "description": "Streams while true; while false each frame is skipped",
                 "default": false
             },
             "transportLayerMode": {
@@ -76,12 +76,12 @@
             },
             "fps": {
                 "type": "uint",
-                "description": "frame rate",
+                "description": "Stream frame rate, in frames per second",
                 "default": 30
             },
             "port": {
                 "type": "uint",
-                "description": "server port",
+                "description": "Streaming port. Must be even: the stream also takes the next port up (RTP and RTCP).",
                 "default": 5561,
                 "metadata": {
                     "uiName": "Streaming Port"
@@ -89,7 +89,7 @@
             },
             "serialNumber": {
                 "type": "string",
-                "description": "Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated",
+                "description": "Serial number to stream as, for a virtual stereo pair (simCameraModel -1) or an SDK virtual camera (virtualCamera). Otherwise the node takes a serial number from the legacy pool and ignores this.",
                 "default": "109999999"
             },
             "virtualCamera": {
@@ -99,15 +99,15 @@
             },
             "simulationTime": {
                 "type": "double",
-                "description": "simulation time"
+                "description": "Simulation time of the frame in seconds, which stamps it; 0 or less falls back to a steady clock started at the first frame without one"
             },
             "bufferSizeLeft": {
                 "type": "uint64",
-                "description": "Size (in bytes) of the buffer (0 if the input is a texture)"
+                "description": "Size (in bytes) of the left image buffer: width * height * 4 (RGBA8), or the frame is skipped"
             },
             "bufferSizeRight": {
                 "type": "uint64",
-                "description": "Size (in bytes) of the buffer (0 if the input is a texture)"
+                "description": "Size (in bytes) of the right image buffer: width * height * 4 (RGBA8), or the frame is skipped"
             },
             "bufferSizeDepth": {
                 "type": "uint64",
@@ -115,12 +115,12 @@
             },
             "dataPtrLeft": {
                 "type": "uint64",
-                "description": "Pointer to the raw data (cuda device pointer or host pointer)",
+                "description": "CUDA device pointer to the left image (RGBA8)",
                 "default": 0
             },
             "dataPtrRight": {
                 "type": "uint64",
-                "description": "Pointer to the raw data (cuda device pointer or host pointer)",
+                "description": "CUDA device pointer to the right image (RGBA8)",
                 "default": 0
             },
             "dataPtrDepth": {
@@ -155,7 +155,7 @@
             },
             "orientation": {
                 "type": "quatd[4]",
-                "description": "imu orientation",
+                "description": "IMU orientation at the frame's time (IJKR)",
                 "default": [
                     0.0,
                     0.0,
@@ -165,7 +165,7 @@
             },
             "linearAcceleration": {
                 "type": "vectord[3]",
-                "description": "imu acceleration",
+                "description": "IMU linear acceleration at the frame's time, m/s^2",
                 "default": [
                     0.0,
                     0.0,

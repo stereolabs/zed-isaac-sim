@@ -73,7 +73,7 @@ assert ctypes.sizeof(SimCameraSettings) == 316, "SimCameraSettings layout must m
 assert ctypes.sizeof(SimFrameState) == 32, "SimFrameState layout must match the SDK"
 
 
-# ------------------------------------------------------------------ library loading
+# Library loading
 _LIB = None
 _LOAD_TRIED = False
 
@@ -105,7 +105,7 @@ def available() -> bool:
     return _load() is not None
 
 
-# ------------------------------------------------------------------ requests -> auto exposure
+# Requests -> auto exposure
 def _range(requested_min: int, requested_max: int, low: float, high: float, scale: float):
     """An AUTO_*_RANGE request inside the camera's own range; -1 or 0 gives the full range."""
     if requested_min <= 0 and requested_max <= 0:
@@ -181,7 +181,7 @@ def initial_settings(base: AeLimits) -> SimCameraSettings:
     return s
 
 
-# ------------------------------------------------------------------ channel
+# Channel
 class CameraSettingsChannel:
     """The camera settings of one streamer (the id the streaming node reports).
 

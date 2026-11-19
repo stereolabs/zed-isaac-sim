@@ -49,14 +49,15 @@ class ZEDDepthCamera:
     Uses CameraLeft directly for color and, on a stereo model with ``save_depth`` set,
     ``distance_to_image_plane`` for depth. For stereo models the right image is captured too
     (depth stays left-referenced). Color is sRGB-encoded from the linear ``HdrColor`` on the GPU,
-    exactly like the streamed images (see stream_encoding.py); ``encoding="linear"`` keeps the
-    legacy ``rgb`` (LdrColor) annotator, which is the RTX tonemapped image. ``apply_zed_sim2real``
-    is the camera model's master switch, as on the ZED Camera Helper node: off, the render is encoded
-    as plain sRGB with none of the effects below. With ``sensor_noise``
-    the sRGB images carry a real ZED X's sensor noise at the camera's gain (exposure:iso / 100),
-    with ``vignetting`` its lens falloff, with ``camera_sharpness`` its sharpness and with
-    ``auto_white_balance`` its white balance (metered on the right eye of a stereo camera, shared by both eyes), as the stream does.
-    With ``motion_blur`` and ``fps`` they also carry the stream's motion blur over the exposure time
+    like the streamed images (see stream_encoding.py); ``encoding="linear"`` keeps the legacy
+    ``rgb`` (LdrColor) annotator, which is the RTX tonemapped image. ``apply_zed_sim2real`` is the
+    camera model's master switch, as on the ZED Camera Helper node: off, the render is encoded as
+    plain sRGB with none of the effects below. With ``sensor_noise`` the sRGB images carry a real
+    ZED X's sensor noise at the camera's gain (exposure:iso / 100), with ``vignetting`` its lens
+    falloff, with ``camera_sharpness`` its sharpness and with ``auto_white_balance`` its white
+    balance, as the stream does. The auto white balance and auto exposure meter the right eye of a
+    stereo camera and apply to both eyes.
+    With ``motion_blur`` and ``fps`` the images also carry the stream's motion blur over the exposure time
     (exposure:time). ``fps`` is the rate the camera renders at (e.g. 1 / rendering_dt, or its
     omni:sensor:tickRate): the motion vectors span one rendered frame, so a wrong rate scales the
     blur by the same ratio. Without ``fps`` the camera's own ``omni:sensor:tickRate`` is used, and
@@ -66,18 +67,15 @@ class ZEDDepthCamera:
     the blur follows whatever exposure:time the camera prim carries, which is the render product's
     0.02 s unless the scene authors one: that is most of a frame at 30 fps, far longer than a real
     ZED X holds a lit scene. With ``auto_exposure`` (the default) the camera runs the stream's ZED X
-    auto exposure (exposure_loop.py), metering the right eye of a stereo pair: it sets both eyes'
-    exposure:time and exposure:iso, which the noise and the blur follow; ``auto_exposure_limits``
-    (an auto_exposure.AeLimits) narrows its ranges. It reaches a new scene's exposure in about half
-    a second, like the real camera, so a recording that must not open on over- or under-exposed
-    frames waits for ``exposure_state.converged``. Off, the camera keeps its prims' own exposure. With ``focus_blur`` the lens's fixed focus blurs what is closer (ZED X, X Mini and
+    auto exposure (exposure_loop.py): it sets both eyes' exposure:time and exposure:iso, which the
+    noise and the blur follow; ``auto_exposure_limits`` (an auto_exposure.AeLimits) narrows its
+    ranges, and ``exposure_state`` says when it has converged. Off, the camera keeps its prims' own
+    exposure. With ``focus_blur`` the lens's fixed focus blurs what is closer (ZED X, X Mini and
     X One GS / S lenses only; off by default, as on the stream), which renders a depth image per eye
     while it is on. The scene lights' flicker follows the ``lightFlickerStd`` setting, as it does on
-    the stream, and is off unless that setting is set. Depth is a stereo
-    feature: on a mono model ``save_depth`` is ignored. Whenever depth is off the annotator is
-    never attached, ``get_depth()`` returns None, and this is an image-only capture. No
-    additional camera prim is created.
-    Independent of the ZED SDK streaming pipeline.
+    the stream, and is off unless that setting is set. On a mono model ``save_depth`` is ignored.
+    Whenever depth is off the annotator is never attached, ``get_depth()`` returns None, and this is
+    an image-only capture. No additional camera prim is created.
 
     Frames go wherever ``frame_writer`` sends them; the default writes numbered PNGs. A writer
     owns the file names and may skip a frame, so this class stays out of that decision.
@@ -177,11 +175,8 @@ class ZEDDepthCamera:
         self._graph_frames = 0  # frames the graph handed over so far
         self._graph_frame = None  # number of the frame being saved from the graph
         self._color_computes = None  # the colour annotator's compute count when the graph was hooked
-        # Depth is a stereo feature: a mono ZED X One has no depth, so save_depth is ignored for
-        # mono models. It is also the expensive part of a capture (an extra annotator on the
-        # render product plus a float32 EXR per frame, which dominates I/O), so it can be turned
-        # off for stereo too. Either way the annotator is then never attached, and get_depth()
-        # returns None.
+        # Depth is the expensive part of a capture (an extra annotator on the render product plus a
+        # float32 EXR per frame, which dominates I/O), so save_depth can turn it off.
         self._save_depth = bool(save_depth) and is_stereo_camera(camera_model)
         if save_depth and not self._save_depth:
             carb.log_info(f"[ZED][Depth] '{camera_model}' is a mono camera and has no depth; "
@@ -295,7 +290,7 @@ class ZEDDepthCamera:
             apply_camera_optics(prim, self._camera_model, self._resolution_token, fps=self._fps_given)
 
     def _color_annotator(self):
-        # sRGB: HdrColor is fetched on the GPU whatever the capture device - the encode runs
+        # sRGB: HdrColor is fetched on the GPU whatever the capture device: the encode runs
         # there and only the 8-bit result is read back (see get_rgba).
         if self._encoding == "srgb":
             return rep.AnnotatorRegistry.get_annotator("HdrColor", device="cuda")
@@ -715,8 +710,8 @@ class ZEDDepthCamera:
         """Simulation time of the physics state shown by the frame the annotators hold, in seconds, on the
         clock the IMU is stamped with.
 
-        Falls back to a monotonic clock when the annotator reports 0 - some Isaac builds do,
-        and OgnZEDSimCameraNode.cpp carries the same workaround. Without it every frame would
+        Falls back to a monotonic clock when the annotator reports 0, as some Isaac builds do;
+        OgnZEDSimCameraNode.cpp carries the same workaround. Without it every frame would
         be stamped with the same time.
         """
         sim_time = self._rendered_time()

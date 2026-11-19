@@ -175,7 +175,7 @@ class ZedSim2Real:
         self._frame += 1
         return outs[0], outs[1]
 
-    # ---- internals ---------------------------------------------------------------------------
+    # Internals
     def _scaled(self, hdr, scale, eye):
         """The eye's frames at each env's exposure, as the RGBA float16 the library reads."""
         import torch

@@ -1,6 +1,3 @@
-"""
-This is the implementation of the OGN node defined in SlCameraStreamer.ogn
-"""
 from ..ogn.SlCameraStreamerDatabase import SlCameraStreamerDatabase
 from . import _streamer
 

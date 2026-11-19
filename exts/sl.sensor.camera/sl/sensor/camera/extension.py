@@ -8,7 +8,7 @@ import omni.ext
 
 
 # Python OGN nodes are registered automatically by OmniGraph from the committed
-# manifest (ogn/nodes.json) - same path the C++ node uses. Do not register them
+# manifest (ogn/nodes.json), the same path the C++ node uses. Do not register them
 # manually here too, or OmniGraph aborts with "registered twice".
 class SlSensorCameraExtension(omni.ext.IExt):
 	def on_startup(self, ext_id):

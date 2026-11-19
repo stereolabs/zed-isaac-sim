@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 """'ZED Cameras' panel: at-a-glance lens control for the ZED cameras in the stage.
 
-A dockable window (Stereolabs menu) that lists every placed ZED camera - thumbnail,
-prim name, model - with its lens shown as segmented buttons (Wide | Narrow |
+A dockable window (Stereolabs menu) that lists every placed ZED camera (thumbnail,
+prim name, model) with its lens shown as segmented buttons (Wide | Narrow |
 Fisheye): the current lens is highlighted, only the lenses the model supports are
 shown, and one click switches. It complements the per-prim variant dropdown in the
 Property window; both edit the same 'lens' variant selection, which the streamer
@@ -148,7 +148,7 @@ class ZedLensPanel:
         if win and target:
             win.dock_in(target, ui.DockPosition.RIGHT, 0.35)
 
-    # ------------------------------------------------------------- lifecycle
+    # Lifecycle
     def destroy(self):
         self._unsubscribe()
         remove_menu_items(self._menu_items, _MENU_GROUP)
@@ -173,7 +173,7 @@ class ZedLensPanel:
         else:
             self._unsubscribe()
 
-    # ----------------------------------------------------------- refreshing
+    # Refreshing
     def _subscribe(self):
         events = self._usd_context.get_stage_event_stream()
         self._stage_event_sub = events.create_subscription_to_pop(self._on_stage_event)
@@ -226,7 +226,7 @@ class ZedLensPanel:
 
         asyncio.ensure_future(_rebuild())
 
-    # ------------------------------------------------------------- actions
+    # Actions
     def _set_lens(self, model_prim_path: str, lens: str):
         stage = self._usd_context.get_stage()
         prim = stage.GetPrimAtPath(model_prim_path) if stage else None
@@ -241,7 +241,7 @@ class ZedLensPanel:
         if button == 0:  # left click
             self._usd_context.get_selection().set_selected_prim_paths([root_path], True)
 
-    # -------------------------------------------------------------- building
+    # Building
     def _build(self):
         with self._window.frame:
             with ui.VStack(spacing=6, height=0):

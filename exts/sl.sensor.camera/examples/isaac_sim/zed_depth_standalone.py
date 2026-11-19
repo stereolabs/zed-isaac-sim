@@ -1,7 +1,5 @@
-# ******************************************************************************
-# File Name          : zed_depth_standalone.py
-# Description        : Standalone script that captures RGB + depth from a ZED
-#                      camera using Isaac Sim's renderer (no ZED SDK required).
+# Standalone script that captures RGB + depth from a ZED camera using Isaac Sim's renderer
+# (no ZED SDK required).
 #
 # Usage:
 #   # Zero-config: builds a minimal scene and spawns a ZED_X camera
@@ -23,22 +21,21 @@
 # For headless rendering (no GUI), add --headless
 #
 # Output (when --output_dir is set):
-#   rgb_left_000000.png  - left RGB image
-#   rgb_right_000000.png - right RGB image (stereo models)
-#   depth_000000.exr     - depth map (float32, meters)
-# ******************************************************************************
+#   rgb_left_000000.png:  left RGB image
+#   rgb_right_000000.png: right RGB image (stereo models)
+#   depth_000000.exr:     depth map (float32, meters)
 
 import argparse
 import os
 import sys
 
 # The ZED package (sl.sensor.camera) is importable without enabling the Kit extension;
-# _bootstrap walks up to the extension root and puts it on sys.path (depth-independent).
+# _bootstrap walks up to exts/ and puts every extension root with an sl/ tree on sys.path.
 _d = os.path.dirname(os.path.abspath(__file__))
 while not os.path.isfile(os.path.join(_d, "_bootstrap.py")):
     _d = os.path.dirname(_d)
 sys.path.insert(0, _d)
-import _bootstrap  # noqa: E402,F401  (adds the sl.sensor.camera extension root to sys.path)
+import _bootstrap  # noqa: E402,F401
 
 
 # Where the ZED model USD is spawned when --camera_prim is not given.
@@ -128,7 +125,6 @@ def main():
         print("[ZED][Depth] No --usd_path given; building a minimal ground + dome-light scene.")
         _build_minimal_scene()
 
-    # Use the camera already in the scene if --camera_prim is given; otherwise spawn one.
     if args.camera_prim:
         camera_prim = args.camera_prim
     else:

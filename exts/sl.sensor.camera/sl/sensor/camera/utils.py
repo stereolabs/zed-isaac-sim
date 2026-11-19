@@ -37,7 +37,8 @@ def stream_frame_rate(fps) -> int:
     return fps if fps in STREAM_FRAME_RATES else DEFAULT_STREAM_FPS
 
 
-# Camera specifications mapping for ZED X, ZED XM and ZED X ONE GS
+# ZED X family specs (ZED X, X Mini, X Nano, X One GS and the X One S wide / narrow lenses),
+# the default for every model not in _SPECIFICATIONS_BY_MODEL
 _ZEDX_SPECIFICATIONS = {
     "HD1200": {
         "resolution": [1920, 1200],
@@ -141,7 +142,6 @@ _ZED_2I_SPECIFICATIONS = {
     }
 }
 
-# Camera configuration mapping
 _CAMERA_CONFIGS = {
     "ZED_X": {"base_model": "ZED_X", "lens_type": LensType.WIDE, "is_stereo": True, "pixel_size": 3, "baseline_mm": 120.0},
     "ZED_X_4MM": {"base_model": "ZED_X", "lens_type": LensType.NARROW, "is_stereo": True, "pixel_size": 3, "baseline_mm": 120.0},
@@ -171,7 +171,7 @@ _MODEL_BY_BASE_LENS = {
     for model, config in _CAMERA_CONFIGS.items()
 }
 
-# ── SDK MODEL / SIM_LENS_TYPE bridge to the C++ streaming node ────────────────
+# SDK MODEL / SIM_LENS_TYPE bridge to the C++ streaming node.
 # The C++ node (OgnZEDSimCameraNode) keys its serial-number pools by the SDK
 # MODEL code + SIM_LENS_TYPE reported in SimCameraInfo. The annotator sends those
 # two primitives (not a composite token); the C++ simCameraModelKey() is the
@@ -483,11 +483,11 @@ def resolve_camera_model(stage, target_prim_path: str, fallback):
     Derives the model + lens from the asset itself so the user never has to set
     them by hand, using (in priority order):
 
-    1. An authored ``sl:cameraModel`` anywhere in the subtree - the ZED X One lens
+    1. An authored ``sl:cameraModel`` anywhere in the subtree: the ZED X One lens
        variants author this, so it stays the explicit source of truth.
     2. The first prim carrying a ``lens`` variantSet: the base model is that prim's
        name (``base_link/<base>``) and the lens is the variant selection
-       (Wide/Narrow/Fisheye). This is what makes the stereo lens functional.
+       (Wide/Narrow/Fisheye).
     3. The first prim whose name is a known base model, for single-lens assets that
        have no ``lens`` variantSet (ZED_M, ZED_X_Nano, ZED_XONE_UHD) -> Wide.
     4. ``fallback`` when nothing resolves.
@@ -696,7 +696,7 @@ def get_camera_subpaths(camera_model: str = "ZED_X") -> Dict[str, str]:
 def get_camera_paths(root_prim_path: str, camera_model: str = "ZED_X") -> Dict[str, str]:
     """Get the absolute camera/IMU prim paths of a ZED model referenced in a stage.
 
-    Pure string joining - regex roots such as "/World/envs/env_.*/ZED_X" work too.
+    Pure string joining, so regex roots such as "/World/envs/env_.*/ZED_X" work too.
 
     Args:
         root_prim_path: The prim path where the ZED USD is referenced (the model root)

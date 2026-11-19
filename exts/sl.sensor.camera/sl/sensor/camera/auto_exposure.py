@@ -55,7 +55,7 @@ def camera_fstop(prim, default: float = RTX_DEFAULT_FSTOP) -> float:
     """The f-stop the renderer exposes this camera with: its authored exposure:fStop, else the render product's.
 
     An unauthored exposure:fStop reads as UsdGeomCamera's fallback, 1.0, but the first render authors 5.0 and
-    renders with it: taking the fallback made the image 25x darker than the photometry assumed."""
+    renders with it: taking the fallback would make the image 25x darker than the photometry assumes."""
     attr = prim.GetAttribute("exposure:fStop") if prim else None
     if attr and attr.HasAuthoredValue():
         value = attr.Get()

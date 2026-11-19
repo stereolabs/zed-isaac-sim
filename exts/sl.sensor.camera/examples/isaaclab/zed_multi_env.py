@@ -1,24 +1,21 @@
-# ******************************************************************************
-# File Name          : zed_multi_env.py
-# Description        : Vectorized Isaac Lab example. Places a ZED X in N environments
-#                      and reads batched stereo RGB + render-based depth as
-#                      (N, H, W, C) tensors via regex-matched Camera sensors. No ZED SDK.
+# Vectorized Isaac Lab example. Places a ZED X in N environments and reads batched stereo
+# RGB + render-based depth as (N, H, W, C) tensors via regex-matched Camera sensors.
+# No ZED SDK.
 #
 # Why not InteractiveScene's cloner here: in this Isaac Lab build the cloner replicates
 # a referenced USD as an instanceable reference, so camera prims embedded inside the
 # cloned ZED model are not individually enumerable (only env_0's camera is found). To
-# keep using the ZED USD's authored CameraLeft/CameraRight (correct +X / +Z, 0.12 m
+# keep using the ZED USD's authored CameraLeft/CameraRight (correct +X / +Z and
 # baseline), this script references the ZED USD N times as real (non-instanceable) prims
 # laid out in a grid, then attaches a single Camera sensor per eye with a regex prim_path
 # matching all envs; the sensor tiles them into one render product and returns (N,H,W,C).
 # (`Camera` is the vectorized renderer in this version; TiledCamera is a deprecated alias.)
 #
 # Usage (rendering must be enabled):
-#   F:\IsaacLab\isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_multi_env.py --enable_cameras --num_envs 4 --resolution SVGA --save_dir F:\zed_lab_multi
+#   isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_multi_env.py --enable_cameras --num_envs 4 --resolution SVGA --save_dir C:\zed_lab_multi
 #
-# NOTE: the first rendered frame compiles RTX shaders and can take minutes on a cold
+# The first rendered frame compiles RTX shaders and can take minutes on a cold
 # cache; subsequent runs are fast.
-# ******************************************************************************
 
 import argparse
 import math
@@ -26,12 +23,12 @@ import os
 import sys
 
 # The ZED package (sl.sensor.camera) is importable without enabling the Kit extension;
-# _bootstrap walks up to the extension root and puts it on sys.path (depth-independent).
+# _bootstrap walks up to exts/ and puts every extension root with an sl/ tree on sys.path.
 _d = os.path.dirname(os.path.abspath(__file__))
 while not os.path.isfile(os.path.join(_d, "_bootstrap.py")):
     _d = os.path.dirname(_d)
 sys.path.insert(0, _d)
-import _bootstrap  # noqa: E402,F401  (adds the sl.sensor.camera extension root to sys.path)
+import _bootstrap  # noqa: E402,F401
 
 from isaaclab.app import AppLauncher
 
@@ -50,9 +47,9 @@ if get_resolution(args.camera_model, args.resolution) is None:
     parser.error(f"--resolution {args.resolution} is not supported by {args.camera_model}")
 
 # RGB/depth are render-based and this Isaac Lab build is headless-by-default with cameras
-# OFF; force rendering on so the script works with or without --enable_cameras.
+# off; force rendering on so the script works with or without --enable_cameras.
 if not args.enable_cameras:
-    print("[ZED] Enabling cameras (--enable_cameras) - required for RGB/depth rendering.")
+    print("[ZED] Enabling cameras (--enable_cameras): required for RGB/depth rendering.")
 args.enable_cameras = True
 # The ZED lens schema has to start with the app; Isaac Lab's apps do not load it.
 add_zed_kit_args(args)
@@ -60,7 +57,7 @@ add_zed_kit_args(args)
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 
-# ---- Everything below runs after the Kit app exists ----
+# Everything below runs after the Kit app exists.
 import functools
 
 print = functools.partial(print, flush=True)  # flush so progress shows during slow renders
@@ -82,8 +79,9 @@ _STEREO = is_stereo_camera(args.camera_model)
 _W, _H = get_resolution(args.camera_model, args.resolution)
 # Authored camera subpaths inside the ZED USD (left resolves to Camera for mono models).
 _SUBPATHS = get_camera_subpaths(args.camera_model)
-# Cameras look straight down, so each env only ever sees its own cell: the ground
-# footprint of the ZED X wide FOV from 2 m is ~5.7 x 3.4 m, well under the 5 m pitch.
+# Cameras look straight down from 2 m. The ZED X ground footprint is about 5.2 m along Y by
+# 2.9 to 3.2 m along X, so with the 5 m pitch each camera also sees a thin strip of the
+# neighboring cells at its Y edges; the objects sit well inside each cell.
 _ENV_SPACING = 5.0  # meters, grid pitch in X and Y
 _CAM_HEIGHT = 2.0  # meters, ZED mount height
 
@@ -174,7 +172,7 @@ def main():
     dt = sim.get_physics_dt()
     print(f"[ZED] {args.num_envs} envs, baseline = {get_baseline(args.camera_model) * 1e-3:.3f} m, "
           f"stereo = {_STEREO}, {_W}x{_H}.")
-    print("[ZED] Submitting first render - on a cold RTX shader cache this can take several "
+    print("[ZED] Submitting first render: on a cold RTX shader cache this can take several "
           "minutes (compiling, not hung). Subsequent runs are fast.")
 
     if wait_for_camera_data(sim, [cam_left, cam_right], keys=(color, "distance_to_image_plane"),
@@ -202,10 +200,10 @@ def main():
             cam_left.update(dt)
             if cam_right is not None:
                 cam_right.update(dt)
-        except Exception as exc:  # noqa: BLE001 - benign if Kit is tearing down mid-step
+        except Exception as exc:  # noqa: BLE001  (benign if Kit is tearing down mid-step)
             if simulation_app.is_running():
                 raise
-            print(f"[ZED] Kit shut down mid-step ({type(exc).__name__}) - exiting.")
+            print(f"[ZED] Kit shut down mid-step ({type(exc).__name__}); exiting.")
             break
 
         rgb_l = unwrap_output(cam_left.data.output, color)                        # (N, H, W, 3)

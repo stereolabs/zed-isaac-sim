@@ -1,42 +1,37 @@
-# ******************************************************************************
-# File Name          : zed_single.py
-# Description        : Isaac Lab example. Adds a ZED X camera to a scene (optionally
-#                      parented to a robot link) and reads stereo RGB + render-based
-#                      depth as in-process tensors each step. No ZED SDK.
+# Isaac Lab example. Adds a ZED X camera to a scene (optionally parented to a robot link)
+# and reads stereo RGB + render-based depth as in-process tensors each step. No ZED SDK.
 #
-# Render path: Isaac Lab's native Camera sensor (isaaclab.sensors.Camera), which is
-# purpose-built to deliver annotator tensors in standalone/headless runs via the normal
-# sim.step() render - unlike a raw replicator render product, which does not get driven
-# off-screen. Camera paths, intrinsics tables and the script helpers all come from the
-# sl.sensor.camera extension (utils / isaaclab_utils) - importable without enabling the
-# extension.
+# Render path: Isaac Lab's Camera sensor (isaaclab.sensors.Camera), which delivers annotator
+# tensors in standalone/headless runs through the normal sim.step() render; a raw Replicator
+# render product is not rendered off-screen. Camera paths, intrinsics tables and the script
+# helpers all come from the sl.sensor.camera extension (utils / isaaclab_utils), which
+# imports without enabling the extension.
 #
 # Usage (from an Isaac Lab install; rendering must be enabled):
 #   # headless (cameras require the renderer to be explicitly enabled):
-#   F:\IsaacLab\isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_single.py --enable_cameras --resolution SVGA --save_dir F:\zed_lab_out
+#   isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_single.py --enable_cameras --resolution SVGA --save_dir C:\zed_lab_out
 #   # with a GUI window:
-#   F:\IsaacLab\isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_single.py --enable_cameras --resolution SVGA --viz kit
+#   isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_single.py --enable_cameras --resolution SVGA --viz kit
 #
 #   Optional: attach to a robot (point --camera_prim at a path under the robot)
 #   ... --robot_usd C:\path\to\robot.usd --camera_prim /World/Robot/wrist/ZED_X
 #
-# NOTE: the very first rendered frame compiles RTX shaders and can take minutes on a
+# The very first rendered frame compiles RTX shaders and can take minutes on a
 # cold cache; subsequent runs are fast.
 #
 # Output: per-step shapes/stats for rgb_left, rgb_right, depth; optional frame dump.
-# ******************************************************************************
 
 import argparse
 import os
 import sys
 
 # The ZED package (sl.sensor.camera) is importable without enabling the Kit extension;
-# _bootstrap walks up to the extension root and puts it on sys.path (depth-independent).
+# _bootstrap walks up to exts/ and puts every extension root with an sl/ tree on sys.path.
 _d = os.path.dirname(os.path.abspath(__file__))
 while not os.path.isfile(os.path.join(_d, "_bootstrap.py")):
     _d = os.path.dirname(_d)
 sys.path.insert(0, _d)
-import _bootstrap  # noqa: E402,F401  (adds the sl.sensor.camera extension root to sys.path)
+import _bootstrap  # noqa: E402,F401
 
 from isaaclab.app import AppLauncher
 
@@ -58,9 +53,9 @@ if get_resolution(args.camera_model, args.resolution) is None:
     parser.error(f"--resolution {args.resolution} is not supported by {args.camera_model}")
 
 # RGB/depth are render-based and this Isaac Lab build is headless-by-default with cameras
-# OFF; force rendering on so the script works with or without --enable_cameras.
+# off; force rendering on so the script works with or without --enable_cameras.
 if not args.enable_cameras:
-    print("[ZED] Enabling cameras (--enable_cameras) - required for RGB/depth rendering.")
+    print("[ZED] Enabling cameras (--enable_cameras): required for RGB/depth rendering.")
 args.enable_cameras = True
 # The ZED lens schema has to start with the app; Isaac Lab's apps do not load it.
 add_zed_kit_args(args)
@@ -68,7 +63,7 @@ add_zed_kit_args(args)
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 
-# ---- Everything below runs after the Kit app exists ----
+# Everything below runs after the Kit app exists.
 import functools
 
 # Flush prints immediately so progress is visible during the (slow) first render.
@@ -95,8 +90,7 @@ def _prop(path, cfg, translation):
 
 def build_scene():
     """A small furnished scene so the camera FOV has content at varied depths, plus the
-    ZED camera (and optional robot). Purely illustrative - on a real robot the framing
-    comes from where the camera is mounted, not from this demo layout."""
+    ZED camera (and optional robot)."""
     from pxr import UsdGeom, Gf
     import omni.usd
 
@@ -124,15 +118,14 @@ def build_scene():
         robot = sim_utils.UsdFileCfg(usd_path=args.robot_usd)
         robot.func("/World/Robot", robot)
 
-    # Reference the ZED model at the requested prim and orient it to face the prop (+X).
+    # Reference the ZED model at the requested prim.
     zed = sim_utils.UsdFileCfg(usd_path=_ZED_USD)
     zed.func(args.camera_prim, zed)
     stage = omni.usd.get_context().get_stage()
     xform = UsdGeom.Xformable(stage.GetPrimAtPath(args.camera_prim))
-    # The USD's CameraLeft/CameraRight are authored looking +X (up +Z), baseline on Y.
-    # So identity orientation already makes them look level down +X at the scene; just
-    # lift the model to a sensible height. No rotation, no per-camera pose override -
-    # the cameras are used exactly as authored, so the housing stays behind the lenses.
+    # The USD's CameraLeft/CameraRight are authored looking +X (up +Z), baseline on Y, so
+    # identity orientation looks level at the scene: only lift the model. The cameras are
+    # used as authored, so the housing stays behind the lenses.
     xform.ClearXformOpOrder()
     xform.AddTranslateOp().Set(Gf.Vec3d(0.0, 0.0, 0.9))
     # The USD ships one nominal lens for every variant; give the cameras the model's own.
@@ -148,7 +141,7 @@ def main():
     sim = SimulationContext(sim_utils.SimulationCfg(dt=1.0 / 60.0, device=args.device))
     build_scene()
 
-    # Camera sensors attached to the EXISTING USD camera prims (spawn=None).
+    # Camera sensors attached to the existing USD camera prims (spawn=None).
     # ZED Sim2Real (the ZED X camera model) reads the cameras' linear HDR image instead of their RGB.
     color = "rgb_hdr" if args.apply_zed_sim2real else "rgb"
     cam_left = Camera(make_camera_cfg(paths["left"], args.camera_model, args.resolution,
@@ -169,7 +162,7 @@ def main():
     sim.reset()
     dt = sim.get_physics_dt()
     print(f"[ZED] baseline = {get_baseline(args.camera_model) * 1e-3:.3f} m, stereo = {stereo}, {w}x{h}.")
-    print("[ZED] Submitting first render - on a cold RTX shader cache this can take "
+    print("[ZED] Submitting first render: on a cold RTX shader cache this can take "
           "several minutes (compiling, not hung). Subsequent runs are fast.")
 
     # Step until the camera annotators deliver populated frames.
@@ -195,10 +188,10 @@ def main():
             cam_left.update(dt)
             if cam_right is not None:
                 cam_right.update(dt)
-        except Exception as exc:  # noqa: BLE001 - benign if Kit is tearing down mid-step
+        except Exception as exc:  # noqa: BLE001  (benign if Kit is tearing down mid-step)
             if simulation_app.is_running():
                 raise
-            print(f"[ZED] Kit shut down mid-step ({type(exc).__name__}) - exiting.")
+            print(f"[ZED] Kit shut down mid-step ({type(exc).__name__}); exiting.")
             break
 
         rgb_l = unwrap_output(cam_left.data.output, color, index=0)

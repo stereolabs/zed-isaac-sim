@@ -55,7 +55,7 @@ class TestOgn(omni.kit.test.AsyncTestCase):
         self.assertIsNone(update_clock.first_end_at_or_after(0.1, []))
 
     async def test_tick_inside_an_update(self):
-        # The AMR scene: 15 fps, 14 steps of 1/210 s. The warm-up puts each update's end 2 steps past a tick.
+        # 15 fps, 14 steps of 1/210 s: the warm-up puts each update's end 2 steps past a tick.
         clock = update_clock.UpdateClock()
         dt = _run(clock, 15.0, 14, 30)
         for k in range(1, 30):

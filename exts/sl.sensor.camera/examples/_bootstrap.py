@@ -8,7 +8,7 @@ default. Importing this module walks up from its own location to the ``exts/`` f
 inserts every extension root under it that ships an ``sl/`` tree, so an example can import
 ``sl.sensor.camera`` and any subpackage a sibling extension contributes (e.g. ``.demo``).
 
-Depth-independent: any example, at any nesting under ``examples/``, gets the same result -
+Depth-independent: any example, at any nesting under ``examples/``, gets the same result;
 nothing hard-codes how many directories up the extension root is.
 
 Usage (identical stanza in every example script):

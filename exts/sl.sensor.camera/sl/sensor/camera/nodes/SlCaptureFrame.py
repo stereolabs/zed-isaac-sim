@@ -1,6 +1,3 @@
-"""
-This is the implementation of the OGN node defined in SlCaptureFrame.ogn
-"""
 import traceback
 
 import carb

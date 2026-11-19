@@ -1,37 +1,33 @@
-# ******************************************************************************
-# File Name          : zed_franka_manipulation.py
-# Description        : Isaac Lab flagship demo port. Autonomous Franka pick-and-lift
-#                      driven by a Warp state machine (no human, no policy). A real ZED USD
-#                      model (ZED X Nano by default) rides the gripper and its authored
-#                      stereo cameras deliver stereo RGB + render-based depth as
-#                      (N, H, W, C) tensors. No ZED SDK.
+# Isaac Lab demo port. Autonomous Franka pick-and-lift driven by a Warp state machine (no
+# human, no policy). A real ZED USD model (ZED X Nano by default) rides the gripper and its
+# authored stereo cameras deliver stereo RGB + render-based depth as (N, H, W, C) tensors.
+# No ZED SDK.
 #
 # Mirrors Isaac Lab's scripts/environments/state_machine/lift_cube_sm.py on task
 # IsaacContrib-Lift-Cube-Franka-IK-Abs. The PickAndLiftSm class and the infer_state_machine
 # Warp kernel are copied verbatim from that script (BSD-3-Clause, The Isaac Lab Project
-# Developers). The ZED delta: the ZED model is spawned as a rigid body rigidly fixed
+# Developers). Changes from the original: the ZED model is spawned as a rigid body rigidly fixed
 # to panda_hand (fixed joint authored by a prestartup event) so it tracks the gripper, and
 # its authored CameraLeft/CameraRight are read directly (no pinhole).
 #
 # Usage (rendering must be enabled; runs headless):
-#   F:\IsaacLab\isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_franka_manipulation.py --headless --num_envs 4 --num_frames 5 --save_dir F:\zed_franka_out
-#   F:\IsaacLab\isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_franka_manipulation.py --num_envs 1
+#   isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_franka_manipulation.py --headless --num_envs 4 --num_frames 5 --save_dir C:\zed_franka_out
+#   isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_franka_manipulation.py --num_envs 1
 #
-# NOTE: the very first rendered frame compiles RTX shaders and can take minutes on a cold
+# The very first rendered frame compiles RTX shaders and can take minutes on a cold
 # cache; subsequent runs are fast.
-# ******************************************************************************
 
 import argparse
 import os
 import sys
 
 # The ZED package (sl.sensor.camera) is importable without enabling the Kit extension;
-# _bootstrap walks up to the extension root and puts it on sys.path (depth-independent).
+# _bootstrap walks up to exts/ and puts every extension root with an sl/ tree on sys.path.
 _d = os.path.dirname(os.path.abspath(__file__))
 while not os.path.isfile(os.path.join(_d, "_bootstrap.py")):
     _d = os.path.dirname(_d)
 sys.path.insert(0, _d)
-import _bootstrap  # noqa: E402,F401  (adds the sl.sensor.camera extension root to sys.path)
+import _bootstrap  # noqa: E402,F401
 
 from isaaclab.app import AppLauncher
 
@@ -52,9 +48,9 @@ if get_resolution(args.camera_model, args.resolution) is None:
     parser.error(f"--resolution {args.resolution} is not supported by {args.camera_model}")
 
 # RGB/depth are render-based and this Isaac Lab build is headless-by-default with cameras
-# OFF; force rendering on so the script works with or without --enable_cameras.
+# off; force rendering on so the script works with or without --enable_cameras.
 if not args.enable_cameras:
-    print("[ZED] Enabling cameras (--enable_cameras) - required for RGB/depth rendering.")
+    print("[ZED] Enabling cameras (--enable_cameras): required for RGB/depth rendering.")
 args.enable_cameras = True
 # The ZED lens schema has to start with the app; Isaac Lab's apps do not load it.
 add_zed_kit_args(args)
@@ -62,7 +58,7 @@ add_zed_kit_args(args)
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 
-# ---- Everything below runs after the Kit app exists ----
+# Everything below runs after the Kit app exists.
 import functools
 
 # Flush prints immediately so progress is visible during the (slow) first render.
@@ -88,18 +84,15 @@ from sl.sensor.camera.isaaclab_utils import (  # noqa: E402
 )
 from sl.sensor.camera.utils import get_baseline  # noqa: E402
 
-# initialize warp
 wp.init()
 
 _W, _H = get_resolution(args.camera_model, args.resolution)
 
 
-# ==============================================================================
 # The following PickAndLiftSm class + infer_state_machine kernel are copied
 # verbatim from Isaac Lab's scripts/environments/state_machine/lift_cube_sm.py
 # (BSD-3-Clause, The Isaac Lab Project Developers). Only the ZED cameras, per-step
 # tensor read/save and headless CI mode below are additions.
-# ==============================================================================
 
 
 class GripperState:
@@ -298,15 +291,14 @@ class PickAndLiftSm:
         return torch.cat([self.des_ee_pose, self.des_gripper_state.unsqueeze(-1)], dim=-1)
 
 
-# ==============================================================================
 # End of copied Isaac Lab code.
-# ==============================================================================
 
 
-# Arm-mounted ZED placed like the Stereolabs SL Isaac-Sim demo (extension.py): parented in
-# the panda_hand frame with a local translate + RotateXYZ(deg). Tune in-engine if needed.
+# Arm-mounted ZED placed like the pick-place demo (sl.sensor.camera.demo, pickplace.py):
+# parented in the panda_hand frame with a local translate + RotateXYZ(deg). Tune in-engine
+# if needed.
 _ZED_ARM_LOCALPOS0 = (0.018, 0.0, 0.034)
-_ZED_ARM_ROT_EULER_DEG = (0.0, -90.0, -180.0)   # RotateXYZ degrees (SL demo placement, faces forward)
+_ZED_ARM_ROT_EULER_DEG = (0.0, -90.0, -180.0)   # RotateXYZ degrees (pick-place demo placement, faces forward)
 
 
 def _author_zed_arm_joints(env, env_ids=None, **kwargs):
@@ -340,7 +332,6 @@ def _read_and_save(env, save_dir, saved):
 
 
 def main():
-    # parse configuration
     env_cfg: LiftEnvCfg = parse_env_cfg(
         "IsaacContrib-Lift-Cube-Franka-IK-Abs",
         device=args.device,
@@ -355,18 +346,16 @@ def main():
     env_cfg.scene.zed_model, env_cfg.scene.zed_left, env_cfg.scene.zed_right = make_zed_usd_link_mount(
         "{ENV_REGEX_NS}/zed", args.camera_model, args.resolution, spawn_init_pos=(0.4, 0.0, 0.55))
     env_cfg.events.zed_arm_joint = EventTermCfg(func=_author_zed_arm_joints, mode="prestartup")
-    # Hide the goal-pose debug frame markers (RGB axis gizmos) - they are real prims in the
+    # Hide the goal-pose debug frame markers (RGB axis gizmos): they are real prims in the
     # scene, so the ZED render product would otherwise capture them in the RGB/depth output.
     env_cfg.commands.object_pose.debug_vis = False
 
-    # create environment
     env = gym.make("IsaacContrib-Lift-Cube-Franka-IK-Abs", cfg=env_cfg)
-    # reset environment at start
     env.reset()
 
     print(f"[ZED] {args.num_envs} envs, arm-mounted ZED (authored cameras), "
           f"baseline = {get_baseline(args.camera_model) * 1e-3:.3f} m, {_W}x{_H}.")
-    print("[ZED] Submitting first render - on a cold RTX shader cache this can take several "
+    print("[ZED] Submitting first render: on a cold RTX shader cache this can take several "
           "minutes (compiling, not hung). Subsequent runs are fast.")
 
     if args.save_dir:
@@ -383,7 +372,6 @@ def main():
     # desired object orientation (we only do position control of object)
     desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
     desired_orientation[:, 1] = 1.0
-    # create state machine
     pick_sm = PickAndLiftSm(
         env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device, position_threshold=0.01
     )
@@ -393,18 +381,15 @@ def main():
     while simulation_app.is_running() and (run_forever or saved < args.num_frames):
         if env.unwrapped.sim.is_stopped():  # Kit tearing down: stop before touching a released view
             break
-        # run everything in inference mode
         with torch.inference_mode():
-            # step environment
             try:
                 dones = env.step(actions)[-2]
-            except Exception as exc:  # noqa: BLE001 - benign if Kit is tearing down mid-step
+            except Exception as exc:  # noqa: BLE001  (benign if Kit is tearing down mid-step)
                 if simulation_app.is_running():
                     raise
-                print(f"[ZED] Kit shut down mid-step ({type(exc).__name__}) - exiting.")
+                print(f"[ZED] Kit shut down mid-step ({type(exc).__name__}); exiting.")
                 break
 
-            # observations
             # -- end-effector frame
             ee_frame_sensor = env.unwrapped.scene["ee_frame"]
             tcp_rest_position = (
@@ -417,18 +402,16 @@ def main():
             # -- target object frame
             desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
 
-            # advance state machine
             actions = pick_sm.compute(
                 torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
                 torch.cat([object_position, desired_orientation], dim=-1),
                 torch.cat([desired_position, desired_orientation], dim=-1),
             )
 
-            # reset state machine
             if dones.any():
                 pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
 
-        # ZED read/save (outside inference_mode is fine - read-only tensor ops).
+        # ZED read/save (outside inference_mode is fine; read-only tensor ops).
         if args.save_dir and step % args.save_every == 0:
             saved = _read_and_save(env, args.save_dir, saved)
         step += 1

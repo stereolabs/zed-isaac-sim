@@ -19,7 +19,7 @@ Script Editor and needs the extension enabled.
 | [`zed_depth_standalone.py`](zed_depth_standalone.py) | Headless / standalone (`SimulationApp`) | `python.bat` / `python.sh` with CLI args |
 | [`zed_depth_example.py`](zed_depth_example.py) | Isaac Sim **GUI** Script Editor | paste, edit CONFIG, press **Play** |
 
-### `zed_depth_standalone.py` - standalone / CLI
+### `zed_depth_standalone.py`: standalone / CLI
 
 Captures left RGB + depth for N frames, prints per-frame stats, and optionally saves PNG/EXR. Runs
 with **no arguments**: when no scene or camera is given, it builds a minimal ground + dome-light scene
@@ -50,7 +50,7 @@ and spawns a ZED camera at a small default pose, so it produces a usable depth c
 | `--output_dir` | `None` | If set, save RGB (`.png`) + depth (`.exr`) here. |
 | `--headless` | off | Run without a GUI window. |
 
-### `zed_depth_example.py` - GUI Script Editor
+### `zed_depth_example.py`: GUI Script Editor
 
 For interactive use inside the Isaac Sim GUI (extension enabled):
 
@@ -64,7 +64,7 @@ For interactive use inside the Isaac Sim GUI (extension enabled):
 
 ## Output
 
-- **Console** - per-capture shape and depth range stats.
-- **Files** (when a save path is set) - `rgb_left_NNNNNN.png` (left RGB) and `depth_NNNNNN.exr` (float32
+- **Console**: per-capture shape and depth range stats.
+- **Files** (when a save path is set): `rgb_left_NNNNNN.png` (left RGB) and `depth_NNNNNN.exr` (float32
   depth in meters, `inf` where nothing is in range). For stereo models, `rgb_right_NNNNNN.png` (right
   RGB) is saved too; depth stays left-referenced.

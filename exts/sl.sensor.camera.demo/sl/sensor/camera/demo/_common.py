@@ -23,7 +23,6 @@ from sl.sensor.camera.utils import (get_camera_model, get_camera_usd_path,
 # Stereolabs floor decals along the warehouse aisle, shared by the humanoid and AMR scenes.
 AISLE_LOGOS = [(-8.3, 10.5), (-8.3, 4.5), (-8.3, -1.5)]
 
-# ---------------- Isaac Sim version gate ----------------
 # Isaac Sim 6.1 ships Kit 110.3.0 and retired the example APIs the humanoid and pick-place demos
 # drive. Both Isaac Sim versions stay supported (see the ext's kit target), so each demo picks its
 # robot driver off this.
@@ -45,7 +44,7 @@ def _asset(model: str) -> str:
     return path.replace("\\", "/") if path else path
 
 
-# ---------------- streaming graph ----------------
+# Streaming graph
 
 def make_zed_graph(stage, graph_path, cam_path, port, *, model="ZED_X", res="SVGA", fps=30):
     """Author an `OnPlaybackTick -> ZED_*` streaming graph targeting `cam_path` on `port`.
@@ -73,7 +72,7 @@ def make_zed_graph(stage, graph_path, cam_path, port, *, model="ZED_X", res="SVG
     select_lens_variant(stage, cam_path, model)
 
 
-# ---------------- Stereolabs logo decals ----------------
+# Stereolabs logo decals
 
 def make_logo_material(stage, logo_png, mtl_path="/World/Looks/LogoMat"):
     """OmniPBR material with the Stereolabs logo as an alpha-cutout decal. Returns `mtl_path`."""
@@ -117,7 +116,7 @@ def add_floor_logos(stage, demo_path, placements, *, w=1.5, h=0.201, z=0.01, rot
                       (lx, ly, z), (0, 0, rot_z), mtl_path)
 
 
-# ---------------- physics ground ----------------
+# Physics ground
 
 def add_physics_ground(stage, path, *, scale, friction, z=-0.5):
     """Invisible high-friction collider slab under the robot. Returns the Cube."""
@@ -139,7 +138,7 @@ def add_physics_ground(stage, path, *, scale, friction, z=-0.5):
 def hide_asset_camera(stage, ref_path) -> None:
     """Deactivate the stray viewport camera the warehouse asset ships at <ref_path>/Camera.
 
-    Nothing reads it - it just shows up in the stage tree and the viewport camera list next to
+    Nothing reads it: it just shows up in the stage tree and the viewport camera list next to
     the ZED cameras. Deactivate rather than remove: the prim is defined in the referenced layer.
     """
     cam = stage.GetPrimAtPath(f"{ref_path}/Camera")
@@ -147,13 +146,13 @@ def hide_asset_camera(stage, ref_path) -> None:
         cam.SetActive(False)
 
 
-# ---------------- camera rig mounting ----------------
+# Camera rig mounting
 
 def mount_zed_nested(stage, rig_path, translate, *, rotate=None, model="ZED_X"):
     """Nest a ZED model under a robot link as a passive viewpoint (pick-place wrist, AMR deck).
 
     Creates `rig_path` (Xform placed by translate + rotate), references the ZED asset at
-    `rig_path/ZED_X`, and DISABLES (never removes) the asset's authored rigid body + collision so it
+    `rig_path/<model>`, and disables (does not remove) the asset's authored rigid body + collision so it
     rides the parent link without perturbing physics. Returns the ZED asset-root path (the streaming
     target).
 

@@ -2,13 +2,13 @@
 # SPDX-License-Identifier: MIT
 """sRGB encoding of the streamed ZED images, on the GPU.
 
-The legacy stream took the render product's LdrColor ("rgb" annotator). Measured on Isaac Sim
-6.0 / Real-Time 2.0 through the ZED SDK receiver, that is the RTX tonemapped image - the ACES
-approximation followed by sRGB - but it silently becomes 255 * clamp(HdrColor) (linear) once
-anything requests HdrColor on the same render product (e.g. an exposure meter). A real ZED X
-matches neither: its output is sRGB of the scene's linear light. So the stream is encoded here
-from HdrColor (linear, already exposed by the camera's exposure:* attributes), independent of the
-tonemapper and of whatever else reads the render product.
+The "linear" (legacy) stream encoding takes the render product's LdrColor ("rgb" annotator).
+Measured on Isaac Sim 6.0 / Real-Time 2.0 through the ZED SDK receiver, that is the RTX tonemapped
+image (the ACES approximation followed by sRGB), but it silently becomes 255 * clamp(HdrColor)
+(linear) once anything requests HdrColor on the same render product (e.g. an exposure meter). A
+real ZED X matches neither: its output is sRGB of the scene's linear light. So the stream is
+encoded here from HdrColor (linear, already exposed by the camera's exposure:* attributes),
+independent of the tonemapper and of whatever else reads the render product.
 
 The encoding is the ZED X camera model of the ``sl_zed_sim2real`` library (camera_model_lib.py): the
 real camera's sharpness, motion blur over its exposure time, the scene lights' flicker, its white
@@ -57,7 +57,7 @@ def light_flicker_gain(sim_time: float, std: float, hz: float = 0.0, exposure_s:
     The lamps' light swings at twice the mains frequency (``mains_hz``, 0 = 50 Hz); the frame's exposure
     (``exposure_s``) integrates the swing, so long exposures flicker less, and sampling at the camera's frame
     times gives the beat a real camera shows (10 Hz at 30 fps under 50 Hz mains). ``hz`` > 0 instead imposes a
-    fixed beat frequency without the exposure's integration (the older model).
+    fixed beat frequency without the exposure's integration.
     """
     if not std or std <= 0 or not math.isfinite(sim_time):
         return 1.0

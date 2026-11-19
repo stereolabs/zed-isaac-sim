@@ -20,7 +20,7 @@ def OmniGraph "TestGraph"
 
         # 22 attributes
         custom bool inputs:applyZedSim2Real = true (
-            docs="""Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting and sharpness, each with its own switch below. Off streams the render as is (the scene's own camera exposure, plain sRGB). Can be toggled live."""
+            docs="""Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting, sharpness and focus blur, each with its own switch below. Off streams the render as is (the scene's own camera exposure, plain sRGB). Can be toggled live."""
         )
         custom bool inputs:autoExposure = true (
             docs="""Real-camera auto exposure: meters the rendered HDR image and drives the cameras' exposure time and gain (exposure:time / exposure:iso) like a real ZED X. Off keeps the scene's own camera exposure. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real."""

@@ -96,7 +96,7 @@ def retimed(physics_hz: int, update_hz, rates: Iterable[int], one_per_frame: boo
     return -(-physics_hz // update) * update, update
 
 
-# ------------------------------------------------------------------ the running app (Kit)
+# The running app (Kit)
 def _physics_scenes(stage) -> list:
     from pxr import UsdPhysics
 
@@ -262,7 +262,7 @@ def stream_rates() -> List[int]:
             if node.get_type_name() in _STREAM_NODE_TYPES and not node.is_disabled()]
 
 
-# ------------------------------------------------------------------ putting the timing back (Kit-free)
+# Putting the timing back (Kit-free)
 # What a probe reads once its value is gone: the stage it belongs to was closed
 GONE = object()
 
@@ -336,7 +336,7 @@ def undo(changes: Iterable[Change]) -> Tuple[List[str], List[str]]:
     return restored, kept
 
 
-# ------------------------------------------------------------------ the values a retime changes (Kit)
+# The values a retime changes (Kit)
 _TIME_STEPS_PER_SECOND = "physxScene:timeStepsPerSecond"
 # RenderingManager.set_dt writes these with the update rate
 _RATE_LIMIT_FREQUENCY = "/app/runLoops/main/rateLimitFrequency"

@@ -42,8 +42,7 @@ def _make_asset(base_model, lens=None, sl_camera_model=None):
     return stage, root_path
 
 
-# NOTE: the class must be named TestOgn - ogn/tests/__init__.py auto-imports test
-# modules via omni.graph.tools and only registers each module's `TestOgn` attribute.
+# The class must be named TestOgn: the OGN test loader registers only that name from each module.
 class TestOgn(omni.kit.test.AsyncTestCase):
 
     async def test_base_models_are_deduped_bases(self):
@@ -78,7 +77,7 @@ class TestOgn(omni.kit.test.AsyncTestCase):
         self.assertEqual(compose_model("ZED_X", "Wide"), "ZED_X")
         self.assertEqual(compose_model("ZED_X", "Narrow"), "ZED_X_4MM")
         self.assertEqual(compose_model("ZED_XONE_GS", "Narrow"), "ZED_XONE_GS_4MM")
-        # Fisheye genuinely selects the distinct spec, not just the base.
+        # Fisheye selects its own spec.
         self.assertEqual(compose_model("ZED_XONE_S", "Fisheye"), "ZED_XONE_S_FISHEYE")
 
     async def test_compose_model_falls_back_on_invalid_pair(self):

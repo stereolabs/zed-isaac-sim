@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2024 Stereolabs. All rights reserved.
 # SPDX-License-Identifier: MIT
-"""Per-camera auto exposure for a streamed ZED: meter -> controller -> renderer exposure.
+"""Per-camera auto exposure for a streamed or captured ZED: meter -> controller -> renderer exposure.
 
 Runs on every app update, but meters and steers only when the metered render product delivers a
 new frame (its hydra-texture frame number), i.e. at the camera rate. One loop per camera: both
-eyes get the same exposure, as on the real camera, and one eye is metered (the right of a stereo pair, as on
-the real camera; see ZEDAnnotator._metered_eye).
+eyes get the same exposure and one eye is metered (the right of a stereo pair), as on the real
+camera; see ZEDAnnotator._metered_eye.
 
 The camera behaves like a real ZED X: its auto exposure is the ZED X camera model's
 (auto_exposure.py), and exposure:responsivity is authored so that a scene of a given luminance

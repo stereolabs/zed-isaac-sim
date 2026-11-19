@@ -1,6 +1,3 @@
-"""
-This is the implementation of the OGN node defined in SlFrameImu.ogn
-"""
 import carb
 import omni.graph.core as og
 

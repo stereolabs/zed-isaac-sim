@@ -2,12 +2,12 @@
 
 Standalone example scripts for the ZED Isaac Sim / Isaac Lab integration, grouped by data path:
 
-- **[`isaaclab/`](isaaclab/README.md)** - stereo RGB + depth as in-process **GPU torch tensors** in
-  Isaac Lab, for RL / imitation learning. Includes ports of flagship Isaac Lab demos with a
+- **[`isaaclab/`](isaaclab/README.md)**: stereo RGB + depth as in-process **GPU torch tensors** in
+  Isaac Lab, for RL / imitation learning. Includes ports of Isaac Lab demos with a
   robot-mounted ZED.
-- **[`isaac_sim/`](isaac_sim/README.md)** - the same SDK-free RGB + depth, captured in plain Isaac
+- **[`isaac_sim/`](isaac_sim/README.md)**: the same SDK-free RGB + depth, captured in plain Isaac
   Sim (no Isaac Lab) and saved to disk as **PNG/EXR**.
-- **[`fusion_calibration/`](fusion_calibration/README.md)** - a ZED Fusion calibration helper for
+- **[`fusion_calibration/`](fusion_calibration/README.md)**: a ZED Fusion calibration helper for
   the **streaming** path (the OmniGraph nodes documented in the
   [extension reference](../docs/README.md)).
 
@@ -21,7 +21,7 @@ The command-line scripts run without installing the extension: each imports
 `sys.path`. The two Script Editor scripts (`zed_depth_example.py`, `pose_to_zed_fusion.py`) need the
 extension enabled.
 
-## Isaac Lab - tensor path
+## Isaac Lab: tensor path
 
 See [`isaaclab/README.md`](isaaclab/README.md) for requirements, arguments, commands, and output
 formats. All scripts are launched through `isaaclab.bat` / `isaaclab.sh`; cameras are enabled
@@ -35,7 +35,7 @@ automatically.
 | [`isaaclab/zed_franka_manipulation.py`](isaaclab/zed_franka_manipulation.py) | Autonomous Franka pick-and-lift (state machine) with a wrist-mounted ZED; fully headless-able. |
 | [`isaaclab/zed_record_demos.py`](isaaclab/zed_record_demos.py) | Keyboard-teleop imitation-learning **HDF5 recording** with wrist-mounted ZED observations. |
 
-## Isaac Sim - SDK-free depth capture
+## Isaac Sim: SDK-free depth capture
 
 See [`isaac_sim/README.md`](isaac_sim/README.md) for arguments and usage.
 
@@ -44,7 +44,7 @@ See [`isaac_sim/README.md`](isaac_sim/README.md) for arguments and usage.
 | [`isaac_sim/zed_depth_standalone.py`](isaac_sim/zed_depth_standalone.py) | Standalone / CLI capture (`python.bat` / `python.sh`): captures from your USD scene or a built-in minimal one, and optionally saves RGB + depth as PNG/EXR. |
 | [`isaac_sim/zed_depth_example.py`](isaac_sim/zed_depth_example.py) | GUI Script Editor variant: captures every N physics steps while the timeline plays. |
 
-## ZED Fusion calibration - streaming path
+## ZED Fusion calibration: streaming path
 
 See [`fusion_calibration/README.md`](fusion_calibration/README.md) for the workflow.
 

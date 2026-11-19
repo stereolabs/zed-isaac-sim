@@ -102,8 +102,8 @@ def make_camera_cfg(prim_path: str, camera_model: str, camera_resolution: str,
                     data_types=("rgb",), update_period: float = 0.0):
     """Build an ``isaaclab.sensors.CameraCfg`` for a ZED USD's authored camera prim.
 
-    The sensor attaches to the existing prim (``spawn=None``) - the real ZED camera, with its
-    real baseline - so pair it with :func:`apply_zed_optics`. Sized from the ZED spec tables.
+    The sensor attaches to the existing prim (``spawn=None``), the real ZED camera with its
+    real baseline, so pair it with :func:`apply_zed_optics`. Sized from the ZED spec tables.
 
     Args:
         prim_path: sensor prim path (regex env paths supported by Isaac Lab work).
@@ -136,12 +136,12 @@ def make_zed_usd_link_mount(zed_prim_path: str, camera_model: str, camera_resolu
 
     Returns ``(model_cfg, left_cam_cfg, right_cam_cfg)``:
 
-    - ``model_cfg`` (``AssetBaseCfg``): the ``ZED_X.usdc`` model spawned as a rigid body at
-      ``zed_prim_path``. Pair it with :func:`author_zed_link_joint` (a fixed joint to the link)
-      so the model + its authored cameras track the moving link. Once it is on the stage, call
-      :func:`apply_zed_optics` per env for the model's lens variant and optics.
+    - ``model_cfg`` (``AssetBaseCfg``): the model's USD (``data/usd/<base_model>.usdc``) spawned
+      as a rigid body at ``zed_prim_path``. Pair it with :func:`author_zed_link_joint` (a fixed
+      joint to the link) so the model + its authored cameras track the moving link. Once it is on
+      the stage, call :func:`apply_zed_optics` per env for the model's lens variant and optics.
     - ``left_cam_cfg`` / ``right_cam_cfg`` (``CameraCfg``): sensors attached (spawn=None) to the
-      model's authored ``CameraLeft`` / ``CameraRight`` prims - the real ZED cameras, no pinhole.
+      model's authored ``CameraLeft`` / ``CameraRight`` prims (the real ZED cameras, no pinhole).
 
     Args:
         zed_prim_path: prim path for the ZED model (e.g. "{ENV_REGEX_NS}/zed"). Its authored
@@ -185,7 +185,7 @@ def apply_zed_optics(stage, zed_prim_path: str, camera_model: str, camera_resolu
     true K from the returned camera's ``calibration`` (fx, fy, cx, cy per eye). In ``legacy``
     mode the optics come from the extension's spec tables.
 
-    Call once the ZED USD is on the stage and before the ``Camera`` sensors initialize - Isaac Lab
+    Call once the ZED USD is on the stage and before the ``Camera`` sensors initialize: Isaac Lab
     reads focal length and aperture off the prim when the sensor starts, so authoring afterwards
     changes the image but not the reported intrinsics.
 
@@ -247,7 +247,7 @@ def author_zed_link_joint(stage, link_prim_path: str, zed_prim_path: str,
     """Author a ``UsdPhysics.FixedJoint`` fixing the ZED rigid body to a robot link.
 
     Places the ZED at ``local_pos`` (translate) + ``euler_deg`` (``RotateXYZ`` degrees) in the
-    link frame - the same placement convention as the Stereolabs Isaac-Sim demo. Idempotent
+    link frame, the same placement convention as the Stereolabs Isaac-Sim demo. Idempotent
     and safe if the prim is missing (returns False). Call once per env before physics starts
     (a ``prestartup`` event in manager-based tasks, or before ``sim.reset()`` in standalone).
 
@@ -307,7 +307,7 @@ def wait_for_camera_data(sim, cameras, keys=("rgb", "distance_to_image_plane"),
 
     Returns:
         The number of frames stepped, or -1 if data never arrived (usually
-        the renderer is off - is --enable_cameras set?).
+        the renderer is off; is --enable_cameras set?).
     """
     cameras = [cam for cam in cameras if cam is not None]
     dt = sim.get_physics_dt()

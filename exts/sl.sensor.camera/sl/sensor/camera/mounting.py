@@ -1,6 +1,6 @@
 """Fix a ZED rigid body to a moving robot link.
 
-A camera nested under a robot link does not follow it once Fabric is on - the nested USD
+A camera nested under a robot link does not follow it once Fabric is on: the nested USD
 transform is never re-read. A light rigid body held to the link by a ``UsdPhysics.FixedJoint``,
 excluded from the articulation so the solver does not fight the robot's controller, does.
 

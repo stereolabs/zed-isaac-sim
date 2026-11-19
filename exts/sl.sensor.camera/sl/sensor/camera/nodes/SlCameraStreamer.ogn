@@ -136,7 +136,7 @@
             "applyZedSim2Real": {
                 "type": "bool",
                 "default": true,
-                "description": "Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting and sharpness, each with its own switch below. Off streams the render as is (the scene's own camera exposure, plain sRGB). Can be toggled live.",
+                "description": "Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting, sharpness and focus blur, each with its own switch below. Off streams the render as is (the scene's own camera exposure, plain sRGB). Can be toggled live.",
                 "metadata": {
                     "uiName": "Apply ZED Sim2Real",
                     "uiGroup": "ZED Sim2Real"

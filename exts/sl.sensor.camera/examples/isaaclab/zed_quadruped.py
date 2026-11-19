@@ -1,47 +1,43 @@
-# ******************************************************************************
-# File Name          : zed_quadruped.py
-# Description        : Isaac Lab flagship demo port. A walking ANYmal-C quadruped on
-#                      generated rough terrain, driven by the pretrained ANYmal-C
-#                      "HeightScan" locomotion policy and steered live from the keyboard.
-#                      A real ZED_X USD model rides the base link (rigid body + fixed joint)
-#                      and its authored CameraLeft/CameraRight deliver batched stereo RGB +
-#                      render-based depth as (N, H, W, C) tensors across N envs. No ZED SDK.
+# Isaac Lab demo port. A walking ANYmal-C quadruped on generated rough terrain, driven by the
+# pretrained ANYmal-C "HeightScan" locomotion policy and steered live from the keyboard.
+# A real ZED USD model (ZED X by default) rides the base link (rigid body + fixed joint) and
+# its authored CameraLeft/CameraRight deliver batched stereo RGB + render-based depth as
+# (N, H, W, C) tensors across N envs. No ZED SDK.
 #
 # Combines two Isaac Lab patterns (BSD-3-Clause, The Isaac Lab Project Developers): the scene +
 # JIT locomotion policy from scripts/tutorials/03_envs/create_quadruped_base_env.py, and the
-# keyboard command injection from scripts/demos/h1_locomotion.py. The ZED delta: the single
-# pinhole is replaced by the real ZED_X model mounted on the base link, whose authored stereo
-# cameras are read directly - no pinhole.
+# keyboard command injection from scripts/demos/h1_locomotion.py. Changes from the original:
+# the single pinhole is replaced by the real ZED model mounted on the base link, whose
+# authored stereo cameras are read directly.
 #
 # The walking policy is downloaded from the Isaac Lab Nucleus server on first run
-# (Policies/ANYmal-C/HeightScan/policy.pt) - needs network access.
+# (Policies/ANYmal-C/HeightScan/policy.pt), which needs network access.
 #
-# Keyboard controls (Isaac Lab Se2Keyboard; need a focused Kit viewport - click it first):
+# Keyboard controls (Isaac Lab Se2Keyboard; click the Kit viewport first to focus it):
 #   UP / DOWN   walk forward / back        LEFT / RIGHT  strafe left / right
 #   Z / X       turn left / right          L             reset command to zero
 # For a headless / non-interactive walk, pass --command VX VY WZ instead of using the keyboard.
 #
 # Usage (rendering must be enabled; one robot by default, --num_envs to spawn more):
 #   # GUI, keyboard-steered, streaming per-env depth stats:
-#   F:\IsaacLab\isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_quadruped.py --verbose
+#   isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_quadruped.py --verbose
 #   # capture frames to disk while walking:
-#   F:\IsaacLab\isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_quadruped.py --save_dir F:\zed_quad_out --num_frames 5 --save_every 10
+#   isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_quadruped.py --save_dir C:\zed_quad_out --num_frames 5 --save_every 10
 #
-# NOTE: the very first rendered frame compiles RTX shaders and can take minutes on a cold
+# The very first rendered frame compiles RTX shaders and can take minutes on a cold
 # cache; subsequent runs are fast.
-# ******************************************************************************
 
 import argparse
 import os
 import sys
 
 # The ZED package (sl.sensor.camera) is importable without enabling the Kit extension;
-# _bootstrap walks up to the extension root and puts it on sys.path (depth-independent).
+# _bootstrap walks up to exts/ and puts every extension root with an sl/ tree on sys.path.
 _d = os.path.dirname(os.path.abspath(__file__))
 while not os.path.isfile(os.path.join(_d, "_bootstrap.py")):
     _d = os.path.dirname(_d)
 sys.path.insert(0, _d)
-import _bootstrap  # noqa: E402,F401  (adds the sl.sensor.camera extension root to sys.path)
+import _bootstrap  # noqa: E402,F401
 
 from isaaclab.app import AppLauncher
 
@@ -67,15 +63,15 @@ if get_resolution(args.camera_model, args.resolution) is None:
     parser.error(f"--resolution {args.resolution} is not supported by {args.camera_model}")
 
 # RGB/depth are render-based and this Isaac Lab build is headless-by-default with cameras
-# OFF; force rendering on so the script works with or without --enable_cameras.
+# off; force rendering on so the script works with or without --enable_cameras.
 if not args.enable_cameras:
-    print("[ZED] Enabling cameras (--enable_cameras) - required for RGB/depth rendering.")
+    print("[ZED] Enabling cameras (--enable_cameras): required for RGB/depth rendering.")
 args.enable_cameras = True
 # The ZED lens schema has to start with the app; Isaac Lab's apps do not load it.
 add_zed_kit_args(args)
-# Keyboard teleop needs a focused GUI window, so open the Kit visualizer - unless running
+# Keyboard teleop needs a focused GUI window, so open the Kit visualizer, except when running
 # headless (cameras still render via --enable_cameras, but keyboard input is unavailable)
-# or the user explicitly selected another visualizer.
+# or when the user explicitly selected another visualizer.
 if getattr(args, "headless", False):
     if args.command is None:
         print("[ZED] WARNING: --headless -> no Kit window; keyboard steering unavailable. Pass "
@@ -86,7 +82,7 @@ elif not getattr(args, "visualizer", None):
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 
-# ---- Everything below runs after the Kit app exists ----
+# Everything below runs after the Kit app exists.
 import functools
 import math
 
@@ -124,18 +120,18 @@ from sl.sensor.camera.utils import get_baseline  # noqa: E402
 _W, _H = get_resolution(args.camera_model, args.resolution)
 
 # ZED mounted on the ANYmal base link, looking forward (+X of the base). Placement is a local
-# translate + RotateXYZ(deg) in the base frame - the SL-demo convention. Tune in-engine.
+# translate + RotateXYZ(deg) in the base frame. Tune in-engine.
 _ZED_BASE_LOCALPOS0 = (0.38, 0.0, 0.16)         # on the front of the body, just high enough to clear it
 _ZED_BASE_ROT_EULER_DEG = (0.0, 0.0, 0.0)       # authored ZED camera looks +X (base forward)
 
-# Robot spawn yaw about Z (degrees) - orients its forward/walking direction.
+# Robot spawn yaw about Z (degrees): sets the direction the robot faces at spawn.
 _ROBOT_SPAWN_YAW_DEG = 0.0
 _h = math.radians(_ROBOT_SPAWN_YAW_DEG) / 2.0
 _ROBOT_SPAWN_QUAT = (0.0, 0.0, math.sin(_h), math.cos(_h))  # (x, y, z, w)
 
-# GUI follow-cam distances (meters): how far BEHIND the robot the viewport sits, how high, and how
-# far AHEAD of it to aim. Applied each step by _update_follow_cam so the camera tracks the base
-# position AND yaw (a true chase cam that swings around on turns). Tune to taste.
+# GUI follow-cam distances (meters): how far behind the robot the viewport sits, how high, and how
+# far ahead of it to aim. Applied each step by _update_follow_cam so the camera tracks the base
+# position and yaw, swinging around on turns.
 _CAM_BEHIND_M, _CAM_UP_M, _CAM_AHEAD_M = 3.5, 1.4, 2.0
 
 
@@ -162,10 +158,8 @@ def _author_zed_base_joint(env, env_ids=None, **kwargs):
         apply_zed_optics(env.sim.stage, f"/World/envs/env_{i}/zed", args.camera_model, args.resolution)
 
 
-# ==============================================================================
 # Scene + MDP config (copy-adapted from Isaac Lab's create_quadruped_base_env.py,
 # BSD-3-Clause). The ZED stereo pair is assigned onto the scene instance in main().
-# ==============================================================================
 
 
 @configclass
@@ -187,9 +181,8 @@ class ZedQuadrupedSceneCfg(InteractiveSceneCfg):
         debug_vis=False,
     )
 
-    # Spawn yaw about Z so the robot faces - and walks toward - the terrain interior instead of the
-    # near edge. Single knob in degrees; tune it live if the heading is off. The policy is
-    # body-frame, so walking is unaffected by the spawn yaw.
+    # Spawn yaw from _ROBOT_SPAWN_YAW_DEG. The policy is body-frame, so walking is unaffected by
+    # the spawn yaw.
     robot: ArticulationCfg = ANYMAL_C_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ANYMAL_C_CFG.init_state.replace(rot=_ROBOT_SPAWN_QUAT),
@@ -218,19 +211,15 @@ class ZedQuadrupedSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class ActionsCfg:
-    """Action specifications for the MDP."""
-
     joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True)
 
 
 @configclass
 class ObservationsCfg:
-    """Observation specifications - term order must match the ANYmal-C HeightScan policy."""
+    """Term order must match the ANYmal-C HeightScan policy."""
 
     @configclass
     class PolicyCfg(ObsGroup):
-        """Observations for the policy group."""
-
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
         projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
@@ -254,8 +243,6 @@ class ObservationsCfg:
 
 @configclass
 class EventCfg:
-    """Configuration for events."""
-
     reset_scene = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
     # USD-level fixed joint fixing the ZED to the base link; must run before physics starts.
     zed_base_joint = EventTerm(func=_author_zed_base_joint, mode="prestartup")
@@ -283,7 +270,7 @@ class QuadrupedEnvCfg(ManagerBasedEnvCfg):
 
 def _update_follow_cam(env, robot):
     """Per-step chase cam: keep the GUI viewport behind the robot's base, looking forward,
-    rotating with the base yaw so it follows turns. We override the viewport camera each step.
+    rotating with the base yaw so it follows turns.
     First env only; caller skips it when headless."""
     rp = robot.data.root_pos_w
     hw = robot.data.heading_w  # canonical base yaw (world), same field the MDP uses
@@ -299,7 +286,7 @@ def _update_follow_cam(env, robot):
 
 def main():
     env_cfg = QuadrupedEnvCfg()
-    # The real ZED_X model rides the base link (spawned as a rigid body, fixed to the link by the
+    # The real ZED model rides the base link (spawned as a rigid body, fixed to the link by the
     # prestartup joint above) and its authored CameraLeft/CameraRight are the stereo sensors (no
     # pinhole). USD-level fixed-joint authoring requires scene replication off.
     env_cfg.scene.replicate_physics = False
@@ -325,12 +312,12 @@ def main():
         keyboard = Se2Keyboard(Se2KeyboardCfg(
             v_x_sensitivity=1.0, v_y_sensitivity=0.6, omega_z_sensitivity=1.0, sim_device=env.device))
         keyboard.reset()
-        print("[ZED] Keyboard steering ready - click the 3D viewport to focus it, then:")
+        print("[ZED] Keyboard steering ready; click the 3D viewport to focus it, then:")
         print("\n".join(f"[ZED] {line}" for line in str(keyboard).splitlines()))
 
     print(f"[ZED] {args.num_envs} env(s), walking ANYmal-C, "
           f"baseline = {get_baseline(args.camera_model) * 1e-3:.3f} m, {_W}x{_H}.")
-    print("[ZED] Submitting first render - on a cold RTX shader cache this can take several "
+    print("[ZED] Submitting first render: on a cold RTX shader cache this can take several "
           "minutes (compiling, not hung). Subsequent runs are fast.")
 
     if args.save_dir:
@@ -364,10 +351,10 @@ def main():
             action = policy(obs["policy"])
             try:
                 obs, _ = env.step(action)
-            except Exception as exc:  # noqa: BLE001 - benign if Kit is tearing down mid-step
+            except Exception as exc:  # noqa: BLE001  (benign if Kit is tearing down mid-step)
                 if simulation_app.is_running():
                     raise
-                print(f"[ZED] Kit shut down mid-step ({type(exc).__name__}) - exiting.")
+                print(f"[ZED] Kit shut down mid-step ({type(exc).__name__}); exiting.")
                 break
         step += 1
 
@@ -376,7 +363,7 @@ def main():
 
         # Auto-recover: if the base stays tipped over, reset. projected_gravity_b z is ~-1 upright
         # and rises toward 0 as the base tilts (> -0.3 ~ tilted past ~70 deg). Require a sustained
-        # tilt so normal balancing on rough terrain does not trigger it. (Resets all envs - fine
+        # tilt so normal balancing on rough terrain does not trigger it. (Resets all envs; fine
         # for the single-robot default.)
         if fall_cooldown > 0:
             fall_cooldown -= 1
@@ -385,7 +372,7 @@ def main():
             pg = pg.torch if hasattr(pg, "torch") else pg
             fallen_streak = fallen_streak + 1 if bool((pg[:, 2] > -0.3).any()) else 0
             if fallen_streak >= 8:  # ~0.16 s tilted => really down, not mid-stride
-                print("[ZED] Robot tipped over - resetting to recover.")
+                print("[ZED] Robot tipped over; resetting to recover.")
                 obs, _ = env.reset()
                 fall_cooldown = 30
                 fallen_streak = 0

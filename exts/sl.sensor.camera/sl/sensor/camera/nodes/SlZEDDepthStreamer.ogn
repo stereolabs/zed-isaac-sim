@@ -4,7 +4,7 @@
     "categories": {
       "Stereolabs": "Nodes used with Stereolabs ZED cameras"
     },
-    "description": "SDK-free capture from a ZED camera using Isaac Sim's renderer: RGB images and optionally simulated stereo depth. Nothing is streamed and no ZED SDK is required.",
+    "description": "SDK-free capture from a ZED camera using Isaac Sim's renderer: RGB images and optionally the renderer's depth. Nothing is streamed and no ZED SDK is required.",
     "language": "Python",
     "metadata": {
       "uiName": "ZED Capture"
@@ -96,7 +96,7 @@
       },
       "autoWhiteBalance": {
         "type": "bool",
-        "description": "The real camera's auto white balance; both eyes share the left image's gains. Needs Apply ZED Sim2Real.",
+        "description": "The real camera's auto white balance, metered on the right image of a stereo camera (the only image of a mono camera); both eyes share its gains. Needs Apply ZED Sim2Real.",
         "default": true,
         "metadata": {
           "uiName": "Auto White Balance",

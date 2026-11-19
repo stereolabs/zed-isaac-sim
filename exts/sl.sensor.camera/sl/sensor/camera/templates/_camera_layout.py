@@ -3,7 +3,8 @@
 Replaces the default ``Lens Type`` and ``Resolution`` combo boxes with ones whose
 values are filtered to the combinations supported by the currently selected
 ``Camera Model`` (base model), and rebuilds them live whenever the model or lens
-changes. All other inputs keep their default layout (order, grouping) untouched.
+changes. Inputs are grouped by their .ogn ``uiGroup`` in ``_GROUP_ORDER``, and the
+camera-prim target pickers list ZED assets only.
 """
 import json
 
@@ -97,8 +98,7 @@ class CustomLayout:
         This reflects the node-type default even before the input is authored to
         USD. Reading the USD attribute instead (GetAttributeAtPath) returns None on
         a freshly created node, which makes the value look unsupported and triggers
-        a needless snap in _ensure_valid_* - the source of the resolution defaulting
-        to the first allowed token (HD1200) instead of the SVGA node default.
+        a needless snap in _ensure_valid_* to the first allowed token.
         """
         try:
             return og.Controller.get(og.Controller.attribute(attr_name, self.node))
@@ -160,7 +160,7 @@ class CustomLayout:
         return compose_model(self._current_camera_model(), self._current_lens_type())
 
     # OmniGraph imprints the .ogn "default" under the metadata key "__default"
-    # (omni.graph.tools.ogn.MetadataKeys.DEFAULT), not "default" - reading the
+    # (omni.graph.tools.ogn.MetadataKeys.DEFAULT), not "default": the
     # wrong key returns None and makes get_default_resolution fall back to the
     # first allowed token (HD1200) instead of the SVGA node default.
     _OGN_DEFAULT_KEY = "__default"
@@ -206,8 +206,8 @@ class CustomLayout:
             carb.log_warn(f"[ZED] Could not set default lens '{default}' for '{camera_model}'.")
 
     def _ensure_valid_resolution(self, composite_model, allowed):
-        """Snap the stored resolution to the model's default.
-        """
+        """Snap the stored resolution to the model's default when the current value is
+        not supported by the model, or after a model switch."""
         force = getattr(self.compute_node_widget, "_zed_force_resolution_default", False)
         if force:
             self.compute_node_widget._zed_force_resolution_default = False

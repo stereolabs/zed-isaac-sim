@@ -89,7 +89,6 @@ if not "!SL_ZED_INSTALLED!"=="!SL_ZED_VERSION!" (
         exit /b 1
     )
 
-    REM --- NEW: Cleanup the archive after extraction ---
     echo [INFO] Cleaning up archive...
     del /f /q "%BIN_TARGET%\!SL_ZED_FILENAME!"
     (echo !SL_ZED_VERSION!)>"%BIN_TARGET%\sl_zed.version"
@@ -123,7 +122,7 @@ if not "!SL_ZED_SIM2REAL_INSTALLED!"=="!SL_ZED_SIM2REAL_VERSION!" (
     echo [INFO] sl_zed_sim2real !SL_ZED_SIM2REAL_VERSION! already downloaded, skipping.
 )
 
-REM 3. Remove old build binaries safely
+REM 3. Remove old plugin binaries
 if exist "%BIN_TARGET%\sl.sensor.camera.plugin*" (
     echo [INFO] Removing old plugin binaries...
     del /q "%BIN_TARGET%\sl.sensor.camera.plugin*"
@@ -146,7 +145,6 @@ xcopy /e /i /y "%BUILD_PATH%\*" "%BIN_TARGET%"
 
 REM 6. Remove generated __ogn_files_prebuilt file
 if exist "exts\sl.sensor.camera\sl\sensor\camera\ogn\__ogn_files_prebuilt" (
-    REM echo [INFO] Removing __ogn_files_prebuilt file...
     del /f /q "exts\sl.sensor.camera\sl\sensor\camera\ogn\__ogn_files_prebuilt"
 )
 

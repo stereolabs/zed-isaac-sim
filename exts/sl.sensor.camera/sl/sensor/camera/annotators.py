@@ -53,7 +53,7 @@ def _stream_depth_resolution(image_resolution) -> list:
 
 # Stream image encoding. "srgb": encoded on the GPU from the linear HdrColor (see
 # stream_encoding.py), matching a real ZED X's output. "linear": the legacy LdrColor ("rgb"
-# annotator) buffer - despite the name, the RTX tonemapped image (ACES approximation + sRGB with
+# annotator) buffer: despite the name, the RTX tonemapped image (ACES approximation + sRGB with
 # the default settings), which turns into 255 * clamp(HDR) as soon as anything requests
 # HdrColor on the same render product.
 STREAM_ENCODINGS = ("srgb", "linear")
@@ -86,11 +86,8 @@ def apply_render_quality(render_product_path: str) -> None:
 
 class ZEDAnnotator:
     """
-    Captures camera data and streams it to the ZED SDK.
-
-    This class creates annotators for RGB from a zed camera,
-    and streams this data to the ZED SDK. It can operate in two modes:
-    - OGN node mode (C++ implementation)
+    Streams a ZED camera's rendered eyes (or left eye + depth) and IMU to the ZED SDK through the
+    C++ ZED Stream node.
     """
 
     def __init__(
@@ -118,7 +115,6 @@ class ZEDAnnotator:
         ):
 
         """
-        Initializes a ZEDAnnotator object.
         camera_prim can be a list of:
           - a single prim (stereo or mono)
           - two prims (custom stereo made of two monos)
@@ -226,7 +222,7 @@ class ZEDAnnotator:
 
         Shared with the SDK-free capture path (see optics.apply_camera_optics), so a streamed
         camera and a captured one of the same model render the same image. Streaming also caps
-        the render rate at the ZED's target FPS, which a capture does not.
+        the render rate at the ZED's target FPS, which a capture does only when given fps.
         """
         prim = self.stage.GetPrimAtPath(camera_prim_path)
         if not prim.IsValid():
@@ -307,7 +303,6 @@ class ZEDAnnotator:
         return node
 
     def build_annotators(self) -> None:
-        # Set device based on mode (CUDA for OGN nodes)
         device = "cuda"
         cams = []
         self.annotators = {}
@@ -370,7 +365,6 @@ class ZEDAnnotator:
             else:
                 carb.log_warn(f"[ZED] [{self.camera_prim_path[0].pathString}] Invalid or non existing zed camera, try to re-import your camera prim.")
 
-            # Depth annotator - when stream_depth is enabled
             if self.stream_depth:
                 depth_res = self.depth_resolution
                 name_depth = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_depth_rp"
@@ -380,7 +374,7 @@ class ZEDAnnotator:
                 self.depth_annot.attach(self.depth_rp)
                 self.annotators["Depth"] = self.depth_annot
                 cams.append(["Depth", name_depth])
-            # Right Camera - Only for stereo cameras when not in depth mode
+            # Right eye: stereo models, not in depth mode
             elif self.is_stereo:
                 right_full_path = f"{self.camera_prim_path[0].pathString}/{subpaths['right']}"
                 if self.init_camera(right_full_path):
@@ -404,7 +398,7 @@ class ZEDAnnotator:
 
     def init_graph(self) -> None:
 
-        # we are extending the already existing synthetic data data graph
+        # Extend SyntheticData's on-demand post-process graph, activating it when absent
         self._graph_path = SyntheticData._get_graph_path(SyntheticDataStage.ON_DEMAND)
         self.graph = None
         if omni.usd.get_context().get_stage().GetPrimAtPath(self._graph_path):
@@ -450,7 +444,6 @@ class ZEDAnnotator:
             self.sync_node.get_attribute("inputs:rationalTimeNumerator"), True
         )
 
-        # create ZED node
         zed_path = self._graph_path + f"/zed_{self.port}"
         self.zed_ = self.graph.get_node(zed_path)
         if not self.zed_.is_valid():
@@ -502,7 +495,7 @@ class ZEDAnnotator:
             self.zed_.get_attribute("inputs:depthWidth").set(self.depth_resolution[0])
             self.zed_.get_attribute("inputs:depthHeight").set(self.depth_resolution[1])
 
-        # connect sync node to zed node to trigger the stream
+        # sync gate -> IMU read and simulation time
         self.sync_node.get_attribute("outputs:execOut").connect(self.imu.get_attribute("inputs:execIn"), True)
         self.sync_node.get_attribute("outputs:rationalTimeDenominator").connect(self.sim_time.get_attribute("inputs:referenceTimeDenominator"), True)
         self.sync_node.get_attribute("outputs:rationalTimeNumerator").connect(self.sim_time.get_attribute("inputs:referenceTimeNumerator"), True)
@@ -695,8 +688,8 @@ class ZEDAnnotator:
 
     def _push_vignetting(self) -> None:
         """Hand the encoders the lens settings. Vignetting: 1 / the focal length in pixels, or 0 =
-        none: when off, and for fisheye lenses (fitted on a rectilinear lens). Camera sharpness: on
-        unless off. Neither without Apply ZED Sim2Real."""
+        none: when off, and for fisheye lenses (fitted on a rectilinear lens). Camera sharpness: the
+        camera_sharpness switch. Neither without Apply ZED Sim2Real."""
         if not getattr(self, "_srgb_nodes", None):
             return
         inv_f = 0.0

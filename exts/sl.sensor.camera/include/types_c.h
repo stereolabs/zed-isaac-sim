@@ -99,7 +99,7 @@ namespace sl
         int image_height = 1200;
 
         /**
-         * @brief Codec type, 0 for H264 (default), 1 for H265.
+         * @brief Codec type, 0 for H264, 1 for H265 (default).
          *
          */
         int codec_type = 1;
@@ -128,7 +128,7 @@ namespace sl
         bool alpha_channel_included = true;
 
         /**
-         * @brief Specifies if the data is encoded as BGR or RGB
+         * @brief Pixel format of the input buffers: RGB, BGR or YUV
          *
          */
         INPUT_FORMAT input_format = INPUT_FORMAT::RGB;

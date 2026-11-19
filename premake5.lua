@@ -1,7 +1,6 @@
 -- Shared build scripts from repo_build package.
 repo_build = require("omni/repo/build")
 
--- Repo root
 root = repo_build.get_abs_path(".")
 
 -- Set the desired MSVC, WINSDK, and MSBUILD versions before executing the kit template premake configuration.

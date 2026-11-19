@@ -25,8 +25,7 @@ def _project(directions):
     return _CX + _FX * x * scale, _CY - _FY * y * scale
 
 
-# NOTE: the class must be named TestOgn - ogn/tests/__init__.py auto-imports test
-# modules via omni.graph.tools and only registers each module's `TestOgn` attribute.
+# The class must be named TestOgn: the OGN test loader registers only that name from each module.
 class TestOgn(omni.kit.test.AsyncTestCase):
 
     def test_lens_reach_ends_where_its_polynomial_turns_over(self):

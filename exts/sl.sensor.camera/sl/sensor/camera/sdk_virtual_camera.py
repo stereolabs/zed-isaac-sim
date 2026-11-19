@@ -156,7 +156,7 @@ def set_mode(mode: str) -> None:
     carb.settings.get_settings().set(MODE_SETTING, mode)
 
 
-# ------------------------------------------------------------------ library loading
+# Library loading
 _LIB = None
 _LOAD_TRIED = False
 
@@ -190,7 +190,7 @@ def available() -> bool:
     return _load() is not None
 
 
-# ------------------------------------------------------------------ camera registry
+# Camera registry
 @dataclass
 class VirtualCamera:
     model_id: int

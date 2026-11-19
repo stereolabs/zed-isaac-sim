@@ -36,35 +36,24 @@ from .calibration import generate_virtual_sn, get_mono_base_models, write_stereo
 
 class UIBuilder:
     def __init__(self):
-        # Frames are sub-windows that can contain multiple UI elements
         self.frames = []
 
-        # UI elements created using a UIElementWrapper from isaacsim.gui.components.element_wrappers
         self.wrapped_ui_elements = []
         self.serial_number = -1
         self.base_model = "ZED_XONE_GS"
         self.lens_type = "Wide"
         self.camera_model = "ZED_XONE_GS"
 
-    ###################################################################################
-    #           The Functions Below Are Called Automatically By extension.py
-    ###################################################################################
-
     def cleanup(self):
         """
-        Called when the stage is closed or the extension is hot reloaded.
-        Perform any necessary cleanup such as removing active callback functions
-        Buttons imported from isaacsim.gui.components.element_wrappers implement a cleanup function that should be called
+        Called on stage close or hot reload: cleans up the wrapped UI elements.
         """
-        # None of the UI elements in this template actually have any internal state that needs to be cleaned up.
-        # But it is best practice to call cleanup() on all wrapped UI elements to simplify development.
         for ui_elem in self.wrapped_ui_elements:
             ui_elem.cleanup()
 
     def build_ui(self):
         """
-        Build a custom UI tool to run your extension.
-        This function will be called any time the UI window is closed and reopened.
+        Build the exporter window. Called each time the window is shown.
         """
         self.serial_number = generate_virtual_sn()
         self._create_calibration_frame()
@@ -79,7 +68,6 @@ class UIBuilder:
                     if not selection:
                         print("[ZED] No prim selected in the stage")
                         return
-                    # Just take the first selected prim
                     selected_prim = selection[0]
                     field.set_value(selected_prim)
 
@@ -145,15 +133,10 @@ class UIBuilder:
                 button = Button(
                     "Generate calibration",
                     "Generate",
-                    tooltip="Click This Button to generate calibration and save it on disk",
+                    tooltip="Write the stereo calibration file for this camera pair",
                     on_click_fn=self._on_button_clicked_fn,
                 )
                 self.wrapped_ui_elements.append(button)
-
-    ######################################################################################
-    # Functions Below This Point Are Callback Functions Attached to UI Element Wrappers
-    ######################################################################################
-
 
     def _on_button_clicked_fn(self):
         write_stereo_calibration_file(left_prim_path=self.left_cam_field.get_value(), right_prim_path=self.right_cam_field.get_value(),

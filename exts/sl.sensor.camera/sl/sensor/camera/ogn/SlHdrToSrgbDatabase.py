@@ -2,9 +2,9 @@ r"""Support for simplified access to data on nodes of type sl.sensor.camera.ZED_
 
 GENERATED CODE. DO NOT MODIFY.
 
-Encodes a render product's linear HdrColor (float16 RGBA, on the GPU) into the sRGB RGBA8 image streamed by the ZED node,
-as a real ZED X outputs it: its focus blur (from the depth), sharpness, lens vignetting, motion blur over the exposure time,
-white balance and sensor noise. Inputs mirror the HdrColor annotator's pointer outputs; outputs mirror the rgb annotator's,
+Encodes a render product's linear HdrColor (float16 RGBA, on the GPU) into the sRGB RGBA8 image streamed by the ZED Stream
+node, as a real ZED X outputs it: its focus blur (from the depth), sharpness, lens vignetting, motion blur over the exposure
+time, white balance and sensor noise. Inputs mirror the HdrColor annotator's pointer outputs; outputs mirror the rgb annotator's,
 so it slots in front of the ZED Stream node. The output buffer is complete when the node's exec fires.
 """
 
@@ -63,7 +63,7 @@ class SlHdrToSrgbDatabase(og.Database):
 
     # Imprint the generator and target ABI versions in the file for JIT generation
     GENERATOR_VERSION = (1, 81, 0)
-    TARGET_VERSION = (0, 0, 0)
+    TARGET_VERSION = (3, 1, 2)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}
@@ -569,7 +569,7 @@ class SlHdrToSrgbDatabase(og.Database):
                 node_type.set_metadata(ogn.MetadataKeys.HIDDEN, "true")
                 node_type.set_metadata(ogn.MetadataKeys.CATEGORIES, "Stereolabs")
                 node_type.set_metadata(ogn.MetadataKeys.CATEGORY_DESCRIPTIONS, "Stereolabs,Nodes used with Stereolabs ZED cameras")
-                node_type.set_metadata(ogn.MetadataKeys.DESCRIPTION, "Encodes a render product's linear HdrColor (float16 RGBA, on the GPU) into the sRGB RGBA8 image streamed by the ZED node, as a real ZED X outputs it: its focus blur (from the depth), sharpness, lens vignetting, motion blur over the exposure time, white balance and sensor noise. Inputs mirror the HdrColor annotator's pointer outputs; outputs mirror the rgb annotator's, so it slots in front of the ZED Stream node. The output buffer is complete when the node's exec fires.")
+                node_type.set_metadata(ogn.MetadataKeys.DESCRIPTION, "Encodes a render product's linear HdrColor (float16 RGBA, on the GPU) into the sRGB RGBA8 image streamed by the ZED Stream node, as a real ZED X outputs it: its focus blur (from the depth), sharpness, lens vignetting, motion blur over the exposure time, white balance and sensor noise. Inputs mirror the HdrColor annotator's pointer outputs; outputs mirror the rgb annotator's, so it slots in front of the ZED Stream node. The output buffer is complete when the node's exec fires.")
                 node_type.set_metadata(ogn.MetadataKeys.LANGUAGE, "Python")
                 SlHdrToSrgbDatabase.INTERFACE.add_to_node_type(node_type)
 

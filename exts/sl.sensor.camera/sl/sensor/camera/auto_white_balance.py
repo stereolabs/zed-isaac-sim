@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2024 Stereolabs. All rights reserved.
 # SPDX-License-Identifier: MIT
-"""Auto white balance of a real ZED X, for the streamed sRGB image.
+"""Auto white balance of a real ZED X, for the sRGB image (streams, captures, Isaac Lab).
 
 The renderer's image is colorimetric: a grey card under a warm lamp comes out orange, under a white
 light neutral. A real camera's AWB estimates the light and applies per-channel gains before its colour
@@ -64,8 +64,8 @@ class CameraWhiteBalanceLoop:
     hands the gains to ``on_apply(gains)`` (both eyes share them, as on the real camera).
 
     Args:
-        annotator: HdrColor annotator (device "cuda") attached to the left render product (shared).
-        render_product: the left render product object (with ``hydra_texture``).
+        annotator: HdrColor annotator (device "cuda") attached to the metered render product (shared).
+        render_product: the metered render product object (with ``hydra_texture``).
         fps: camera frame rate (the AWB steps once per camera frame).
         on_apply: callback(gains) after each update.
         ae_error: optional callable returning the auto exposure's current error in EV (the AWB holds

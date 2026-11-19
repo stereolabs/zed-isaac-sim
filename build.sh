@@ -52,7 +52,7 @@ if [ ! -f "exts/sl.sensor.camera/bin/libsl_zed.so" ] || \
         exit 1
     fi
 
-    # Extract the downloaded library and copy it to the correct location
+    # Extract into bin/ and drop the archive.
     tar -xzf "exts/sl.sensor.camera/bin/libsl_zed_linux_x86_64_${ZED_ISAAC_SIM_VERSION}.tar.gz" -C "exts/sl.sensor.camera/bin/"
     rm -f "exts/sl.sensor.camera/bin/libsl_zed_linux_x86_64_${ZED_ISAAC_SIM_VERSION}.tar.gz"
     echo "$ZED_ISAAC_SIM_VERSION" > exts/sl.sensor.camera/bin/sl_zed.version
@@ -72,7 +72,7 @@ if [ ! -f "exts/sl.sensor.camera/bin/libsl_zed_sim2real.so" ] || \
         echo "$SL_ZED_SIM2REAL_VERSION" > exts/sl.sensor.camera/bin/sl_zed_sim2real.version
     else
         rm -f "exts/sl.sensor.camera/bin/${SL_ZED_SIM2REAL_ARCHIVE}"
-        echo "WARN: could not download sl_zed_sim2real from $SL_ZED_SIM2REAL_URL -- ZED Sim2Real disabled at runtime."
+        echo "WARN: could not download sl_zed_sim2real from $SL_ZED_SIM2REAL_URL; ZED Sim2Real disabled at runtime."
     fi
 else
     echo "sl_zed_sim2real $SL_ZED_SIM2REAL_VERSION already downloaded, skipping."
@@ -87,16 +87,13 @@ if [ -f "exts/sl.sensor.camera/bin/libsl_zed_sim2real.so" ]; then
     cp "exts/sl.sensor.camera/bin/libsl_zed_sim2real.so" "$BUILD_PATH/libsl_zed_sim2real.so"
 fi
 
-# Copy build artifacts into exts path for simplicity
+# Sync the build artifacts into exts/sl.sensor.camera/bin/.
 cp -r $BUILD_PATH/* "exts/sl.sensor.camera/bin/"
 
 # Remove generated __ogn_files_prebuilt file
 if [ -f "exts/sl.sensor.camera/sl/sensor/camera/ogn/__ogn_files_prebuilt" ]; then
-    #echo "Removing __ogn_files_prebuilt file..."
     rm -f "exts/sl.sensor.camera/sl/sensor/camera/ogn/__ogn_files_prebuilt"
 fi
-
-#rm -rf _compiler _deps _repo
 
 # Stage license files so repo package includes them in the release archive.
 # _build/<platform>/<config>/PACKAGE-LICENSES links here, and the packager keeps it.

@@ -41,18 +41,9 @@ CAM_RIG = [
      (0.076406, 0.061256, -0.020550),  (0.316370, 0.912193, 0.058681, 0.253713)),
 ]
 CAM_MASS = 0.1   # kg per camera, light so the H1 balance policy is unaffected
-# Rate the cameras render at, and so the rate anything reading them sees.
-#
-# A ZED runs at one of a fixed set of rates. Stick to 15, 30, 60 or 120; anything else is
-# rejected and falls back to 30.
-#
-# This is also what the streams declare to the SDK, so it has to be the rate the cameras are
-# actually rendered at: a stream that announces more frames than the scene produces plays back
-# wrong at the receiver.
-#
-# This is simulation time, not wall-clock: frame timestamps come from the simulator's own clock,
-# so asking for 60 here yields a true 60 fps even on a machine that can only push a few frames a
-# second. It just takes longer.
+# Rate the cameras render and stream at, in simulation time (a slow machine only takes longer).
+# A ZED runs at 15, 30, 60 or 120 fps; any other value falls back to 30. The streams declare this
+# rate to the SDK, so it has to be the render rate or the receiver plays the stream back wrong.
 RENDER_FPS = 30
 # Physics backend device. GPU ("cuda") carries a large fixed per-step cost (kernel dispatch +
 # cudaStreamSynchronize) that only amortizes across many parallel envs; for this single-robot
@@ -66,14 +57,13 @@ PHYSICS_HZ_TARGET = 200.0
 # keeping the render rate exactly RENDER_FPS. Also the decimation at which the low-frequency
 # waypoint steering is recomputed in _on_step (navigation doesn't need the full physics rate).
 SUBSTEPS = max(1, round(PHYSICS_HZ_TARGET / RENDER_FPS))
-# Derived, not chosen: this is what makes RENDER_FPS come out exact.
 PHYSICS_HZ = float(RENDER_FPS * SUBSTEPS)
-# Derive the render step by MULTIPLYING the physics step, never as SUBSTEPS / PHYSICS_HZ.
+# Derive the render step by multiplying the physics step, not as SUBSTEPS / PHYSICS_HZ.
 PHYSICS_DT = 1.0 / PHYSICS_HZ
 RENDERING_DT = SUBSTEPS * PHYSICS_DT
 
 
-# ---------------- H1 locomotion policy driver ----------------
+# H1 locomotion policy driver
 # Isaac Sim 6.1 (isaacsim.robot.policy.examples 7.0) removed H1FlatTerrainPolicy in favour of the
 # generic RobotPolicyRunner. Both spawn the same robot and take the same [vx, vy, wz] command but
 # differ in how the policy is started and stepped, so each sits behind the same small driver.
@@ -151,7 +141,6 @@ class ZedHumanoidDemo:
         self._need_reset = False
         self._resetting = False
 
-    # ---------------- UI ----------------
     def build_ui(self) -> None:
         with ui.VStack(spacing=8, height=0):
             ui.Label("Stereolabs ZED 3-camera rig on Humanoid", height=0, style={"font_size": 18})
@@ -171,8 +160,8 @@ class ZedHumanoidDemo:
 
     def _on_load(self) -> None:
         self._set_status(f"Loading ({PHYSICS_DEVICE.upper()} physics + RL policy)...")
-        # ensure_future drops whatever the build raises unless someone asks the task for it, and
-        # a scene that silently never appears is the hardest kind of failure to chase.
+        # ensure_future drops whatever the build raises unless someone asks the task for it, so
+        # report it here, or the scene silently never appears.
         asyncio.ensure_future(self._load_and_run()).add_done_callback(self._report_load)
 
     def _report_load(self, task) -> None:
@@ -180,14 +169,13 @@ class ZedHumanoidDemo:
             return
         error = task.exception()
         if error is not None:
-            self._set_status(f"Error: build failed - {error!r} (traceback in the console)")
+            self._set_status(f"Error: build failed: {error!r} (traceback in the console)")
             traceback.print_exception(type(error), error, error.__traceback__)
 
     def _on_stop(self) -> None:
         self.stop()
         self._set_status("Stopped")
 
-    # ---------------- build + run ----------------
     async def _load_and_run(self) -> None:
         from isaacsim.core.api import World
         self.stop()
@@ -218,9 +206,8 @@ class ZedHumanoidDemo:
         h1 = _make_h1("/World/H1", [-7.7, -3.5, 1.05])
         self._h1 = h1
 
-        # 3-camera ZED rig on the head: each camera is a light rigid body fixed-jointed to the head
-        # link (excluded from the articulation) so it rides along as the H1 walks and its IMU
-        # resolves. ZED Mini streams stereo; the two ZED X One peripherals stream fisheye.
+        # 3-camera ZED rig on the head: ZED Mini streams stereo; the two ZED X One peripherals
+        # stream fisheye.
         head = next((p for p in Usd.PrimRange(stage.GetPrimAtPath("/World/H1"))
                      if p.GetName() == "d435_rgb_module_link"), None)
         if head is None:
@@ -248,7 +235,7 @@ class ZedHumanoidDemo:
                             .create_subscription_to_pop(self._on_timeline))
         self._need_reset = False
         app_utils.play()
-        self._set_status("Running - open ZED Studio at 127.0.0.1 ports 30000/30002/30004")
+        self._set_status("Running: open ZED Studio at 127.0.0.1 ports 30000/30002/30004")
 
     def _on_timeline(self, e) -> None:
         if self._resetting:
@@ -292,7 +279,7 @@ class ZedHumanoidDemo:
             # POST_PHYSICS_STEP fires once per physics substep (SUBSTEPS x per rendered frame).
             # Waypoint steering is low-frequency navigation, so recompute + read back the pose only
             # once per frame and reuse the cached command in between; the RL policy still runs every
-            # step (the driver self-decimates its own inference internally).
+            # step (the driver decimates its own inference).
             if S["n"] % SUBSTEPS == 0:
                 p, q = art.get_world_poses()
                 S["idx"], err = steer_to_waypoint(p.numpy()[0], q.numpy()[0], WP, S["idx"], 0.7)
@@ -304,7 +291,7 @@ class ZedHumanoidDemo:
         except Exception as e:
             # Latched: a policy that cannot start would otherwise raise on every physics step.
             S["failed"] = True
-            self._set_status(f"Error: policy step failed - {e!r}")
+            self._set_status(f"Error: policy step failed: {e!r}")
 
     def stop(self) -> None:
         if self._cb is not None:

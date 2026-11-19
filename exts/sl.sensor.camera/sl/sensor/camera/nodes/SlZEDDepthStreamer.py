@@ -1,6 +1,3 @@
-"""
-This is the implementation of the OGN node defined in SlZEDDepthStreamer.ogn
-"""
 import carb
 from dataclasses import dataclass
 import traceback
@@ -14,11 +11,11 @@ from ..utils import compose_model, resolve_camera_model
 
 class SlZEDDepthStreamer:
     """
-    OGN node that captures RGB + simulated stereo depth from a ZED camera.
+    OGN node that captures RGB + renderer depth from a ZED camera.
 
     Initialization is deferred: the render pipeline may not be ready on
-    the first frame after Play. The node retries each compute() until
-    the depth sensor is fully initialized.
+    the first frame after Play. compute() retries until the capture is
+    initialized; a failed setup waits for its inputs to change, or for Stop.
     """
 
     @dataclass

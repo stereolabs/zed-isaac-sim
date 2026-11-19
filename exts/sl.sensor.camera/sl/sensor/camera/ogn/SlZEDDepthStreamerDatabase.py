@@ -2,8 +2,8 @@ r"""Support for simplified access to data on nodes of type sl.sensor.camera.ZED_
 
 GENERATED CODE. DO NOT MODIFY.
 
-SDK-free capture from a ZED camera using Isaac Sim's renderer: RGB images and optionally simulated stereo depth. Nothing
-is streamed and no ZED SDK is required.
+SDK-free capture from a ZED camera using Isaac Sim's renderer: RGB images and optionally the renderer's depth. Nothing is
+streamed and no ZED SDK is required.
 """
 
 import sys
@@ -62,7 +62,7 @@ class SlZEDDepthStreamerDatabase(og.Database):
 
     # Imprint the generator and target ABI versions in the file for JIT generation
     GENERATOR_VERSION = (1, 81, 0)
-    TARGET_VERSION = (0, 0, 0)
+    TARGET_VERSION = (3, 1, 2)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}
@@ -75,7 +75,7 @@ class SlZEDDepthStreamerDatabase(og.Database):
     INTERFACE = og.Database._get_interface([
         ('inputs:applyZedSim2Real', 'bool', 0, 'Apply ZED Sim2Real', "Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting, sharpness and focus blur, each with its own switch below. Off captures the render as is (the scene's own camera exposure, plain sRGB). Set before Play.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:autoExposure', 'bool', 0, 'Auto Exposure', "Real-camera auto exposure: meters the rendered HDR image and drives the cameras' exposure time and gain (exposure:time / exposure:iso) like a real ZED X, so the sensor noise and the motion blur follow it. It takes a moment to settle on a new scene, as a real camera does, so the first frames saved can be over- or under-exposed. Off keeps the scene's own camera exposure. Needs Apply ZED Sim2Real and the camera's render rate (see FPS).", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
-        ('inputs:autoWhiteBalance', 'bool', 0, 'Auto White Balance', "The real camera's auto white balance; both eyes share the left image's gains. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
+        ('inputs:autoWhiteBalance', 'bool', 0, 'Auto White Balance', "The real camera's auto white balance, metered on the right image of a stereo camera (the only image of a mono camera); both eyes share its gains. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:cameraIndex', 'int', 0, 'Camera Index', "Index of the camera among the simulated cameras of the same model and lens, from which the ZED SDK derives its serial number and calibration. -1 picks the first free index at Play. Used when the ZED camera mode is 'virtual' (the default).", {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: '-1'}, True, -1, False, ''),
         ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Camera model. Determines intrinsics and stereo baseline.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_X,ZED_XM,ZED_X_Nano,ZED_M,ZED_2i', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_X", "ZED_XM", "ZED_X_Nano", "ZED_M", "ZED_2i"]', ogn.MetadataKeys.DEFAULT: '"ZED_X"'}, True, "ZED_X", False, ''),
         ('inputs:cameraPrim', 'target', 0, 'ZED Camera Prim', 'ZED Camera prim (e.g. /World/ZED_X).', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0', 'uiGroup': 'Camera Selection'}, True, None, False, ''),
@@ -424,7 +424,7 @@ class SlZEDDepthStreamerDatabase(og.Database):
                 node_type.set_metadata(ogn.MetadataKeys.UI_NAME, "ZED Capture")
                 node_type.set_metadata(ogn.MetadataKeys.CATEGORIES, "Stereolabs")
                 node_type.set_metadata(ogn.MetadataKeys.CATEGORY_DESCRIPTIONS, "Stereolabs,Nodes used with Stereolabs ZED cameras")
-                node_type.set_metadata(ogn.MetadataKeys.DESCRIPTION, "SDK-free capture from a ZED camera using Isaac Sim's renderer: RGB images and optionally simulated stereo depth. Nothing is streamed and no ZED SDK is required.")
+                node_type.set_metadata(ogn.MetadataKeys.DESCRIPTION, "SDK-free capture from a ZED camera using Isaac Sim's renderer: RGB images and optionally the renderer's depth. Nothing is streamed and no ZED SDK is required.")
                 node_type.set_metadata(ogn.MetadataKeys.LANGUAGE, "Python")
                 SlZEDDepthStreamerDatabase.INTERFACE.add_to_node_type(node_type)
 

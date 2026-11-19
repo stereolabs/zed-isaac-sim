@@ -26,10 +26,10 @@ def OmniGraph "TestGraph"
             docs="""Size (in bytes) of the depth buffer"""
         )
         custom uint64 inputs:bufferSizeLeft = 0 (
-            docs="""Size (in bytes) of the buffer (0 if the input is a texture)"""
+            docs="""Size (in bytes) of the left image buffer: width * height * 4 (RGBA8), or the frame is skipped"""
         )
         custom uint64 inputs:bufferSizeRight = 0 (
-            docs="""Size (in bytes) of the buffer (0 if the input is a texture)"""
+            docs="""Size (in bytes) of the right image buffer: width * height * 4 (RGBA8), or the frame is skipped"""
         )
         custom uint inputs:chunkSize = 4096 (
             docs="""streaming chunk size (in bytes). Only used for network transport layer mode (not IPC)"""
@@ -44,10 +44,10 @@ def OmniGraph "TestGraph"
             docs="""Pointer to the depth data (cuda device pointer, float32)"""
         )
         custom uint64 inputs:dataPtrLeft = 0 (
-            docs="""Pointer to the raw data (cuda device pointer or host pointer)"""
+            docs="""CUDA device pointer to the left image (RGBA8)"""
         )
         custom uint64 inputs:dataPtrRight = 0 (
-            docs="""Pointer to the raw data (cuda device pointer or host pointer)"""
+            docs="""CUDA device pointer to the right image (RGBA8)"""
         )
         custom uint inputs:depthHeight = 560 (
             docs="""Height of the streamed depth map in pixels (Left+Depth mode). Must match the depth buffer."""
@@ -59,22 +59,22 @@ def OmniGraph "TestGraph"
             docs="""Triggers execution"""
         )
         custom uint inputs:fps = 30 (
-            docs="""frame rate"""
+            docs="""Stream frame rate, in frames per second"""
         )
         custom uint inputs:height = 600 (
             docs="""Camera stream height in pixels."""
         )
         custom vector3d inputs:linearAcceleration = (0.0, 0.0, 0.0) (
-            docs="""imu acceleration"""
+            docs="""IMU linear acceleration at the frame's time, m/s^2"""
         )
         custom quatd inputs:orientation = (1.0, 0.0, 0.0, 0.0) (
-            docs="""imu orientation"""
+            docs="""IMU orientation at the frame's time (IJKR)"""
         )
         custom uint inputs:port = 5561 (
-            docs="""server port"""
+            docs="""Streaming port. Must be even: the stream also takes the next port up (RTP and RTCP)."""
         )
         custom string inputs:serialNumber = "109999999" (
-            docs="""Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated"""
+            docs="""Serial number to stream as, for a virtual stereo pair (simCameraModel -1) or an SDK virtual camera (virtualCamera). Otherwise the node takes a serial number from the legacy pool and ignores this."""
         )
         custom int inputs:simCameraModel = 4 (
             docs="""SDK MODEL code of the camera (as in SimCameraInfo::model). Set by the annotator via utils.get_sdk_model_id(); -1 selects the custom virtual-stereo path."""
@@ -83,10 +83,10 @@ def OmniGraph "TestGraph"
             docs="""Lens fitted to the camera, as SIM_LENS_TYPE: 0=Wide, 1=Narrow, 2=Fisheye. Set by the annotator via utils.get_sim_lens_type_id()."""
         )
         custom double inputs:simulationTime = 0.0 (
-            docs="""simulation time"""
+            docs="""Simulation time of the frame in seconds, which stamps it; 0 or less falls back to a steady clock started at the first frame without one"""
         )
         custom bool inputs:stream = false (
-            docs="""stream"""
+            docs="""Streams while true; while false each frame is skipped"""
         )
         custom bool inputs:streamDepth = false (
             docs="""Enable Left+Depth streaming mode instead of Left+Right"""

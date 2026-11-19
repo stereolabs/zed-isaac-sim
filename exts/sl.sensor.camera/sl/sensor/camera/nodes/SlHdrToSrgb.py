@@ -1,6 +1,3 @@
-"""
-This is the implementation of the OGN node defined in SlHdrToSrgb.ogn
-"""
 import carb
 import omni.graph.core as og
 import warp as wp
@@ -10,12 +7,8 @@ from ..stream_encoding import StreamEncoder, light_gain_now
 
 
 class SlHdrToSrgb:
-    """Encodes the render product's linear HdrColor into the sRGB RGBA8 image the ZED node streams,
-    as a real ZED X would output it (the ZED X camera model, see stream_encoding): its focus blur
-    (inputs:focusLens with the render product's depth, inputs:depthPtr), its sharpness (inputs:cameraMtf), lens vignetting (inputs:vignetteInvFocal), motion blur over the exposure time
-    (inputs:blurScale), white balance (inputs:whiteBalance) and sensor noise at its gain
-    (inputs:noiseGain); plus the scene lights' flicker, over the frame's exposure (inputs:exposureTime), when the
-    lightFlickerStd setting is set."""
+    """Encodes the render product's linear HdrColor into the sRGB image the ZED Stream node streams
+    (see the .ogn description)."""
 
     class State:
         def __init__(self):

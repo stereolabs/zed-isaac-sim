@@ -6,10 +6,10 @@
 
 **Build, test, and train your physical AI before the hardware even exists.**
 
-This extension brings faithful digital twins of every [Stereolabs ZED camera](https://www.stereolabs.com/)
+This extension brings digital twins of every [Stereolabs ZED camera](https://www.stereolabs.com/)
 into [NVIDIA Isaac Sim](https://developer.nvidia.com/isaac/sim)'s photorealistic simulation. Your simulated
 ZED streams to the ZED SDK exactly like a real camera would, so the exact software you ship (perception,
-navigation, your ROS 2 stack) runs **unchanged**, software-in-the-loop, in a fully repeatable virtual world.
+navigation, your ROS 2 stack) runs unchanged, software-in-the-loop, in a repeatable virtual world.
 
 ![A simulated ZED streaming live from Isaac Sim into ZED Studio](imgs/zed_streaming_demo.gif)
 
@@ -18,15 +18,15 @@ ZED SDK's stereo-matched depth (bottom right).*
 
 **What you get:**
 
-- ✅ Every ZED camera as a calibrated **digital twin**: stereo and mono models, with their lens variants
-- ✅ Stereo images + IMU streamed to the **ZED SDK** and **ZED ROS 2 Wrapper**, with **zero code change**
-- ✅ **Ground-truth depth** streaming, straight into your ZED SDK pipeline
-- ✅ **ZED Sim2Real**, a model of the real ZED X camera on top of the clean render: its auto exposure, white balance, noise, motion blur and lens
-- ✅ ZED observations as **GPU tensors** in Isaac Lab, for reinforcement & imitation learning
-- ✅ **SDK-free** RGB + depth capture for quick synthetic datasets
-- ✅ **Multi-camera streaming**: several cameras on one robot or a whole fleet in one scene, stereo and mono mixed, all streaming simultaneously
-- ✅ Low-latency **IPC** streaming and virtual stereo pairs
-- ✅ **Turnkey demo scenes** with Franka, humanoid, and AMR robots carrying ZEDs ([demo extension](exts/sl.sensor.camera.demo/docs/README.md))
+- Every ZED camera as a calibrated **digital twin**: stereo and mono models, with their lens variants
+- Stereo images + IMU streamed to the **ZED SDK** and **ZED ROS 2 Wrapper**, with no code change
+- **Ground-truth depth** streaming, straight into your ZED SDK pipeline
+- **ZED Sim2Real**, a model of the real ZED X camera on top of the clean render: its auto exposure, white balance, noise, motion blur and lens
+- ZED observations as **GPU tensors** in Isaac Lab, for reinforcement & imitation learning
+- **SDK-free** RGB + depth capture for quick synthetic datasets
+- **Multi-camera streaming**: several cameras on one robot or a whole fleet in one scene, stereo and mono mixed, all streaming simultaneously
+- Low-latency **IPC** streaming and virtual stereo pairs
+- **Turnkey demo scenes** with Franka, humanoid, and AMR robots carrying ZEDs ([demo extension](exts/sl.sensor.camera.demo/docs/README.md))
 
 ## Three ways to consume ZED data
 
@@ -168,12 +168,12 @@ full workflow.
 Standalone scripts live in [`exts/sl.sensor.camera/examples/`](exts/sl.sensor.camera/examples/), grouped
 by the three data paths above:
 
-- **[`examples/isaaclab/`](exts/sl.sensor.camera/examples/isaaclab/README.md)** - read stereo RGB + depth
-  as in-process tensors in Isaac Lab (path 2), plus ports of flagship Isaac Lab demos (quadruped, Franka
+- **[`examples/isaaclab/`](exts/sl.sensor.camera/examples/isaaclab/README.md)**: read stereo RGB + depth
+  as in-process tensors in Isaac Lab (path 2), plus ports of Isaac Lab demos (quadruped, Franka
   lift, imitation-learning HDF5 recording) with a real ZED model mounted on the robot.
-- **[`examples/isaac_sim/`](exts/sl.sensor.camera/examples/isaac_sim/README.md)** - SDK-free RGB + depth
+- **[`examples/isaac_sim/`](exts/sl.sensor.camera/examples/isaac_sim/README.md)**: SDK-free RGB + depth
   capture inside Isaac Sim (path 3).
-- **[`examples/fusion_calibration/`](exts/sl.sensor.camera/examples/fusion_calibration/README.md)** - write
+- **[`examples/fusion_calibration/`](exts/sl.sensor.camera/examples/fusion_calibration/README.md)**: write
   a ZED Fusion calibration JSON from camera prim poses, for multi-camera streaming setups (path 1).
 
 ## Documentation map
