@@ -1,39 +1,36 @@
-# ******************************************************************************
-# File Name          : zed_record_demos.py
-# Description        : Isaac Lab flagship demo port. Keyboard-teleop imitation-learning
-#                      recording: a human drives the Franka to stack cubes while the sim
-#                      records HDF5 demonstrations whose camera observations come from a real
-#                      wrist-mounted ZED_X (left + right RGB + optional ZED depth). No ZED SDK.
+# Isaac Lab demo port. Keyboard-teleop imitation-learning recording: a human drives the
+# Franka to stack cubes while the sim records HDF5 demonstrations whose camera observations
+# come from a real wrist-mounted ZED (left + right RGB + ZED depth). No ZED SDK.
 #
 # Mirrors the keyboard path of Isaac Lab's scripts/tools/record_demos.py on task
 # IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor.
-# The ZED delta: the real ZED_X USD model is mounted on the panda_hand wrist (rigid body
-# + fixed joint) and its authored CameraLeft/CameraRight are recorded (no pinhole);
-# a right-eye RGB and a ZED depth observation (optionally degraded) are added. The
-# task's static table camera is dropped, the robot-mounted view is the relevant one here.
+# Changes from the original: the real ZED USD model is mounted on the panda_hand wrist
+# (rigid body + fixed joint) and its authored CameraLeft/CameraRight are recorded (no
+# pinhole); a right-eye RGB and a ZED depth observation are added. The task's static table
+# camera is dropped: the robot-mounted view is the relevant one here.
 #
 # Keyboard teleop:
-#   arrow / WASDQE etc. move the end-effector, K/L toggle the gripper, R resets the demo.
+#   W/S, A/D, Q/E move the end-effector, Z/X, T/G, C/V rotate it, K toggles the gripper,
+#   L stops the motion and opens the gripper, R resets the demo.
 #
 # Usage:
-#   F:\IsaacLab\isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_record_demos.py --num_demos 1 --dataset_file F:\demos\zed_stack.hdf5
+#   isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_record_demos.py --num_demos 1 --dataset_file C:\demos\zed_stack.hdf5
 #   ... --domain_rand             # re-enable the (Nucleus-heavy) light/texture randomization
 #
-# NOTE: the very first rendered frame compiles RTX shaders and can take minutes on a cold
+# The very first rendered frame compiles RTX shaders and can take minutes on a cold
 # cache; subsequent runs are fast.
-# ******************************************************************************
 
 import argparse
 import os
 import sys
 
 # The ZED package (sl.sensor.camera) is importable without enabling the Kit extension;
-# _bootstrap walks up to the extension root and puts it on sys.path (depth-independent).
+# _bootstrap walks up to exts/ and puts every extension root with an sl/ tree on sys.path.
 _d = os.path.dirname(os.path.abspath(__file__))
 while not os.path.isfile(os.path.join(_d, "_bootstrap.py")):
     _d = os.path.dirname(_d)
 sys.path.insert(0, _d)
-import _bootstrap  # noqa: E402,F401  (adds the sl.sensor.camera extension root to sys.path)
+import _bootstrap  # noqa: E402,F401
 
 from isaaclab.app import AppLauncher
 
@@ -59,9 +56,9 @@ if get_resolution(args.camera_model, args.resolution) is None:
     parser.error(f"--resolution {args.resolution} is not supported by {args.camera_model}")
 
 # RGB/depth are render-based and this Isaac Lab build is headless-by-default with cameras
-# OFF; force rendering on so the script works with or without --enable_cameras.
+# off; force rendering on so the script works with or without --enable_cameras.
 if not args.enable_cameras:
-    print("[ZED] Enabling cameras (--enable_cameras) - required for RGB/depth rendering.")
+    print("[ZED] Enabling cameras (--enable_cameras): required for RGB/depth rendering.")
 args.enable_cameras = True
 # The ZED lens schema has to start with the app; Isaac Lab's apps do not load it.
 add_zed_kit_args(args)
@@ -73,7 +70,7 @@ if getattr(args, "headless", False):
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 
-# ---- Everything below runs after the Kit app exists ----
+# Everything below runs after the Kit app exists.
 import functools
 import time
 
@@ -100,7 +97,7 @@ _TASK = "IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor"
 _P = get_pinhole_parameters(args.camera_model, args.resolution)
 _W, _H = _P["width"], _P["height"]
 
-# Wrist ZED placement in the panda_hand frame (SL-demo convention: translate + RotateXYZ deg).
+# Wrist ZED placement in the panda_hand frame, as in the pick-place demo (translate + RotateXYZ deg).
 _WRIST_LOCALPOS0 = (0.018, 0.0, 0.034)
 _WRIST_ROT_EULER_DEG = (0.0, -90.0, -180.0)
 
@@ -141,10 +138,9 @@ def _author_wrist_zed_joint(env, env_ids=None, **kwargs):
 
 
 def configure_cameras(env_cfg):
-    """Mount the real ZED_X on the panda_hand wrist (rigid body + fixed joint) and record its
-    authored CameraLeft/CameraRight, no pinhole. The task's static table camera is dropped
-    (robot-mounted view is the relevant one for this wrist-teleop recording)."""
-    # Drop the task's mono table camera and its policy observation term.
+    """Mount the real ZED on the panda_hand wrist (rigid body + fixed joint) and record its
+    authored CameraLeft/CameraRight, no pinhole. The task's table camera and its policy
+    observation term are dropped."""
     env_cfg.scene.table_cam = None
     env_cfg.observations.policy.table_cam = None
 
@@ -212,9 +208,9 @@ def main():
           f"baseline {get_baseline(args.camera_model) * 1e-3:.3f} m. Depth (ground truth) recorded.")
     try:
         print("[ZED] Policy observation terms:", list(env.observation_manager.active_terms.get("policy", [])))
-    except Exception as exc:  # noqa: BLE001 - purely informational
+    except Exception as exc:  # noqa: BLE001  (purely informational)
         print(f"[ZED] (could not list observation terms: {exc})")
-    print("[ZED] Submitting first render - on a cold RTX shader cache this can take several "
+    print("[ZED] Submitting first render: on a cold RTX shader cache this can take several "
           "minutes (compiling, not hung). Subsequent runs are fast.")
 
     # Keyboard teleop. advance() returns a 7-dim tensor [dx,dy,dz,rx,ry,rz,gripper+/-1],
@@ -284,14 +280,14 @@ def main():
 
                 rate_limiter.sleep(env)
         except KeyboardInterrupt:
-            print("[ZED] Interrupted - finalizing dataset.")
+            print("[ZED] Interrupted; finalizing dataset.")
         except Exception as exc:  # noqa: BLE001
             # A released physics-view weakref (ReferenceError) or similar raised while Kit is
-            # tearing down is a benign shutdown race. Re-raise anything that happens while the
-            # app is still alive - that is a real error, not a teardown artifact.
+            # tearing down is a benign shutdown race. Anything raised while the app is still
+            # alive is re-raised.
             if simulation_app.is_running():
                 raise
-            print(f"[ZED] Kit shut down mid-step ({type(exc).__name__}) - finalizing dataset.")
+            print(f"[ZED] Kit shut down mid-step ({type(exc).__name__}); finalizing dataset.")
 
     # Always finalize the dataset, even if the loop died in the teardown race above.
     # recorder_manager.close() flushes + closes the HDF5 and touches no physics, so it is safe
@@ -299,7 +295,7 @@ def main():
     # can abort before reaching the recorder. Both closes are idempotent.
     try:
         recorded = env.recorder_manager.exported_successful_episode_count
-    except Exception:  # noqa: BLE001 - purely to refresh the count for the message below
+    except Exception:  # noqa: BLE001  (purely to refresh the count for the message below)
         pass
     try:
         env.recorder_manager.close()
@@ -315,7 +311,7 @@ def main():
     if recorded == 0 and os.path.isfile(dataset_path):
         try:
             os.remove(dataset_path)
-            print(f"[ZED] No successful demos recorded - removed empty dataset {dataset_path}.")
+            print(f"[ZED] No successful demos recorded; removed empty dataset {dataset_path}.")
         except OSError as exc:
             print(f"[ZED] (could not remove empty dataset {dataset_path}: {exc})")
     else:

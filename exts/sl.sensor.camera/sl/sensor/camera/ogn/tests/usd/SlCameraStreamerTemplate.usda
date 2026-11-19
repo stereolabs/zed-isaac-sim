@@ -18,9 +18,9 @@ def OmniGraph "TestGraph"
         token node:type = "sl.sensor.camera.ZED_Camera"
         int node:typeVersion = 5
 
-        # 18 attributes
+        # 20 attributes
         custom bool inputs:applyZedSim2Real = true (
-            docs="""Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting and sharpness, each with its own switch below. Off streams the render as is (the scene's own camera exposure, plain sRGB). Can be toggled live."""
+            docs="""Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting, sharpness and focus blur, each with its own switch below. Off streams the render as is (the scene's own camera exposure, plain sRGB). Can be toggled live."""
         )
         custom bool inputs:autoExposure = true (
             docs="""Real-camera auto exposure: meters the rendered HDR image and drives the cameras' exposure time and gain (exposure:time / exposure:iso) like a real ZED X. Off keeps the scene's own camera exposure. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real."""
@@ -30,6 +30,9 @@ def OmniGraph "TestGraph"
         )
         custom uint inputs:bitrate = 8000 (
             docs="""Bitrate in Kbps. (Used only if IPC is disabled)"""
+        )
+        custom int inputs:cameraIndex = -1 (
+            docs="""Index of the camera among the simulated cameras of the same model and lens, from which the ZED SDK derives its serial number and calibration. -1 picks the first free index at Play. Used when the ZED camera mode is 'virtual' (the default)."""
         )
         custom token inputs:cameraModel = "ZED_X" (
             docs="""ZED Camera model."""
@@ -45,6 +48,9 @@ def OmniGraph "TestGraph"
         )
         custom uint inputs:execIn = 0 (
             docs="""Triggers execution"""
+        )
+        custom bool inputs:focusBlur = false (
+            docs="""Fixed-focus blur (depth of field) of a real ZED X lens: the 2.2 mm is focused at 1.15 m (f/2.2), the 4 mm at 2 m (f/2.0); surfaces away from that distance, close ones most, are blurred by how far off they are. Renders each eye's depth while on (an extra render output per eye). ZED X, X Mini and X One GS / S lenses only. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real."""
         )
         custom uint inputs:fps = 30 (
             docs="""Camera stream frame rate."""
@@ -65,7 +71,7 @@ def OmniGraph "TestGraph"
             docs="""Enable Left+Depth streaming mode instead of Left+Right. Uses ground-truth depth from Isaac Sim."""
         )
         custom uint inputs:streamingPort = 30000 (
-            docs="""Unique port per camera."""
+            docs="""Even port to stream on. If another camera already uses it, Play changes it to the next free even port, with a warning."""
         )
         custom token inputs:transportLayerMode = "BOTH" (
             docs="""Communication protocol used to send data to the ZED SDK. IPC improves streaming performance when streaming to the same machine (Linux and Windows)"""

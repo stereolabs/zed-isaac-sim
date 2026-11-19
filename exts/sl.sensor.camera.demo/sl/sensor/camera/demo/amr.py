@@ -25,7 +25,7 @@ from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.simulation_manager.impl.isaac_events import IsaacEvents
 from isaacsim.storage.native import get_assets_root_path
 
-# ---- drive path (rack on -X at face ~x=-8.61; lane keeps the swept rear clear; top stays below the pink-box pallet at y>8.6) ----
+# Drive path (rack on -X at face ~x=-8.61; lane keeps the swept rear clear; top stays below the pink-box pallet at y>8.6)
 AISLE_X = -6.6
 WP = [(AISLE_X, 7.5), (AISLE_X, -2.5)]          # drive up/down the aisle alongside the rack
 START = (AISLE_X, -2.5, 0.10)                    # rests wheels-on-ground at z~0.08
@@ -56,7 +56,6 @@ class ZedAmrDemo:
         self._rig_cams = {}          # name -> ZED_X asset-root path (the streaming target)
         self._stream_combo = None
 
-    # ---------------- UI ----------------
     def build_ui(self) -> None:
         with ui.VStack(spacing=8, height=0):
             ui.Label("Stereolabs ZED X on AMR", height=0, style={"font_size": 18})
@@ -87,7 +86,7 @@ class ZedAmrDemo:
     def _on_stream_changed(self, *args) -> None:
         # streaming layout (which cameras / ports) is applied on Load & Run
         if self._rig_cams:
-            self._set_status(f"Streaming set to {self._selected_stream().title()} - click Load & Run to apply")
+            self._set_status(f"Streaming set to {self._selected_stream().title()}; click Load & Run to apply")
 
     def _on_load(self) -> None:
         self._set_status("Loading...")
@@ -97,7 +96,6 @@ class ZedAmrDemo:
         self.stop()
         self._set_status("Stopped")
 
-    # ---------------- build + run ----------------
     async def _load_and_run(self) -> None:
         from isaacsim.core.api import World
         from isaacsim.core.experimental.prims import Articulation
@@ -143,8 +141,7 @@ class ZedAmrDemo:
             rp = "/World/iw_hub/chassis/ZED_X_Rig_" + name
             self._rig_cams[name] = mount_zed_nested(stage, rp, cfg["t"], rotate=cfg["r"])
 
-        # streaming graph(s) -> ZED SDK at 127.0.0.1. Single-cam selections stream on FRONT_PORT;
-        # "Both" runs two graphs (front on FRONT_PORT, rear on BACK_PORT).
+        # one streaming graph per selected camera
         which = self._selected_stream()
         if which == "BOTH":
             plan = [("Front", "FRONT", FRONT_PORT), ("Back", "BACK", BACK_PORT)]
@@ -163,9 +160,9 @@ class ZedAmrDemo:
         self._cb = SimulationManager.register_callback(self._on_step, IsaacEvents.POST_PHYSICS_STEP)
         app_utils.play()
         if which == "BOTH":
-            self._set_status(f"Running - Front:{FRONT_PORT} + Rear:{BACK_PORT}. Open ZED Studio/Depth Viewer at 127.0.0.1")
+            self._set_status(f"Running: Front:{FRONT_PORT} + Rear:{BACK_PORT}. Open ZED Studio/Depth Viewer at 127.0.0.1")
         else:
-            self._set_status(f"Running - {which.title()} on {FRONT_PORT}. Open ZED Studio/Depth Viewer at 127.0.0.1")
+            self._set_status(f"Running: {which.title()} on {FRONT_PORT}. Open ZED Studio/Depth Viewer at 127.0.0.1")
 
     def _on_step(self, dt, context=None):
         art, S = self._art, self._state

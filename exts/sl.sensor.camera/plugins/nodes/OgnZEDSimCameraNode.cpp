@@ -20,7 +20,6 @@
 #include "zed_interface_loader.hpp"
 #include "types_c.h"
 
-// Shorthand for the OmniGraph core types used below.
 using omni::graph::core::Type;
 using omni::graph::core::BaseDataType;
 
@@ -28,15 +27,13 @@ namespace sl {
     namespace sensor{
         namespace camera {
 
-            // ---------------------------------------------------------------
             // Shared state across all camera node instances.
             // OmniGraph evaluates nodes from a thread pool and a scene usually
             // contains several camera nodes, so every access below is guarded
             // by g_state_mutex.
-            // ---------------------------------------------------------------
             static std::mutex g_state_mutex;
 
-            // Monotonic id allocator with a free-list, so ids are unique while a
+            // Id allocator with a free-list, so ids are unique while a
             // streamer is alive and get recycled on teardown (no collisions on
             // stop/restart).
             static int g_next_streamer_id = 0;
@@ -47,6 +44,31 @@ namespace sl {
 
             // List of currently available (not yet opened) serial numbers per model
             static std::map<std::string, std::vector<int>> remaining_serial_numbers = {};
+
+            // The timestamp offset every stream stamped from simulation time shares, so one rendered
+            // frame carries the same timestamp on every camera: ZED Fusion lines cameras up by
+            // timestamp, and streams anchoring on their own first frame put up to a frame between
+            // them. Set by the first such stream, dropped when the last one closes, so the next Play
+            // anchors afresh.
+            static long long g_shared_timestamp_offset_ns = 0;
+            static int g_streams_on_shared_offset = 0;
+
+            static long long acquireSharedTimestampOffset(double frame_time)
+            {
+                std::lock_guard<std::mutex> lk(g_state_mutex);
+                if (g_streams_on_shared_offset++ == 0) {
+                    const long long now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+                    g_shared_timestamp_offset_ns = now_ns - std::llround(frame_time * 1e9);
+                }
+                return g_shared_timestamp_offset_ns;
+            }
+
+            static void releaseSharedTimestampOffset()
+            {
+                std::lock_guard<std::mutex> lk(g_state_mutex);
+                if (g_streams_on_shared_offset > 0) --g_streams_on_shared_offset;
+            }
 
             static int allocStreamerId()
             {
@@ -78,19 +100,23 @@ namespace sl {
                 bool has_right{ false };
                 bool has_depth{ false };              // depth buffer valid (Left+Depth mode)
                 bool on_device{ false }; // buffers are CUDA device memory (zero-copy path)
+                // Recorded after the copies when they run on the producer's stream; the consumer waits
+                // on it before encoding instead of the compute thread waiting for the copies.
+                cudaEvent_t copied{ nullptr };
+                bool copy_pending{ false };
                 unsigned long long ts_ns{ 0 }; // streamed timestamp (wall-clock anchored), in ns
                 // IMU values already converted to the streamer convention.
                 float qw{ 1.f }, qx{ 0.f }, qy{ 0.f }, qz{ 0.f };
                 float ax{ 0.f }, ay{ 0.f }, az{ 0.f };
             };
 
-            // Lock-step producer/consumer hand-off over a small pool of pinned
-            // buffers. The producer (compute thread) copies pixels D2H into a
-            // free slot and publishes it; the consumer (streaming thread) encodes
-            // and sends it. With 3 slots and a serialized producer there is always
-            // a free slot to fill (consumer holds <=1, ready holds <=1), so the
-            // producer never blocks and never races. Under backpressure the newest
-            // frame wins and the previously pending one is dropped.
+            // Lock-step producer/consumer hand-off over a small pool of frame
+            // slots. The producer (compute thread) copies pixels into a free slot
+            // and publishes it; the consumer (streaming thread) encodes and sends
+            // it. With 3 slots and a serialized producer there is always a free
+            // slot to fill (consumer holds <=1, ready holds <=1), so the producer
+            // never blocks and never races. Under backpressure the newest frame
+            // wins and the previously pending one is dropped.
             class FramePipeline {
             public:
                 static constexpr int NUM_SLOTS = 3;
@@ -157,6 +183,7 @@ namespace sl {
                         if (s.buf_left)  { if (s.on_device) cudaFree(s.buf_left);  else cudaFreeHost(s.buf_left); }
                         if (s.buf_right) { if (s.on_device) cudaFree(s.buf_right); else cudaFreeHost(s.buf_right); }
                         if (s.buf_depth) { if (s.on_device) cudaFree(s.buf_depth); else cudaFreeHost(s.buf_depth); }
+                        if (s.copied) cudaEventDestroy(s.copied);
                         s = FrameSlot{};
                     }
                 }
@@ -201,7 +228,7 @@ namespace sl {
                     s.cap_right = need_right;
                     s.on_device = device;
                 }
-                // Depth follows the same device/host choice as the images (GPU path keeps it on device).
+                // Depth follows the same device/host choice as the images.
                 if (has_depth && need_depth > s.cap_depth) {
                     freeBuf(s.buf_depth, s.on_device);
                     s.buf_depth = nullptr;
@@ -214,9 +241,8 @@ namespace sl {
             }
 
 
-            // SDK MODEL codes. The real values come from the ZED SDK sl::MODEL enum;
-            // the ones below mirror what the SDK reports in SimCameraInfo::model and
-            // MUST stay in lock-step with utils._SDK_MODEL_ID on the Python side.
+            // SDK MODEL codes (sl::MODEL, as reported in SimCameraInfo::model) are the cases of
+            // simCameraModelKey below; they must match utils._SDK_MODEL_ID on the Python side.
             static constexpr int MODEL_ID_VIRTUAL_ZED_X = -1;   // custom two-mono virtual stereo (not a real SDK model)
 
             // Composite serial-pool key for a camera, from its SDK MODEL code and lens.
@@ -253,19 +279,27 @@ namespace sl {
                 }
             }
 
-            // Try to open a new streamer given a camera model. Check if a serial number is still available among the list.
-            static int addStreamer(const std::string& camera_model)
+            // Reserve a serial number for a new stream of camera_model; -1 when its pool is empty.
+            // A stream takes the serial its port points to in the model's list (port / 2, wrapping), or the
+            // next free one after it, so a port streams the same serial from run to run whatever order the
+            // streams open in: a ZED Fusion configuration names its cameras by serial.
+            static int addStreamer(const std::string& camera_model, unsigned short port)
             {
                 std::lock_guard<std::mutex> lk(g_state_mutex);
                 auto& pool = remaining_serial_numbers[camera_model];
-                if (!pool.empty())
-                {
-                    int serial_number = pool.back();
-                    pool.pop_back();
-                    return serial_number;
+                const auto& all = available_zed_cameras[camera_model];
+                for (size_t k = 0; k < all.size(); ++k) {
+                    const int candidate = all[(port / 2u + k) % all.size()];
+                    auto it = std::find(pool.begin(), pool.end(), candidate);
+                    if (it != pool.end()) {
+                        pool.erase(it);
+                        return candidate;
+                    }
                 }
 
-                CARB_LOG_FATAL("[ZED] Maximum number of %s camera reached!", camera_model.c_str());
+                CARB_LOG_FATAL("[ZED] Maximum number of %s camera reached! For more, set the Camera mode in "
+                               "the ZED Cameras panel to SDK virtual camera (receiver: ZED SDK 5.6.0+).",
+                               camera_model.c_str());
                 return -1;
             }
 
@@ -347,9 +381,13 @@ namespace sl {
                 // first frame, then advanced by simulation time. This keeps the simulated
                 // frame cadence while making the absolute timestamp the actual current time
                 // (a real camera stamps frames with Unix time, not from 0).
+                // A stream stamped from simulation time takes g_shared_timestamp_offset_ns instead,
+                // so every stream stamps a frame of time t with the same offset + t.
                 bool m_timestamp_base_set{ false };
                 double m_sim_time_base{ 0.0 };
                 unsigned long long m_epoch_base_ns{ 0 };
+                bool m_on_shared_offset{ false };
+                long long m_shared_offset_ns{ 0 };
 
                 // Streamer identity owned by this instance (for clean teardown)
                 std::string m_camera_model;
@@ -375,9 +413,9 @@ namespace sl {
                 // One-shot guard so the benign frame-drop notice is logged at most once.
                 bool m_frameDropLogged{ false };
 
-                // Fallback clock: some Isaac builds deliver simulationTime == 0 from the
-                // SDG time nodes; without a monotonic time the warmup gate and the
-                // frame-dedup logic would stall the streamer.
+                // Fallback clock: on some Isaac builds the SDG time nodes deliver
+                // simulationTime == 0 (seen with Kit 110.1); without a monotonic time
+                // the warmup gate and the frame-dedup logic would stall the streamer.
                 std::chrono::steady_clock::time_point m_clock0;
                 bool m_clock0_set{ false };
 
@@ -392,6 +430,20 @@ namespace sl {
                     {
                         FrameSlot* slot = state.m_pipeline.waitReady();
                         if (!slot) break; // stopping
+
+                        if (slot->copy_pending)
+                        {
+                            slot->copy_pending = false;
+                            cudaError_t err = cudaEventSynchronize(slot->copied);
+                            if (err != cudaSuccess)
+                            {
+                                CARB_LOG_ERROR("[ZED] Waiting for the frame copy failed: %s. Camera SN %d, port %d.",
+                                    cudaGetErrorString(err), state.m_serial_number,
+                                    static_cast<int>(state.m_zedStreamerParams.port));
+                                state.m_pipeline.releaseConsumed();
+                                continue;
+                            }
+                        }
 
                         int status;
                         if (slot->has_depth)
@@ -449,7 +501,7 @@ public:
                 {
                     m_cudaStreamNotCreated = true;
 
-                    // Load zed streamer lib and init the streamer
+                    // Load the bundled sl_zed library; compute opens the streamer.
                     std::string prefix = "";
                     std::string suffix = "";
                     std::string sep = "/";
@@ -486,13 +538,13 @@ public:
                 void stop()
                 {
                     // Stop and join the consumer thread before touching anything it
-                    // uses (pinned buffers, streamer, cuda stream).
+                    // uses (slot buffers, streamer, cuda stream).
                     m_pipeline.stop();
                     if (m_streamingThread.joinable()) {
                         m_streamingThread.join();
                     }
 
-                    // Free this instance's pinned buffers now the consumer is done.
+                    // Free this instance's slot buffers now the consumer is done.
                     m_pipeline.release();
 
                     // Return only our own serial / id to the shared pools.
@@ -501,14 +553,17 @@ public:
                         m_owns_pool_serial = false;
                     }
 
-                    // Clean up ZED streamer.
+                    if (m_on_shared_offset) {
+                        releaseSharedTimestampOffset();
+                        m_on_shared_offset = false;
+                    }
+
                     if (m_streamerOpened) {
                         m_zedStreamer.closeStreamer(m_streamer_id);
                         freeStreamerId(m_streamer_id);
                         m_streamerOpened = false;
                     }
 
-                    // Clean up CUDA stream if it was created
                     if (!m_cudaStreamNotCreated) {
                         cudaError_t err = cudaStreamDestroy(m_cudaStream);
                         if (err != cudaSuccess) {
@@ -522,10 +577,12 @@ public:
                 }
 
 
-                // called every time a new frame is rendered
+                // Runs on each frame ZED_FrameImu passes on: its execOut drives execIn.
                 static bool compute(OgnZEDSimCameraNodeDatabase& db)
                 {
                     auto& state = db.perInstanceState<OgnZEDSimCameraNode>();
+                    // The exposure loop (Python) sets the camera settings of this streamer by its id.
+                    db.outputs.streamerId() = state.m_streamerOpened ? state.m_streamer_id : -1;
                     if (!state.m_valid) {
                         if (!state.m_loggedInvalid) {
                             CARB_LOG_WARN("[ZED] Node is in an invalid state, streaming is disabled");
@@ -534,15 +591,14 @@ public:
                         return false;
                     }
                     if (!db.inputs.stream()) {
-                        // Streaming simply turned off - nothing to do this frame.
+                        // Streaming is off: clear an init failure so turning it back on retries.
                         state.m_streamerInitFailed = false;
                         return false;
                     }
                     if (state.m_streamerInitFailed) return false;
 
-                    // Frame time: prefer simulationTime, fall back to an internal
-                    // steady clock when the upstream time nodes deliver 0 (Isaac build
-                    // regression observed with Kit 110.1).
+                    // Frame time: simulationTime, or the fallback clock (m_clock0) when the time nodes
+                    // deliver 0.
                     double frame_time = db.inputs.simulationTime();
                     if (frame_time <= 0.0) {
                         if (!state.m_clock0_set) {
@@ -583,10 +639,7 @@ public:
                             state.m_stereo_camera = db.inputs.bufferSizeRight() > 0 && reinterpret_cast<void*>(db.inputs.dataPtrRight()) != nullptr;
                         }
 
-                        // Derive the serial-pool key from the SDK MODEL code + lens the
-                        // annotator sends. simCameraModelKey() owns the key namespace, so
-                        // model 30 already collapses ZED X One S into the shared GS pool -
-                        // no per-model remap needed here.
+                        // Serial-pool key from the SDK MODEL code + lens the annotator sends (see simCameraModelKey).
                         const int model_id = db.inputs.simCameraModel();
                         std::string camera_model = (model_id == MODEL_ID_VIRTUAL_ZED_X)
                             ? std::string("VIRTUAL_ZED_X")
@@ -594,9 +647,14 @@ public:
 
                         unsigned short port = db.inputs.port();
 
+                        // Serial built by create_virtual_camera() on the Python side, which also
+                        // rendered with its calibration; the receiver regenerates that calibration
+                        // from the serial number. Not in the legacy pool.
+                        const bool virtual_camera = db.inputs.virtualCamera() && camera_model != "VIRTUAL_ZED_X";
+
                         int serial_number = -1;
                         bool owns_pool_serial = false;
-                        if (camera_model == "VIRTUAL_ZED_X")
+                        if (camera_model == "VIRTUAL_ZED_X" || virtual_camera)
                         {
                             const std::string serial_str = db.inputs.serialNumber();
                             try {
@@ -608,7 +666,7 @@ public:
                         }
                         else
                         {
-                            serial_number = addStreamer(camera_model);
+                            serial_number = addStreamer(camera_model, port);
                             owns_pool_serial = serial_number > 0;
                         }
 
@@ -648,7 +706,6 @@ public:
 
                         int transport_layer_mode = transportLayerModeToInt(db.tokenToString(db.inputs.transportLayerMode()));
 
-                        // Use YUV format for IPC or mono cameras
                         bool use_yuv = transport_layer_mode > 0 || !state.m_stereo_camera;
                         state.m_zedStreamerParams.alpha_channel_included = true;
                         state.m_zedStreamerParams.codec_type = 1;
@@ -692,7 +749,6 @@ public:
                             state.m_serial_number = serial_number;
                             state.m_owns_pool_serial = owns_pool_serial;
 
-                            // Create CUDA stream
                             cudaError_t cuerr = cudaStreamCreate(&state.m_cudaStream);
                             if (cuerr != cudaSuccess) {
                                 CARB_LOG_ERROR("[ZED] Failed to create CUDA stream: %s", cudaGetErrorString(cuerr));
@@ -701,7 +757,6 @@ public:
                             }
                             state.m_cudaStreamNotCreated = false;
 
-                            // Start streaming (consumer) thread
                             state.m_streamingThread = std::thread(&OgnZEDSimCameraNode::streamingThreadFunc, std::ref(state));
                         }
                         else {
@@ -722,7 +777,6 @@ public:
                     }
                     else
                     {
-                        // Get frame data pointers and sizes
                         const size_t data_size_left{ db.inputs.bufferSizeLeft() };
                         const void* raw_ptr_left{ reinterpret_cast<void*>(db.inputs.dataPtrLeft()) };
                         const size_t data_size_right{ db.inputs.bufferSizeRight() };
@@ -758,7 +812,7 @@ public:
                                 state.m_size_warned = true;
                                 CARB_LOG_ERROR("[ZED] Image buffer size mismatch: left=%zu right=%zu "
                                                "expected=%zu (%dx%d RGBA8). Skipping frames until it "
-                                               "matches - the render product resolution differs from "
+                                               "matches: the render product resolution differs from "
                                                "the stream width/height.",
                                                data_size_left, data_size_right, expected_image_bytes,
                                                state.m_zedStreamerParams.image_width,
@@ -811,20 +865,43 @@ public:
                         cudaMemcpyKind copy_kind = state.m_gpu_input ? cudaMemcpyDeviceToDevice
                                                                      : cudaMemcpyDeviceToHost;
 
+                        // Images written on a CUDA stream their producer names (the sRGB encoders) are
+                        // copied on that stream: after the work that wrote them, before the work that next
+                        // overwrites them, and the consumer waits for the copy rather than this thread.
+                        // Annotator buffers name no stream, and their copy finishes before compute returns.
+                        const cudaStream_t src_left = reinterpret_cast<cudaStream_t>(db.inputs.cudaStreamLeft());
+                        const cudaStream_t src_right = reinterpret_cast<cudaStream_t>(db.inputs.cudaStreamRight());
+                        const bool copy_on_src = src_left != nullptr && !state.m_stream_depth &&
+                                                 (!state.m_stereo_camera || src_right == src_left);
+                        const cudaStream_t copy_stream = copy_on_src ? src_left : state.m_cudaStream;
+                        if (!copy_on_src)
+                        {
+                            // A named stream that cannot carry the copy: finish its work first.
+                            cudaError_t err = cudaSuccess;
+                            if (src_left) err = cudaStreamSynchronize(src_left);
+                            if (err == cudaSuccess && src_right && src_right != src_left)
+                                err = cudaStreamSynchronize(src_right);
+                            if (err != cudaSuccess) {
+                                CARB_LOG_ERROR("[ZED] CUDA stream synchronization error: %s", cudaGetErrorString(err));
+                                state.m_pipeline.cancel(slot);
+                                return false;
+                            }
+                        }
+
                         cudaError_t err_left = cudaSuccess;
                         cudaError_t err_right = cudaSuccess;
                         err_left = cudaMemcpyAsync(slot->buf_left, raw_ptr_left,
-                            data_size_left, copy_kind, state.m_cudaStream);
+                            data_size_left, copy_kind, copy_stream);
                         if (state.m_stereo_camera)
                         {
                             err_right = cudaMemcpyAsync(slot->buf_right, raw_ptr_right,
-                                data_size_right, copy_kind, state.m_cudaStream);
+                                data_size_right, copy_kind, copy_stream);
                         }
                         cudaError_t err_depth = cudaSuccess;
                         if (state.m_stream_depth)
                         {
                             err_depth = cudaMemcpyAsync(slot->buf_depth, raw_ptr_depth,
-                                data_size_depth, copy_kind, state.m_cudaStream);
+                                data_size_depth, copy_kind, copy_stream);
                         }
 
                         if (err_left != cudaSuccess || err_right != cudaSuccess || err_depth != cudaSuccess) {
@@ -835,11 +912,28 @@ public:
                             return false;
                         }
 
-                        cudaError_t sync_err = cudaStreamSynchronize(state.m_cudaStream);
-                        if (sync_err != cudaSuccess) {
-                            CARB_LOG_ERROR("[ZED] CUDA stream synchronization error: %s", cudaGetErrorString(sync_err));
-                            state.m_pipeline.cancel(slot);
-                            return false;
+                        if (copy_on_src)
+                        {
+                            cudaError_t ev_err = slot->copied ? cudaSuccess
+                                : cudaEventCreateWithFlags(&slot->copied, cudaEventDisableTiming);
+                            if (ev_err == cudaSuccess)
+                                ev_err = cudaEventRecord(slot->copied, copy_stream);
+                            if (ev_err != cudaSuccess) {
+                                CARB_LOG_ERROR("[ZED] CUDA event error: %s", cudaGetErrorString(ev_err));
+                                state.m_pipeline.cancel(slot);
+                                return false;
+                            }
+                            slot->copy_pending = true;
+                        }
+                        else
+                        {
+                            slot->copy_pending = false;
+                            cudaError_t sync_err = cudaStreamSynchronize(copy_stream);
+                            if (sync_err != cudaSuccess) {
+                                CARB_LOG_ERROR("[ZED] CUDA stream synchronization error: %s", cudaGetErrorString(sync_err));
+                                state.m_pipeline.cancel(slot);
+                                return false;
+                            }
                         }
 
                         // Convert IMU orientation / linear acceleration into the
@@ -853,21 +947,28 @@ public:
                         GfQuatd converted_orientation = (rotation_matrix * orientation_mat * inv_rotation_matrix).GetOrthonormalized().ExtractRotationQuat();
                         GfVec3d converted_lin_acc = (rotation_matrix * lin_acc_mat * inv_rotation_matrix).GetOrthonormalized().ExtractTranslation();
 
-                        // Anchor the stream to real wall-clock time on the first frame, then
-                        // advance by simulation time so frame cadence is preserved while the
-                        // absolute timestamp reflects the actual current time.
                         if (!state.m_timestamp_base_set) {
-                            state.m_epoch_base_ns = static_cast<unsigned long long>(
-                                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                    std::chrono::system_clock::now().time_since_epoch()).count());
-                            state.m_sim_time_base = timestamp;
+                            if (db.inputs.simulationTime() > 0.0) {
+                                state.m_shared_offset_ns = acquireSharedTimestampOffset(timestamp);
+                                state.m_on_shared_offset = true;
+                            }
+                            else {
+                                // The fallback clock counts from this node's first compute: an
+                                // offset shared with other nodes would not match it.
+                                state.m_epoch_base_ns = static_cast<unsigned long long>(
+                                    std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                        std::chrono::system_clock::now().time_since_epoch()).count());
+                                state.m_sim_time_base = timestamp;
+                            }
                             state.m_timestamp_base_set = true;
                         }
 
                         slot->has_right = state.m_stereo_camera;
                         slot->has_depth = state.m_stream_depth;
-                        slot->ts_ns = state.m_epoch_base_ns +
-                            static_cast<unsigned long long>((timestamp - state.m_sim_time_base) * 1e9);
+                        slot->ts_ns = state.m_on_shared_offset
+                            ? static_cast<unsigned long long>(state.m_shared_offset_ns + std::llround(timestamp * 1e9))
+                            : state.m_epoch_base_ns +
+                                static_cast<unsigned long long>((timestamp - state.m_sim_time_base) * 1e9);
                         slot->qw = static_cast<float>(converted_orientation.GetReal());
                         slot->qx = static_cast<float>(converted_orientation.GetImaginary()[0]);
                         slot->qy = static_cast<float>(converted_orientation.GetImaginary()[1]);
@@ -892,7 +993,6 @@ public:
 
             const pxr::GfMatrix4d OgnZEDSimCameraNode::inv_rotation_matrix = rotation_matrix.GetInverse();
 
-            // Registers this node type with OmniGraph, and deregisters it on unload.
             REGISTER_OGN_NODE()
 
         } // camera

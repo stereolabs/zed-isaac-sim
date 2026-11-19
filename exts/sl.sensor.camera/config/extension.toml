@@ -1,5 +1,5 @@
 [package]
-version = "5.3.1" # Semantic Versioning is used: https://semver.org/
+version = "5.4.0" # Semantic Versioning is used: https://semver.org/
 
 # These fields are used primarily for display in the extension browser UI.
 title = "Stereolabs ZED Camera"
@@ -20,7 +20,7 @@ exclude = ["Ogn*Database.py"]
 
 [package.target]
 platform = ["windows-x86_64", "linux-x86_64"]
-kit = ["110.1.2", "110.3.0"] # Isaac Sim 6.0 and 6.1: one build serves both, the plugin ABI is identical
+kit = ["110.1.2", "110.3.0", "110.4.0"] # Isaac Sim 6.0, 6.1 and 6.2: one build serves all three, the plugin ABI is identical
 
 [package.writeTarget]
 kit = true
@@ -34,6 +34,19 @@ kit = true
 "omni.kit.menu.utils" = { optional = true } # "ZED Cameras" lens panel menu entry (GUI only)
 "isaacsim.gui.components" = { optional = true } # "ZED Cameras" lens panel window (GUI only)
 
+
+[settings]
+# "virtual" (receiver needs 5.6.0+): the ZED SDK generates each simulated camera's serial number
+# and calibration.
+# "legacy" (for 5.5.x receivers): serial numbers from the SDK's whitelist, calibration from their
+# reserved file.
+persistent.exts."sl.sensor.camera".simCameraMode = "virtual"
+# How Play sets the app's timing so each stream sends every frame; Stop puts it back.
+# "fit": a timing where no app update spans more than one frame is kept, otherwise the update rate goes
+# to the highest multiple of the stream fps at or below it. "frame": the app updates once per frame, at
+# the stream fps. "off": the app's timing is kept. When "fit" or "frame" changes the update rate, the
+# physics rate goes up to a multiple of it if it is not one.
+persistent.exts."sl.sensor.camera".streamTiming = "fit"
 
 [[test]]
 dependencies = ["omni.graph.action"] # OnPlaybackTick, for the streamer lifecycle test

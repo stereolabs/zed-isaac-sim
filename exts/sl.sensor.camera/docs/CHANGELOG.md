@@ -2,6 +2,43 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [5.4.0]
+### New features
+- **Any number of simulated cameras, each calibrated like a real unit.** The ZED SDK gives each camera its own serial number and calibration, slightly different from the next one's; the images are rendered with it and the receiver rectifies them, as for a real camera. Set **Camera Index** on the ZED Camera Helper, ZED Camera One Helper and ZED Capture nodes to keep the same camera from run to run. Virtual stereo pairs still use the Calibration Exporter.
+- **Stream receivers can set the exposure** with `Camera::setCameraSettings()` (`AEC_AGC`, `EXPOSURE_TIME`, `ANALOG_GAIN`, `DIGITAL_GAIN`, `EXPOSURE_COMPENSATION`, `AUTO_*_RANGE`) and read back each frame's exposure, also in SVO recordings. Needs **Auto exposure** on; receivers older than ZED SDK 5.5.1 support it only in part.
+- **Focus blur of the ZED X lenses**, off by default (**Focus blur** under *ZED Sim2Real* on the ZED Camera Helper and ZED Camera One Helper, can be toggled live): what is closer than the lens's fixed focus (1.15 m for the 2.2 mm lens, 2 m for the 4 mm) blurs as on a real camera, most visibly with the 4 mm lens at manipulation distances. Also on SDK-free captures (see below); about +5% frame time on a close-up scene when on.
+- **SDK-free captures get the whole ZED X camera model, like the streams.** The ZED Capture node and `ZEDDepthCamera` had the sensor noise, vignetting, sharpness and white balance but no auto exposure, motion blur, focus blur or light flicker; they now have all of them, under the same **ZED Sim2Real** switches as the ZED Camera Helper, plus the **Apply ZED Sim2Real** master switch, with the same defaults: the auto exposure and the motion blur are on. They run at the camera's render rate: **FPS** on the node or `fps=` on `ZEDDepthCamera` (which also caps the render rate, as on a streamed camera), else the camera's `omni:sensor:tickRate`, else the app's update rate. The exposure settles on a new scene in about half a second, as on the real camera, so a capture that should not open on over- or under-exposed frames starts saving on `exposure_state.converged`. The switches are read when the capture starts, not live.
+
+### Fixes
+- **Corrected three node tooltips.** Apply ZED Sim2Real now lists focus blur among its effects. On the ZED Capture node, the depth is the renderer's, and the white balance is metered on the right image of a stereo camera.
+- **In the legacy camera mode a stream keeps its serial number from one run to the next**, so a ZED Fusion configuration, which names its cameras by serial number, no longer matches the wrong streams after a restart.
+- **Cameras streamed together stamp each frame with the same timestamp.** The same frame could carry timestamps up to a frame apart from one camera to the next, so ZED Fusion fused images taken at different moments.
+- **Fixed the ZED X One fisheye image being half a pixel up and to the left** of where the ZED SDK's calibration expects it.
+- **The ZED X One fisheye now renders its whole image**: the corners past 100° off-axis (6 to 7.5% of the image) were black. They are approximate, since the lens calibration is extrapolated there, and their tips (0.3%) stay empty. The lens is no longer saved with the scene, so a reopened scene shows a plain camera until Play or a capture starts. Isaac Sim's ROS 2 `camera_info` now reports a fisheye ZED as an undistorted pinhole (`Unsupported lens distortion model 'lut'`).
+- **Each streamed frame now carries the IMU at the time it was rendered**: its orientation lagged the image during turns. The acceleration is also measured at the IMU instead of the body's center of mass, and is in m/s² on stages not in meters.
+- **A frame writer with `needs_pose` gets the camera pose of the moment its image shows** when a rigid body carries the camera. It got the pose at the end of the app update that rendered the frame, 33 ms later at 15 fps with 60 Hz physics and 15 Hz app updates.
+- **SDK-free captures no longer lose frames when the frame writer skips repeated timestamps.** A `FrameWriter` with `needs_pose` that skips them lost 4 to 13% of the frames at two app updates per frame. When a script calls `save_frame()` itself, a frame its writer skips (`write()` returns False) is offered again on the next update.
+- **SDK-free captures keep every frame at one app update per frame.** When an app update finished two frames, the ZED Capture node and `ZEDDepthCamera(enable_save=True)` saved only the second: up to 14% of the frames on an empty stage, 0.2% in a warehouse. A script that calls `save_frame()` itself still saves only the latest frame at each call.
+- **Fixed Narrow stereo cameras in Isaac Lab and `zed_depth_standalone.py` sitting 2.4 to 2.7 mm too far forward**: they had the Wide lens's body. `apply_zed_optics()` now picks the asset's lens to match the camera model.
+- **Fixed ZED Sim2Real in Isaac Lab (`ZedSim2Real`) treating scenes as about 25 times darker than they are**, which gave images far too much gain and noise. It affected cameras without an authored `exposure:fStop`: every ZED asset except the ZED X One S and UHD.
+
+### Changed
+- **Streams send every frame when the app updates slower than them**: Play changes the app's update rate, and the physics rate when needed, so that no app update spans more than one frame, and Stop puts them back. **Stream timing** in the ZED Cameras panel's **Settings** tab picks how: fit the stream fps (default), one update per frame, or keep the app's timing ([details](README.md#stream-frame-rate-and-app-timing)). With the app's timing kept, such a stream sends every second frame or fewer, evenly spaced, and declares that rate to receivers (15 fps for a 30 fps stream in 15 or 20 Hz app updates).
+- **The Isaac Lab examples `zed_single.py` and `zed_multi_env.py` apply ZED Sim2Real by default**: `--no-apply_zed_sim2real` gives the render's own RGB, as leaving out `--apply_zed_sim2real` did.
+- **Streams take less time per frame**: four ZED X streaming at SVGA on an RTX 4070 Ti ran about 20% faster.
+- **Cameras set to the same streaming port now all stream**: Play moves a camera whose **Streaming Port** is taken to the next free even port, with a warning.
+- **ZED Sim2Real looks closer to a real ZED X**: noise in dim scenes with its fixed pattern and row noise, quieter and softer SVGA images, auto exposure with its delay and speed that leaves night scenes darker, glare around bright lights, darker corners with a slight color fringe, and faintly pink blown highlights.
+- **Light flicker follows the exposure time**, so long exposures flicker less, as on a real camera. `/exts/sl.sensor.camera/lightFlickerStd` also accepts `office_led` and `lamps`, and `/exts/sl.sensor.camera/lightFlickerMainsHz` sets 60 Hz mains. Still off by default.
+- **ZED camera images render with DLSS Quality** whatever the application's DLSS mode, since Performance leaves stair-stepped edges; the viewport keeps its own mode. `/exts/sl.sensor.camera/renderDlssMode` picks another (`performance`, `balanced`, `quality`, `auto`), or `""` to leave it to the application.
+- **Auto exposure and auto white balance meter the right eye** of a stereo camera, as a real ZED X does; mono cameras and left + depth streams still meter the left eye. Isaac Lab does the same.
+- **Stream receivers need ZED SDK 5.6.0 or newer** for the simulated cameras' calibration. For ZED SDK 5.5, set **Camera mode** to **Legacy serial number** in the **Settings** tab of the **ZED Cameras** panel; cameras also fall back to it, with a warning, when the bundled ZED SDK library cannot generate simulated cameras.
+- `apply_zed_optics()` takes a `camera_index` and returns the camera's serial number and calibration: build Isaac Lab intrinsics from that calibration, not from `Camera.data.intrinsic_matrices`. `mode="legacy"` gives the 5.3 optics.
+
+### Compatibility
+- Added support for Isaac Sim 6.2 (Kit 110.4.0); 6.0 and 6.1 stay supported with the same build.
+- Ships with the ZED SDK 5.6.0 library and the `sl_zed_sim2real` library 1.0.1.
+- The Humanoid and Pick-Place demos also run on Isaac Sim 6.2.
+
 ## [5.3.1]
 ### Fixes
 - **Fixed GEN_1 positional tracking with IMU fusion inverting the camera's pitch** in streams and in SVOs recorded from them: a camera pitching down was tracked pitching up. A live receiver also reported `camera_imu_transform` as a 180° turn about the optical axis. It is now the identity, as in SVO recordings of the stream: `getSensorsData()` reports the same IMU orientation live and recorded.
@@ -91,15 +128,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [5.0.1]
 - Fix error when using ZED Camera One Helper node.
-- Fix encoder issue when using latest Nvidia drivers (590+).
+- Fix encoder issue when using latest NVIDIA drivers (590+).
 - Fix IMU data when using multiple cameras in the scene. Previously it was re-using the same IMU node for all the cameras.
 
 ## [5.0.0]
-- Add Isaac SIM 6.0 support
+- Add Isaac Sim 6.0 support
 
 ## [4.2.2]
 - Fix error when using ZED Camera One Helper node.
-- Fix encoder issue when using latest Nvidia drivers (590+).
+- Fix encoder issue when using latest NVIDIA drivers (590+).
 - Fix IMU data when using multiple cameras in the scene. Previously it was re-using the same IMU node for all the cameras.
 
 ## [4.2.1]
@@ -108,7 +145,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [4.2.0]
 - Add the option to change streaming bitrate and chunksize when streaming over network.
 - Add the option to stream over both IPC and network simultaneously.
-- The C++ omnigraph node and the python nodes are now implemented in a single extension, simplifying installation and usage.
+- The C++ OmniGraph node and the Python nodes are now implemented in a single extension, simplifying installation and usage.
 - Set default FPS to 60 for better user experience.
 
 ## [4.1.1]

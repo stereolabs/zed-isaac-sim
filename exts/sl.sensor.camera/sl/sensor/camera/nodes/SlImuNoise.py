@@ -1,6 +1,3 @@
-"""
-This is the implementation of the OGN node defined in SlImuNoise.ogn
-"""
 import math
 
 import numpy as np

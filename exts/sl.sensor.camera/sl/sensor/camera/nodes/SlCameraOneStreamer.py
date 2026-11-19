@@ -1,6 +1,3 @@
-"""
-This is the implementation of the OGN node defined in SlCameraOneStreamer.ogn
-"""
 import carb
 
 from ..ogn.SlCameraOneStreamerDatabase import SlCameraOneStreamerDatabase

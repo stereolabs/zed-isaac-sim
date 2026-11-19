@@ -3,8 +3,8 @@
 The same camera model the streamed images get (the ``sl_zed_sim2real`` library, see camera_model_lib.py),
 for in-process frames: from Isaac Lab's linear HDR output (``"rgb_hdr"``) to the image a real ZED X
 outputs, with its auto exposure, auto white balance, sensor noise at the chosen gain, lens vignetting
-and sharpness. One auto exposure and white balance per env; both eyes of an env share them (the left
-drives, as on the real camera).
+and sharpness. One auto exposure and white balance per env; both eyes of an env share them (the right
+drives when there is one, as on the real camera).
 
 The cameras render at a fixed reference exposure (:meth:`ZedSim2Real.prepare_cameras`, once, before
 the sensors start) and each env's exposure is applied to its linear image as a gain: the renderer's
@@ -18,9 +18,6 @@ Kit-free (ctypes, and torch at call time)::
     sim2real.prepare_cameras(stage, left_and_right_prim_paths)   # before sim.reset()
     ...
     rgb_l, rgb_r = sim2real.apply(cam_l.data.output["rgb_hdr"], cam_r.data.output["rgb_hdr"], dt=1 / 30)
-
-Faults set through the environment (SL_SIM2REAL_SOIL, SL_SIM2REAL_EYE_EV, ...; see the library's
-header) apply here too.
 """
 from __future__ import annotations
 
@@ -107,16 +104,17 @@ class ZedSim2Real:
         start. Returns the number of camera prims set."""
         from pxr import Sdf
 
-        from .auto_exposure import RTX_AUTO_EXPOSURE_ATTR, zedx_responsivity
+        from .auto_exposure import RTX_AUTO_EXPOSURE_ATTR, camera_fstop, zedx_responsivity
 
         n = 0
         for path in camera_prim_paths:
             prim = stage.GetPrimAtPath(path)
             if not prim or not prim.IsValid():
                 continue
-            f_attr = prim.GetAttribute("exposure:fStop")
-            f = float(fstop or (f_attr.Get() if f_attr and f_attr.Get() else 5.0))
-            values = {"exposure:time": REFERENCE_EXPOSURE_S, "exposure:iso": 100.0,
+            # authored too: a render product authors fStop 5 on its first render when the camera has none, and the
+            # image would then be 25x darker than the photometry assumes (f/1, UsdGeomCamera's fallback)
+            f = float(fstop or camera_fstop(prim))
+            values = {"exposure:time": REFERENCE_EXPOSURE_S, "exposure:iso": 100.0, "exposure:fStop": f,
                       "exposure:responsivity": zedx_responsivity(self._target, f)}
             for name, value in values.items():
                 attr = prim.GetAttribute(name) or prim.CreateAttribute(name, Sdf.ValueTypeNames.Float)
@@ -160,6 +158,9 @@ class ZedSim2Real:
         else:
             scale = torch.ones(n, device=left.device, dtype=torch.float32)
         outs = []
+        # the auto exposure and white balance meter the right eye when there is one, as a real ZED X's auto exposure
+        # meters its right sensor
+        metered = 1 if right is not None else 0
         for eye, hdr in enumerate((left, right)):
             if hdr is None:
                 outs.append(None)
@@ -169,12 +170,12 @@ class ZedSim2Real:
                 outs.append(_srgb8(buf[..., :3]))
                 continue
             outs.append(self._encode(buf, eye, n, h, w))
-            if eye == 0:
+            if eye == metered:
                 self._meter(buf, n, h, w, dt)
         self._frame += 1
         return outs[0], outs[1]
 
-    # ---- internals ---------------------------------------------------------------------------
+    # Internals
     def _scaled(self, hdr, scale, eye):
         """The eye's frames at each env's exposure, as the RGBA float16 the library reads."""
         import torch
@@ -216,7 +217,7 @@ class ZedSim2Real:
         return out[..., :3].contiguous()
 
     def _meter(self, buf, n, h, w, dt):
-        """Meter the left eye's frames; the auto exposure and white balance act on the previous batch's."""
+        """Meter the metered eye's frames; the auto exposure and white balance act on the previous batch's."""
         stream = self._stream(buf)
         for i in range(n):
             awb = self._awb[i]

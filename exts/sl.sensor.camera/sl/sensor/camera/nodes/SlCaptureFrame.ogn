@@ -1,0 +1,30 @@
+{
+    "ZED_CaptureFrame": {
+        "version": 1,
+        "categories": {
+            "Stereolabs": "Nodes used with Stereolabs ZED cameras"
+        },
+        "description": "Hands the SDK-free capture (ZEDDepthCamera, the ZED Capture node) each frame its camera renders, while the capture's annotators hold that frame. It sits in the post-render graph behind a sync gate on those annotators, so it runs once per rendered frame, also when one app update finishes two frames.",
+        "language": "Python",
+        "metadata": {
+            "uiName": "ZED Capture Frame",
+            "hidden": "true"
+        },
+        "inputs": {
+            "execIn": {
+                "type": "execution",
+                "description": "Triggers the node (connect the sync gate's execOut)"
+            },
+            "rationalTimeNumerator": {
+                "type": "int64",
+                "description": "Numerator of the frame's reference time, which tells the frames apart",
+                "default": 0
+            },
+            "rationalTimeDenominator": {
+                "type": "uint64",
+                "description": "Denominator of the frame's reference time",
+                "default": 0
+            }
+        }
+    }
+}

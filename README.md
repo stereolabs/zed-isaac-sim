@@ -1,15 +1,15 @@
 # ZED Camera Integration for NVIDIA Isaac Sim
 
-![Isaac Sim](https://img.shields.io/badge/Isaac%20Sim-6.0%20%7C%206.1-76B900)
-![ZED SDK](https://img.shields.io/badge/ZED%20SDK-%E2%89%A5%205.5.0-0091FF)
+![Isaac Sim](https://img.shields.io/badge/Isaac%20Sim-6.0%20%7C%206.1%20%7C%206.2-76B900)
+![ZED SDK](https://img.shields.io/badge/ZED%20SDK-%E2%89%A5%205.6.0-0091FF)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)
 
 **Build, test, and train your physical AI before the hardware even exists.**
 
-This extension brings faithful digital twins of every [Stereolabs ZED camera](https://www.stereolabs.com/)
+This extension brings digital twins of every [Stereolabs ZED camera](https://www.stereolabs.com/)
 into [NVIDIA Isaac Sim](https://developer.nvidia.com/isaac/sim)'s photorealistic simulation. Your simulated
 ZED streams to the ZED SDK exactly like a real camera would, so the exact software you ship (perception,
-navigation, your ROS 2 stack) runs **unchanged**, software-in-the-loop, in a fully repeatable virtual world.
+navigation, your ROS 2 stack) runs unchanged, software-in-the-loop, in a repeatable virtual world.
 
 ![A simulated ZED streaming live from Isaac Sim into ZED Studio](imgs/zed_streaming_demo.gif)
 
@@ -18,15 +18,15 @@ ZED SDK's stereo-matched depth (bottom right).*
 
 **What you get:**
 
-- ✅ Every ZED camera as a calibrated **digital twin**: stereo and mono models, with their lens variants
-- ✅ Stereo images + IMU streamed to the **ZED SDK** and **ZED ROS 2 Wrapper**, with **zero code change**
-- ✅ **Ground-truth depth** streaming, straight into your ZED SDK pipeline
-- ✅ **ZED Sim2Real**, a model of the real ZED X camera on top of the clean render: its auto exposure, white balance, noise, motion blur and lens
-- ✅ ZED observations as **GPU tensors** in Isaac Lab, for reinforcement & imitation learning
-- ✅ **SDK-free** RGB + depth capture for quick synthetic datasets
-- ✅ **Multi-camera streaming**: several cameras on one robot or a whole fleet in one scene, stereo and mono mixed, all streaming simultaneously
-- ✅ Low-latency **IPC** streaming and virtual stereo pairs
-- ✅ **Turnkey demo scenes** with Franka, humanoid, and AMR robots carrying ZEDs ([demo extension](exts/sl.sensor.camera.demo/docs/README.md))
+- Every ZED camera as a calibrated **digital twin**: stereo and mono models, with their lens variants
+- Stereo images + IMU streamed to the **ZED SDK** and **ZED ROS 2 Wrapper**, with no code change
+- **Ground-truth depth** streaming, straight into your ZED SDK pipeline
+- **ZED Sim2Real**, a model of the real ZED X camera on top of the clean render: its auto exposure, white balance, noise, motion blur and lens
+- ZED observations as **GPU tensors** in Isaac Lab, for reinforcement & imitation learning
+- **SDK-free** RGB + depth capture for quick synthetic datasets
+- **Multi-camera streaming**: several cameras on one robot or a whole fleet in one scene, stereo and mono mixed, all streaming simultaneously
+- Low-latency **IPC** streaming and virtual stereo pairs
+- **Turnkey demo scenes** with Franka, humanoid, and AMR robots carrying ZEDs ([demo extension](exts/sl.sensor.camera.demo/docs/README.md))
 
 ## Three ways to consume ZED data
 
@@ -37,8 +37,9 @@ ZED SDK's stereo-matched depth (bottom right).*
 | **3. SDK-free depth capture** | RGB + renderer depth (`distance_to_image_plane`), optionally saved as PNG/EXR. | No | [Isaac Sim examples](exts/sl.sensor.camera/examples/isaac_sim/README.md) |
 
 Paths 2 and 3 use *simulated* depth from the renderer, not the ZED SDK's stereo-matched depth. Only
-path 1 exercises real ZED SDK depth. This repo ships three extensions under [`exts/`](exts/); the core
-one is `sl.sensor.camera`.
+path 1 exercises real ZED SDK depth.
+
+This repo ships three extensions under [`exts/`](exts/); the core one is `sl.sensor.camera`.
 
 ## ZED Sim2Real camera model
 
@@ -52,8 +53,8 @@ is on by default and can be toggled live while the simulation is playing.
 *Left: real ZED X. Middle: raw Isaac Sim render. Right: the same render with the ZED Sim2Real model applied.*
 
 Switch it with **Apply ZED Sim2Real** in the *ZED Sim2Real* section of the ZED Camera Helper node (each
-effect also has its own switch there), or pass `--apply_zed_sim2real` to the `zed_single.py` and
-`zed_multi_env.py` Isaac Lab examples. See the
+effect also has its own switch there). The `zed_single.py` and `zed_multi_env.py` Isaac Lab examples
+apply it too; `--no-apply_zed_sim2real` turns it off there. See the
 [core extension reference](exts/sl.sensor.camera/docs/README.md#zed-sim2real-camera-model).
 
 ## Contents
@@ -70,10 +71,11 @@ effect also has its own switch there), or pass `--apply_zed_sim2real` to the `ze
 ## Requirements
 
 - Linux Ubuntu 22.04, or Windows 10/11
-- [NVIDIA Isaac Sim 6.1 or 6.0](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html)
-  (Kit 110.3.0 or 110.1.2). For older Isaac Sim releases, see the
+- [NVIDIA Isaac Sim 6.2, 6.1 or 6.0](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html)
+  (Kit 110.4.0, 110.3.0 or 110.1.2). For older Isaac Sim releases, see the
   [version compatibility table](exts/sl.sensor.camera/docs/README.md#compatibility).
-- To receive streams (path 1): the [ZED SDK](https://www.stereolabs.com/developers/release) **5.5.0 or newer**
+- To receive streams (path 1): the [ZED SDK](https://www.stereolabs.com/developers/release) **5.6.0 or newer**
+  (5.5.0 in the legacy camera mode)
 - To read tensors (path 2): an [Isaac Lab](https://isaac-sim.github.io/IsaacLab/) install
 
 ## Install
@@ -81,9 +83,11 @@ effect also has its own switch there), or pass `--apply_zed_sim2real` to the `ze
 1. Clone the repository.
 2. Build the extension. This downloads the runtime ZED library and compiles the C++ plugin:
    ```bash
-   ./build.bat      # Windows
+   .\build.bat      # Windows
    ./build.sh       # Linux
    ```
+   Add `-x` for a clean rebuild: it deletes the build folders and `exts/sl.sensor.camera/bin/`,
+   then downloads the libraries again.
 3. Register the extensions in Isaac Sim:
    - Open **Window -> Extensions**.
    - In the Extensions manager (hamburger menu near the search field), open **Settings**.
@@ -96,7 +100,7 @@ effect also has its own switch there), or pass `--apply_zed_sim2real` to the `ze
 
 ## Quick start: stream to the ZED SDK
 
-1. Add a ZED camera to your stage: drag a ZED USD model from the extension's `data` folder in the
+1. Add a ZED camera to your stage: drag a ZED USD model from the extension's `data/usd` folder in the
    Content Browser (ZED X, ZED X Mini, ZED X One, ZED Mini, ...).
 
    ![Add a ZED camera USD](imgs/zed_x_usd.png)
@@ -114,6 +118,13 @@ effect also has its own switch there), or pass `--apply_zed_sim2real` to the `ze
 
 3. Press **Play**, then open the stream in any ZED SDK app (e.g. ZED Explorer) using the streaming port
    (default `30000`). See the [ZED SDK Streaming API](https://www.stereolabs.com/docs/video/streaming).
+
+Each simulated camera gets a serial number from the ZED SDK and its own calibration, like a real
+unit, with no limit on the number of cameras. The receiver regenerates the calibration from the serial
+number (no file to download) and rectifies the images. Set the node's **Camera Index** to choose a
+specific camera. For receivers older than ZED SDK 5.6.0, switch the **Camera mode** in the
+**Settings** tab of the **ZED Cameras** panel to **Legacy serial number**. See
+[Simulated camera serial numbers](exts/sl.sensor.camera/docs/README.md#simulated-camera-serial-numbers-and-calibration).
 
 For every node parameter, the full camera-model list, depth streaming, and troubleshooting, see the
 [extension reference](exts/sl.sensor.camera/docs/README.md). A step-by-step tutorial is on the
@@ -157,12 +168,12 @@ full workflow.
 Standalone scripts live in [`exts/sl.sensor.camera/examples/`](exts/sl.sensor.camera/examples/), grouped
 by the three data paths above:
 
-- **[`examples/isaaclab/`](exts/sl.sensor.camera/examples/isaaclab/README.md)** - read stereo RGB + depth
-  as in-process tensors in Isaac Lab (path 2), plus ports of flagship Isaac Lab demos (quadruped, Franka
-  lift, imitation-learning HDF5 recording) with the real ZED_X model mounted on the robot.
-- **[`examples/isaac_sim/`](exts/sl.sensor.camera/examples/isaac_sim/README.md)** - SDK-free RGB + depth
+- **[`examples/isaaclab/`](exts/sl.sensor.camera/examples/isaaclab/README.md)**: read stereo RGB + depth
+  as in-process tensors in Isaac Lab (path 2), plus ports of Isaac Lab demos (quadruped, Franka
+  lift, imitation-learning HDF5 recording) with a real ZED model mounted on the robot.
+- **[`examples/isaac_sim/`](exts/sl.sensor.camera/examples/isaac_sim/README.md)**: SDK-free RGB + depth
   capture inside Isaac Sim (path 3).
-- **[`examples/fusion_calibration/`](exts/sl.sensor.camera/examples/fusion_calibration/README.md)** - write
+- **[`examples/fusion_calibration/`](exts/sl.sensor.camera/examples/fusion_calibration/README.md)**: write
   a ZED Fusion calibration JSON from camera prim poses, for multi-camera streaming setups (path 1).
 
 ## Documentation map
@@ -184,5 +195,5 @@ The source in this repository is MIT licensed (see [LICENSE](LICENSE)).
 
 Parts of the build scaffolding, the Kit plugin entry point and the Calibration Exporter
 are derived from NVIDIA Apache 2.0 templates and keep their own headers. The ZED SDK
-runtime bundled in release packages is proprietary and stays under the ZED SDK license.
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists both.
+runtime and the ZED Sim2Real library bundled in release packages are proprietary and stay
+under the ZED SDK license. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists them.

@@ -1,6 +1,6 @@
 """Registers the Stereolabs ZED demos in the Isaac Examples browser.
 
-Three turnkey scenes, each streaming a ZED X to the ZED SDK: a Franka pick-place cell
+Three turnkey scenes, each streaming ZED cameras to the ZED SDK: a Franka pick-place cell
 (`pickplace.py`), a Unitree H1 humanoid (`humanoid.py`), and an Idealworks iw.hub AMR (`amr.py`).
 """
 from __future__ import annotations
@@ -19,8 +19,8 @@ class ZedDemoExtension(omni.ext.IExt):
 
     def on_startup(self, ext_id: str) -> None:
         # The Examples browser and the scenes themselves are Isaac Sim code. This module has to
-        # import in a plain Kit app - the extension tests run in one - so they are imported here
-        # rather than at module scope, and the extension simply registers nothing without them.
+        # import in a plain Kit app (the extension tests run in one), so they are imported here
+        # rather than at module scope, and the extension registers nothing without them.
         try:
             from isaacsim.examples.browser import get_instance as get_browser_instance
 

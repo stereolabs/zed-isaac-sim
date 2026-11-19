@@ -34,7 +34,7 @@ WAREHOUSE = "/World/WarehouseRot"
 PICK_XY = [(0.50, -0.15), (0.48, 0.12)]
 
 
-# ---------------- Franka pick-place driver ----------------
+# Franka pick-place driver
 # Isaac Sim 6.1 removed isaacsim.robot.experimental.manipulators.examples; its replacement,
 # isaacsim.robot_motion.examples, plans with cuMotion and owns the pick-place sequencing itself.
 # The two share no API, so each sits behind the same small driver: place the robot and cubes,
@@ -42,7 +42,7 @@ PICK_XY = [(0.50, -0.15), (0.48, 0.12)]
 
 
 class _ArmTask:
-    """Franka pick-place on isaacsim.robot_motion.examples (Isaac Sim 6.1)."""
+    """Franka pick-place on isaacsim.robot_motion.examples (Isaac Sim 6.1 and 6.2)."""
 
     def __init__(self) -> None:
         from isaacsim.robot_motion.examples.manipulation import PickPlaceTask
@@ -194,7 +194,6 @@ class ZedPickPlaceDemo:
         self._arm = None
         self._status = None
 
-    # ---------------- UI ----------------
     def build_ui(self) -> None:
         with ui.VStack(spacing=8, height=0):
             ui.Label("Stereolabs ZED X Nano on Robotic Arm", height=0,
@@ -221,7 +220,6 @@ class ZedPickPlaceDemo:
         self.stop()
         self._set_status("Stopped")
 
-    # ---------------- build + run ----------------
     async def _load_and_run(self) -> None:
         # tear down our own prior run (and the siblings') before rebuilding, else a stale step
         # callback fires against removed prims during the stage rebuild
@@ -230,7 +228,7 @@ class ZedPickPlaceDemo:
             sib.stop()
         await self._build_scene()
         await self._arm_loop()
-        self._set_status("Running - open ZED Explorer/Depth Viewer at 127.0.0.1")
+        self._set_status("Running: open ZED Explorer/Depth Viewer at 127.0.0.1")
 
     async def _build_scene(self) -> None:
         mgr = omni.kit.app.get_app().get_extension_manager()
@@ -275,7 +273,7 @@ class ZedPickPlaceDemo:
         cube_paths = self._arm.cube_paths
 
         # the Franka ships a blue status-LED material (EmissiveBlue, intensity 29k) that
-        # reads as a lamp on camera - swap it for black matte. The robot's geometry scopes
+        # reads as a lamp on camera: swap it for black matte. The robot's geometry scopes
         # are instanceable, so deinstance first to make the shader prims editable.
         robot_root = stage.GetPrimAtPath("/World/robot")
         for prim in Usd.PrimRange(robot_root):
@@ -363,7 +361,7 @@ class ZedPickPlaceDemo:
 
     async def _arm_loop(self) -> None:
         if self._cb is not None:
-            SimulationManager.deregister_callback(self._cb)   # drop any previous subscription
+            SimulationManager.deregister_callback(self._cb)
             self._cb = None
         if not app_utils.is_playing():
             app_utils.play(); await app_utils.update_app_async(steps=30)

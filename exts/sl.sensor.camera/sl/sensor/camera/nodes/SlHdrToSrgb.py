@@ -1,31 +1,14 @@
-"""
-This is the implementation of the OGN node defined in SlHdrToSrgb.ogn
-"""
 import carb
 import omni.graph.core as og
 import warp as wp
 
-from ..stream_encoding import LIGHT_FLICKER_HZ_SETTING, LIGHT_FLICKER_SETTING, StreamEncoder, light_flicker_gain
-
-
-def _light_gain() -> float:
-    """This frame's light flicker, from the settings and the simulation time (the same for both eyes)."""
-    settings = carb.settings.get_settings()
-    std = settings.get(LIGHT_FLICKER_SETTING)
-    if not std:
-        return 1.0
-    import omni.timeline
-
-    t = omni.timeline.get_timeline_interface().get_current_time()
-    return light_flicker_gain(t, float(std), float(settings.get(LIGHT_FLICKER_HZ_SETTING) or 0.0))
+from .. import camera_model_lib
+from ..stream_encoding import StreamEncoder, light_gain_now
 
 
 class SlHdrToSrgb:
-    """Encodes the render product's linear HdrColor into the sRGB RGBA8 image the ZED node streams,
-    as a real ZED X would output it (the ZED X camera model, see stream_encoding): its sharpness
-    (inputs:cameraMtf), lens vignetting (inputs:vignetteInvFocal), motion blur over the exposure time
-    (inputs:blurScale), white balance (inputs:whiteBalance) and sensor noise at its gain
-    (inputs:noiseGain); plus the scene lights' flicker when the lightFlickerStd setting is set."""
+    """Encodes the render product's linear HdrColor into the sRGB image the ZED Stream node streams
+    (see the .ogn description)."""
 
     class State:
         def __init__(self):
@@ -66,17 +49,24 @@ class SlHdrToSrgb:
             blur_scale = db.inputs.blurScale
         wb = db.inputs.whiteBalance
         wb = tuple(float(v) for v in wb) if wb is not None and len(wb) == 3 else None
+        depth, focus = None, None
+        if (db.inputs.focusLens > 0 and db.inputs.focusFocalPx > 0 and db.inputs.depthPtr
+                and db.inputs.depthSize == width * height * 4):
+            depth = wp.array(ptr=db.inputs.depthPtr, dtype=wp.float32, shape=(height, width), device=device)
+            focus = camera_model_lib.DefocusParams(int(db.inputs.focusLens), float(db.inputs.focusFocalPx),
+                                                   float(db.inputs.focusFNumber), float(db.inputs.focusDistance),
+                                                   float(db.inputs.depthScale))
         if not state.encoder.encode(src, state.output, seed=state.frame * 7919 + db.inputs.noiseSeed * 104729,
                                     gain=db.inputs.noiseGain, motion=motion, blur_scale=blur_scale,
                                     vignette_inv_f=db.inputs.vignetteInvFocal, sharpness=db.inputs.cameraMtf,
-                                    light_gain=_light_gain(), wb=wb, eye=db.inputs.eye):
+                                    light_gain=light_gain_now(db.inputs.exposureTime), wb=wb, eye=db.inputs.eye, depth=depth,
+                                    focus=focus):
             if not state.warned:
                 state.warned = True
                 carb.log_error("[ZED] sRGB encode failed on the GPU")
             return False
-        # The ZED node copies this buffer on its own CUDA stream, which is not ordered after Warp's
-        # stream (both are blocking streams), so finish the encode before handing the pointer on.
-        wp.synchronize_stream(wp.get_stream(device))
+        # The encode is still running on Warp's stream: the ZED node copies the buffer on that stream.
+        db.outputs.cudaStream = wp.get_stream(device).cuda_stream
         db.outputs.dataPtr = state.output.ptr
         db.outputs.bufferSize = width * height * 4
         db.outputs.width = width

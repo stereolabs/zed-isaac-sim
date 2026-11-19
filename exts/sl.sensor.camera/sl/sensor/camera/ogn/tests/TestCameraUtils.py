@@ -17,6 +17,7 @@ from sl.sensor.camera.utils import (
     get_sdk_model_id,
     get_sim_lens_type_id,
     resolve_camera_model,
+    select_lens_variant,
 )
 
 
@@ -41,8 +42,7 @@ def _make_asset(base_model, lens=None, sl_camera_model=None):
     return stage, root_path
 
 
-# NOTE: the class must be named TestOgn - ogn/tests/__init__.py auto-imports test
-# modules via omni.graph.tools and only registers each module's `TestOgn` attribute.
+# The class must be named TestOgn: the OGN test loader registers only that name from each module.
 class TestOgn(omni.kit.test.AsyncTestCase):
 
     async def test_base_models_are_deduped_bases(self):
@@ -77,7 +77,7 @@ class TestOgn(omni.kit.test.AsyncTestCase):
         self.assertEqual(compose_model("ZED_X", "Wide"), "ZED_X")
         self.assertEqual(compose_model("ZED_X", "Narrow"), "ZED_X_4MM")
         self.assertEqual(compose_model("ZED_XONE_GS", "Narrow"), "ZED_XONE_GS_4MM")
-        # Fisheye genuinely selects the distinct spec, not just the base.
+        # Fisheye selects its own spec.
         self.assertEqual(compose_model("ZED_XONE_S", "Fisheye"), "ZED_XONE_S_FISHEYE")
 
     async def test_compose_model_falls_back_on_invalid_pair(self):
@@ -136,6 +136,30 @@ class TestOgn(omni.kit.test.AsyncTestCase):
         # Single-lens body (no 'lens' variantSet) -> base token, Wide.
         stage, root = _make_asset("ZED_M")
         self.assertEqual(resolve_camera_model(stage, root, "FALLBACK"), "ZED_M")
+
+    async def test_select_lens_variant_on_model_prim(self):
+        stage, root = _make_asset("ZED_X", lens="Wide")
+        self.assertTrue(select_lens_variant(stage, root, "ZED_X_4MM"))
+        self.assertEqual(resolve_camera_model(stage, root, "FALLBACK"), "ZED_X_4MM")
+        stage, root = _make_asset("ZED_XONE_S", lens="Wide")
+        self.assertTrue(select_lens_variant(stage, root, "ZED_XONE_S_FISHEYE"))
+        self.assertEqual(resolve_camera_model(stage, root, "FALLBACK"), "ZED_XONE_S_FISHEYE")
+        # Not on the root: a selection there would not reach the asset.
+        self.assertNotIn("lens", stage.GetPrimAtPath(root).GetVariantSets().GetNames())
+
+    async def test_select_lens_variant_leaves_assets_without_one(self):
+        # Single-lens asset (no 'lens' variantSet).
+        stage, root = _make_asset("ZED_M")
+        self.assertFalse(select_lens_variant(stage, root, "ZED_M"))
+        # No ZED model prim under the root.
+        self.assertFalse(select_lens_variant(stage, "/World/Nope", "ZED_X"))
+        # The asset does not offer the model's lens: its selection is kept.
+        stage, root = _make_asset("ZED_X")
+        vset = stage.GetPrimAtPath(f"{root}/base_link/ZED_X").GetVariantSets().AddVariantSet("lens")
+        vset.AddVariant("Wide")
+        vset.SetVariantSelection("Wide")
+        self.assertFalse(select_lens_variant(stage, root, "ZED_X_4MM"))
+        self.assertEqual(vset.GetVariantSelection(), "Wide")
 
     async def test_resolve_falls_back_when_unresolvable(self):
         self.assertEqual(resolve_camera_model(None, "/World/ZED", "FALLBACK"), "FALLBACK")

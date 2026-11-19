@@ -45,6 +45,17 @@ class EncodeParams(ctypes.Structure):
                 ("eye", ctypes.c_int)]
 
 
+# Lenses of the focus blur (library 0.5.0, sl_zed_sim2real_encode_*_depth)
+LENS_NONE = 0
+LENS_2_2MM = 1  # f/2.2 focused at 1.15 m
+LENS_4MM = 2    # f/2.0 focused at 2 m
+
+
+class DefocusParams(ctypes.Structure):
+    _fields_ = [("lens", ctypes.c_int), ("focal_px", ctypes.c_float), ("f_number", ctypes.c_float),
+                ("focus_m", ctypes.c_float), ("depth_scale", ctypes.c_float)]
+
+
 class MeterImage(ctypes.Structure):
     _fields_ = [("data", ctypes.c_void_p), ("row_stride", ctypes.c_longlong), ("pixel_stride", ctypes.c_int),
                 ("element_bytes", ctypes.c_int), ("w", ctypes.c_int), ("h", ctypes.c_int)]
@@ -112,6 +123,22 @@ def _bind(lib) -> None:
     for name, (args, res) in sigs.items():
         f = getattr(lib, "sl_zed_sim2real_" + name)  # AttributeError: a library without the camera model
         f.argtypes, f.restype = args, res
+    # Added in 0.5.0 without an ABI change: absent from older libraries, which then encode without focus blur.
+    optional = {
+        "encode_device_depth": ([P, P, ctypes.c_longlong, ctypes.c_int, ctypes.c_int, ctypes.c_int, P, P, P,
+                                 ctypes.c_longlong, ctypes.POINTER(EncodeParams), ctypes.POINTER(DefocusParams), P],
+                                ctypes.c_int),
+        "encode_host_depth": ([P, P, ctypes.c_int, ctypes.c_int, P, P, P, ctypes.POINTER(EncodeParams),
+                               ctypes.POINTER(DefocusParams)], ctypes.c_int),
+    }
+    for name, (args, res) in optional.items():
+        f = getattr(lib, "sl_zed_sim2real_" + name, None)
+        if f is not None:
+            f.argtypes, f.restype = args, res
+    # 1.0.0 and later: the light flicker integrated over the exposure time (optional: older libraries lack it)
+    f = getattr(lib, "sl_zed_sim2real_light_flicker_gain_exposure", None)
+    if f is not None:
+        f.argtypes, f.restype = [ctypes.c_double, ctypes.c_float, ctypes.c_float, ctypes.c_float], ctypes.c_double
 
 
 def lib():
@@ -146,6 +173,12 @@ def lib():
 
 def available() -> bool:
     return lib() is not None
+
+
+def has_focus_blur() -> bool:
+    """The loaded library has the focus blur (0.5.0 and later)."""
+    handle = lib()
+    return handle is not None and hasattr(handle, "sl_zed_sim2real_encode_device_depth")
 
 
 def _log_warn(msg: str) -> None:

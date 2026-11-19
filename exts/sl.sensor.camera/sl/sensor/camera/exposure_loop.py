@@ -1,10 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2024 Stereolabs. All rights reserved.
 # SPDX-License-Identifier: MIT
-"""Per-camera auto exposure for a streamed ZED: meter -> controller -> renderer exposure.
+"""Per-camera auto exposure for a streamed or captured ZED: meter -> controller -> renderer exposure.
 
-Runs on every app update, but meters and steers only when the left render product delivers a
+Runs on every app update, but meters and steers only when the metered render product delivers a
 new frame (its hydra-texture frame number), i.e. at the camera rate. One loop per camera: both
-eyes get the same exposure, as on the real camera, and the left eye is metered.
+eyes get the same exposure and one eye is metered (the right of a stereo pair), as on the real
+camera; see ZEDAnnotator._metered_eye.
 
 The camera behaves like a real ZED X: its auto exposure is the ZED X camera model's
 (auto_exposure.py), and exposure:responsivity is authored so that a scene of a given luminance
@@ -17,37 +18,49 @@ import carb
 import omni.kit.app
 import omni.usd
 
-from .auto_exposure import AeConfig, AeLimits, RenderExposureActuator, ZedAutoExposure, zedx_responsivity
+from .auto_exposure import AeConfig, AeLimits, RenderExposureActuator, ZedAutoExposure, camera_fstop, zedx_responsivity
 from .hdr_meter import HdrExposureMeter
+from . import sdk_camera_settings
+from .sdk_camera_settings import CameraSettingsChannel, limits_for, target_for
 
 
 class CameraExposureLoop:
     """Auto exposure of one ZED camera.
 
     Args:
-        annotator: HdrColor annotator (device "cuda") attached to the left render product.
-        render_product: the left render product object (with ``hydra_texture``).
+        annotator: HdrColor annotator (device "cuda") attached to the metered render product.
+        render_product: the metered render product object (with ``hydra_texture``).
         camera_paths: camera prims driven together (left, and right for stereo models).
         fps: camera frame rate, sets the frame period (exposure-time ceiling) and the loop step.
         on_apply: optional callback(state) after each exposure update (e.g. the sensor noise,
             which follows the gain).
+        streamer_id: optional callable returning the id of the camera's streamer (-1 until it is
+            open). With it, stream receivers set this camera's exposure settings and read its
+            exposure (sdk_camera_settings.py).
         view: optional callable returning (1 / the focal length in pixels, or 0 for no lens falloff,
             the white balance gains) of the camera's output, which the meter sees through.
+        limits: optional AeLimits at ``fps``; None takes the real ZED X's ranges.
     """
 
-    def __init__(self, annotator, render_product, camera_paths, fps: float, on_apply=None, view=None):
+    def __init__(self, annotator, render_product, camera_paths, fps: float, on_apply=None, streamer_id=None,
+                 view=None, limits=None):
         stage = omni.usd.get_context().get_stage()
         self._hydra = getattr(render_product, "hydra_texture", None)
         rp_path = self._hydra.get_render_product_path() if self._hydra is not None else None
         self.meter = HdrExposureMeter(rp_path, annotator=annotator)
-        fstop_attr = stage.GetPrimAtPath(camera_paths[0]).GetAttribute("exposure:fStop")
-        fstop = float(fstop_attr.Get()) if fstop_attr and fstop_attr.Get() else 5.0
+        fstop = camera_fstop(stage.GetPrimAtPath(camera_paths[0]))
         config = AeConfig()
-        self.actuator = RenderExposureActuator(stage, camera_paths,
+        self.actuator = RenderExposureActuator(stage, camera_paths, fstop=fstop,
                                                responsivity=zedx_responsivity(config.target_mean, fstop))
-        self.controller = ZedAutoExposure(AeLimits(fps=float(fps)), config, photometry=self.actuator.photometry())
+        self.controller = ZedAutoExposure(limits or AeLimits(fps=float(fps)), config, photometry=self.actuator.photometry())
         self._on_apply = on_apply
+        self._base_limits = self.controller.limits
+        self._base_target = config.target_mean
+        self._streamer_id = streamer_id
         self._view = view
+        self._settings = None
+        self._settings_unavailable = False
+        self._limited_by_receiver = False
         self._camera = camera_paths[0]
         self._saturated_since = None  # (limit, wall time) while the exposure range binds
         self._warned = set()
@@ -68,16 +81,42 @@ class CameraExposureLoop:
 
     def _on_update(self, _event):
         try:
+            self._apply_camera_settings()
             if self._view is not None:
                 self.meter.vignette_inv_f, self.meter.wb = self._view()
             state = self.controller.update(self.meter.update(self._frame_id()))
             self.actuator.apply(state)
+            if self._settings is not None:
+                self._settings.report(state)
             if self._on_apply is not None:
                 self._on_apply(state)
             self._check_scene_light(state)
         except Exception as exc:  # per-frame: never take the app update down
             carb.log_error(f"[ZED] Auto exposure update failed, stopping it: {exc!r}")
             self.destroy()
+
+    def _apply_camera_settings(self):
+        """Apply the exposure settings stream receivers changed since the last update."""
+        if self._streamer_id is None or self._settings_unavailable:
+            return
+        streamer_id = self._streamer_id()
+        if streamer_id is None or streamer_id < 0:
+            return
+        if self._settings is None or self._settings.streamer_id != streamer_id:
+            self._settings = CameraSettingsChannel(streamer_id, self._base_limits)
+            if not self._settings.enabled:
+                self._settings = None
+                if not sdk_camera_settings.available():
+                    self._settings_unavailable = True
+                    carb.log_info(f"[ZED] {self._camera}: stream receivers cannot set this camera's exposure, "
+                                  "the bundled ZED SDK is older than 5.5.1.")
+                return  # otherwise the streamer is not open (yet): retry on the next update
+        requested = self._settings.poll()
+        if requested is None:
+            return
+        limits = limits_for(requested, self._base_limits, held=self.controller.state)
+        self._limited_by_receiver = limits != self._base_limits
+        self.controller.reconfigure(limits, target_for(requested, self._base_target))
 
     # The exposure range runs out below ~0.3 lux and above ~120,000 lux for an average scene
     # (direct sun is ~100,000 lux). Only a limit held this long is reported.
@@ -91,7 +130,7 @@ class CameraExposureLoop:
         is off by orders of magnitude, and a real camera would show a black or blown-out image.
         """
         limit = state.saturated
-        if not limit:
+        if not limit or self._limited_by_receiver:  # the receiver chose these limits
             self._saturated_since = None
             return
         now = time.monotonic()
@@ -116,6 +155,9 @@ class CameraExposureLoop:
     def destroy(self):
         self._sub = None
         self._on_apply = None
+        if self._settings is not None:
+            self._settings.close()
+            self._settings = None
         if self.actuator is not None:
             self.actuator.release()
             self.actuator = None

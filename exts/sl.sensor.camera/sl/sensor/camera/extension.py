@@ -8,13 +8,21 @@ import omni.ext
 
 
 # Python OGN nodes are registered automatically by OmniGraph from the committed
-# manifest (ogn/nodes.json) - same path the C++ node uses. Do not register them
+# manifest (ogn/nodes.json), the same path the C++ node uses. Do not register them
 # manually here too, or OmniGraph aborts with "registered twice".
 class SlSensorCameraExtension(omni.ext.IExt):
 	def on_startup(self, ext_id):
 		carb.log_info(f"[ZED] Startup ({ext_id})")
 		self._lens_panel = None
-		self._lighting_panel = None
+
+		# At each Play, retime the app when its timing keeps the streamed ZED cameras from sending every frame,
+		# and put the timing back at Stop (retime.py).
+		self._retime_subs = ()
+		try:
+			from .retime import retime_on_play, stream_rates
+			self._retime_subs = retime_on_play(stream_rates)
+		except Exception:
+			carb.log_warn(f"[ZED] Streams will not retime the app at Play\n{traceback.format_exc()}")
 
 		# Register the Property-panel templates that filter the Resolution
 		# dropdown by the selected Camera Model (see templates/ folder).
@@ -40,19 +48,8 @@ class SlSensorCameraExtension(omni.ext.IExt):
 		except Exception:
 			carb.log_warn(f"[ZED] Failed to register the ZED Cameras lens panel\n{traceback.format_exc()}")
 
-		# Explicitly opt in to the diagnostic lighting experiment. Normal startup
-		# keeps the accepted camera behavior and does not allocate a probe.
-		if carb.settings.get_settings().get("/exts/sl.sensor.camera/experimentalLightingMeter"):
-			try:
-				from .experimental.lighting_meter_panel import LightingMeterPanel
-				self._lighting_panel = LightingMeterPanel(ext_id)
-			except Exception:
-				carb.log_warn(f"[ZED] Experimental lighting meter unavailable\n{traceback.format_exc()}")
-
 	def on_shutdown(self):
-		if getattr(self, "_lighting_panel", None) is not None:
-			self._lighting_panel.destroy()
-			self._lighting_panel = None
+		self._retime_subs = ()
 		if getattr(self, "_lens_panel", None) is not None:
 			try:
 				self._lens_panel.destroy()

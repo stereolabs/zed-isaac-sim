@@ -1,17 +1,13 @@
-# ******************************************************************************
-# File Name          : zed_depth_example.py
-# Description        : Captures RGB + depth from a ZED camera using Isaac Sim's
-#                      renderer (no ZED SDK required).
+# Captures RGB + depth from a ZED camera using Isaac Sim's renderer (no ZED SDK required).
 #
 # Usage:
 #   1. Open Isaac Sim and load a scene containing a ZED X or ZED X Mini camera.
 #   2. Adjust CAMERA_PRIM_PATH, CAMERA_MODEL, and RESOLUTION below.
 #   3. Open this file in the Script Editor and execute it.
-#   4. Press PLAY. RGB + depth will be captured every CAPTURE_INTERVAL frames.
+#   4. Press PLAY. RGB + depth will be captured every CAPTURE_INTERVAL physics steps.
 #   5. Press STOP to clean up.
 #
 # Set SAVE_DIR to a path to save RGB (.png) and depth (.exr) to disk.
-# ******************************************************************************
 
 import numpy as np
 import omni.timeline
@@ -19,18 +15,14 @@ import omni.physx as _physx
 
 from sl.sensor.camera.zed_depth import ZEDDepthCamera
 
-# =============================================================================
-#  CONFIG
-# =============================================================================
+# Config
 CAMERA_PRIM_PATH = "/World/ZED_X"
 CAMERA_MODEL = "ZED_X"          # ZED_X, ZED_XM, ZED_X_4MM, ZED_XM_4MM
 RESOLUTION = "HD1200"           # HD1200, HD1080, SVGA
 CAPTURE_INTERVAL = 60           # capture every N physics steps
 SAVE_DIR = ""                   # set to a path to enable saving (e.g. "/tmp/zed_depth")
 
-# =============================================================================
-#  STATE
-# =============================================================================
+# State
 _camera = None
 _step_count = 0
 _physics_sub = None
@@ -73,7 +65,10 @@ def _on_physics_step(dt):
         f"range [{depth_min:.3f}, {depth_max:.3f}] m"
     )
 
-    if SAVE_DIR:
+    # The ZED X auto exposure takes a moment to settle on the scene, or to reach the end of its range in a
+    # scene too bright or too dark for it: skip the frames before.
+    state = _camera.exposure_state
+    if SAVE_DIR and (state is None or state.converged or state.saturated):
         _camera.save_frame(SAVE_DIR)
 
 
@@ -110,9 +105,7 @@ def _on_timeline_event(event):
         print("[ZED][Depth] Cleaned up.")
 
 
-# =============================================================================
-#  ENTRY POINT
-# =============================================================================
+# Entry point
 timeline = omni.timeline.get_timeline_interface()
 _timeline_sub = timeline.get_timeline_event_stream().create_subscription_to_pop(_on_timeline_event)
 print("[ZED][Depth] Script loaded. Press PLAY to start capturing.")

@@ -2,10 +2,10 @@ r"""Support for simplified access to data on nodes of type sl.sensor.camera.ZED_
 
 GENERATED CODE. DO NOT MODIFY.
 
-Encodes a render product's linear HdrColor (float16 RGBA, on the GPU) into the sRGB RGBA8 image streamed by the ZED node,
-as a real ZED X outputs it: its sharpness, lens vignetting, motion blur over the exposure time, white balance and sensor
-noise. Inputs mirror the HdrColor annotator's pointer outputs; outputs mirror the rgb annotator's, so it slots in front of
-the ZED Stream node. The output buffer is complete when the node's exec fires.
+Encodes a render product's linear HdrColor (float16 RGBA, on the GPU) into the sRGB RGBA8 image streamed by the ZED Stream
+node, as a real ZED X outputs it: its focus blur (from the depth), sharpness, lens vignetting, motion blur over the exposure
+time, white balance and sensor noise. Inputs mirror the HdrColor annotator's pointer outputs; outputs mirror the rgb annotator's,
+so it slots in front of the ZED Stream node. The output buffer is complete when the node's exec fires.
 """
 
 import numpy
@@ -32,8 +32,16 @@ class SlHdrToSrgbDatabase(og.Database):
             inputs.cameraMtf
             inputs.cudaDeviceIndex
             inputs.dataPtr
+            inputs.depthPtr
+            inputs.depthScale
+            inputs.depthSize
             inputs.exec
+            inputs.exposureTime
             inputs.eye
+            inputs.focusDistance
+            inputs.focusFNumber
+            inputs.focusFocalPx
+            inputs.focusLens
             inputs.height
             inputs.motionPtr
             inputs.motionSize
@@ -46,6 +54,7 @@ class SlHdrToSrgbDatabase(og.Database):
         Outputs:
             outputs.bufferSize
             outputs.cudaDeviceIndex
+            outputs.cudaStream
             outputs.dataPtr
             outputs.exec
             outputs.height
@@ -70,8 +79,16 @@ class SlHdrToSrgbDatabase(og.Database):
         ('inputs:cameraMtf', 'bool', 0, None, "Apply a real ZED X's sharpness instead of the renderer's", {ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
         ('inputs:cudaDeviceIndex', 'int', 0, None, 'CUDA device holding the buffer; negative means host memory (unsupported)', {ogn.MetadataKeys.DEFAULT: '-1'}, True, -1, False, ''),
         ('inputs:dataPtr', 'uint64', 0, None, 'Device pointer to the HdrColor buffer (float16 RGBA)', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
+        ('inputs:depthPtr', 'uint64', 0, None, "Device pointer to the render product's distance_to_image_plane buffer (float32), for the focus blur; 0 = no focus blur", {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
+        ('inputs:depthScale', 'float', 0, None, "Metres per depth unit (the stage's metersPerUnit)", {ogn.MetadataKeys.DEFAULT: '1.0'}, True, 1.0, False, ''),
+        ('inputs:depthSize', 'uint64', 0, None, 'Size of the depth buffer in bytes', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('inputs:exec', 'execution', 0, None, "Triggers the encode (connect the HdrColor annotator's exec)", {}, True, None, False, ''),
+        ('inputs:exposureTime', 'float', 0, None, "This frame's exposure time in seconds, over which the scene lights' flicker is integrated (lightFlickerStd setting); 0 = not known", {ogn.MetadataKeys.DEFAULT: '0.0'}, True, 0.0, False, ''),
         ('inputs:eye', 'uint', 0, None, 'Which lens this encoder images: 0 left (or a single camera), 1 right', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
+        ('inputs:focusDistance', 'float', 0, None, "Focus distance of the focus blur in metres; 0 or less = the lens's", {ogn.MetadataKeys.DEFAULT: '0.0'}, True, 0.0, False, ''),
+        ('inputs:focusFNumber', 'float', 0, None, "f-number of the focus blur; 0 or less = the lens's", {ogn.MetadataKeys.DEFAULT: '0.0'}, True, 0.0, False, ''),
+        ('inputs:focusFocalPx', 'float', 0, None, "Focal length in pixels at this resolution, for the focus blur (sets the lens's focal length); 0 or less = no focus blur", {ogn.MetadataKeys.DEFAULT: '0.0'}, True, 0.0, False, ''),
+        ('inputs:focusLens', 'int', 0, None, 'Lens whose fixed-focus blur is applied from the depth: 1 = ZED X 2.2 mm (f/2.2 focused at 1.15 m), 2 = ZED X 4 mm (f/2.0 at 2 m); 0 = none', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('inputs:height', 'uint', 0, None, 'Image height in pixels', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('inputs:motionPtr', 'uint64', 0, None, "Device pointer to the render product's MotionVectors buffer (float32 RGBA, pixels towards each pixel's previous position); 0 = no motion blur", {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('inputs:motionSize', 'uint64', 0, None, 'Size of the MotionVectors buffer in bytes', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
@@ -83,6 +100,7 @@ class SlHdrToSrgbDatabase(og.Database):
         ('inputs:width', 'uint', 0, None, 'Image width in pixels', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('outputs:bufferSize', 'uint64', 0, None, 'Size of the sRGB buffer in bytes (width * height * 4)', {}, True, None, False, ''),
         ('outputs:cudaDeviceIndex', 'int', 0, None, 'CUDA device holding the output buffer', {}, True, None, False, ''),
+        ('outputs:cudaStream', 'uint64', 0, None, 'CUDA stream the output buffer is written on: work that reads it must be ordered after this stream', {}, True, None, False, ''),
         ('outputs:dataPtr', 'uint64', 0, None, 'Device pointer to the sRGB RGBA8 buffer', {}, True, None, False, ''),
         ('outputs:exec', 'execution', 0, None, 'Fires once the sRGB buffer is written', {}, True, None, False, ''),
         ('outputs:height', 'uint', 0, None, 'Image height in pixels', {}, True, None, False, ''),
@@ -98,14 +116,14 @@ class SlHdrToSrgbDatabase(og.Database):
         return role_data
 
     class ValuesForInputs(og.DynamicAttributeAccess):
-        LOCAL_PROPERTY_NAMES = {"blurScale", "bufferSize", "cameraMtf", "cudaDeviceIndex", "dataPtr", "exec", "eye", "height", "motionPtr", "motionSize", "noiseGain", "noiseSeed", "strides", "vignetteInvFocal", "whiteBalance", "width", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
+        LOCAL_PROPERTY_NAMES = {"blurScale", "bufferSize", "cameraMtf", "cudaDeviceIndex", "dataPtr", "depthPtr", "depthScale", "depthSize", "exec", "exposureTime", "eye", "focusDistance", "focusFNumber", "focusFocalPx", "focusLens", "height", "motionPtr", "motionSize", "noiseGain", "noiseSeed", "strides", "vignetteInvFocal", "whiteBalance", "width", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
         """Helper class that creates natural hierarchical access to input attributes"""
         def __init__(self, node: og.Node, attributes, dynamic_attributes: og.DynamicAttributeInterface):
             """Initialize simplified access for the attribute data"""
             context = node.get_graph().get_default_graph_context()
             super().__init__(context, node, attributes, dynamic_attributes)
-            self._batchedReadAttributes = [self._attributes.blurScale, self._attributes.bufferSize, self._attributes.cameraMtf, self._attributes.cudaDeviceIndex, self._attributes.dataPtr, self._attributes.exec, self._attributes.eye, self._attributes.height, self._attributes.motionPtr, self._attributes.motionSize, self._attributes.noiseGain, self._attributes.noiseSeed, self._attributes.strides, self._attributes.vignetteInvFocal, self._attributes.whiteBalance, self._attributes.width]
-            self._batchedReadValues = [0.0, 0, False, -1, 0, None, 0, 0, 0, 0, 0.0, 0, [0, 0], 0.0, [1.0, 1.0, 1.0], 0]
+            self._batchedReadAttributes = [self._attributes.blurScale, self._attributes.bufferSize, self._attributes.cameraMtf, self._attributes.cudaDeviceIndex, self._attributes.dataPtr, self._attributes.depthPtr, self._attributes.depthScale, self._attributes.depthSize, self._attributes.exec, self._attributes.exposureTime, self._attributes.eye, self._attributes.focusDistance, self._attributes.focusFNumber, self._attributes.focusFocalPx, self._attributes.focusLens, self._attributes.height, self._attributes.motionPtr, self._attributes.motionSize, self._attributes.noiseGain, self._attributes.noiseSeed, self._attributes.strides, self._attributes.vignetteInvFocal, self._attributes.whiteBalance, self._attributes.width]
+            self._batchedReadValues = [0.0, 0, False, -1, 0, 0, 1.0, 0, None, 0.0, 0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0.0, 0, [0, 0], 0.0, [1.0, 1.0, 1.0], 0]
 
         @property
         def blurScale(self):
@@ -148,92 +166,156 @@ class SlHdrToSrgbDatabase(og.Database):
             self._batchedReadValues[4] = value
 
         @property
-        def exec(self):
+        def depthPtr(self):
             return self._batchedReadValues[5]
 
-        @exec.setter
-        def exec(self, value):
+        @depthPtr.setter
+        def depthPtr(self, value):
             self._batchedReadValues[5] = value
 
         @property
-        def eye(self):
+        def depthScale(self):
             return self._batchedReadValues[6]
 
-        @eye.setter
-        def eye(self, value):
+        @depthScale.setter
+        def depthScale(self, value):
             self._batchedReadValues[6] = value
 
         @property
-        def height(self):
+        def depthSize(self):
             return self._batchedReadValues[7]
 
-        @height.setter
-        def height(self, value):
+        @depthSize.setter
+        def depthSize(self, value):
             self._batchedReadValues[7] = value
 
         @property
-        def motionPtr(self):
+        def exec(self):
             return self._batchedReadValues[8]
 
-        @motionPtr.setter
-        def motionPtr(self, value):
+        @exec.setter
+        def exec(self, value):
             self._batchedReadValues[8] = value
 
         @property
-        def motionSize(self):
+        def exposureTime(self):
             return self._batchedReadValues[9]
 
-        @motionSize.setter
-        def motionSize(self, value):
+        @exposureTime.setter
+        def exposureTime(self, value):
             self._batchedReadValues[9] = value
 
         @property
-        def noiseGain(self):
+        def eye(self):
             return self._batchedReadValues[10]
 
-        @noiseGain.setter
-        def noiseGain(self, value):
+        @eye.setter
+        def eye(self, value):
             self._batchedReadValues[10] = value
 
         @property
-        def noiseSeed(self):
+        def focusDistance(self):
             return self._batchedReadValues[11]
 
-        @noiseSeed.setter
-        def noiseSeed(self, value):
+        @focusDistance.setter
+        def focusDistance(self, value):
             self._batchedReadValues[11] = value
 
         @property
-        def strides(self):
+        def focusFNumber(self):
             return self._batchedReadValues[12]
 
-        @strides.setter
-        def strides(self, value):
+        @focusFNumber.setter
+        def focusFNumber(self, value):
             self._batchedReadValues[12] = value
 
         @property
-        def vignetteInvFocal(self):
+        def focusFocalPx(self):
             return self._batchedReadValues[13]
 
-        @vignetteInvFocal.setter
-        def vignetteInvFocal(self, value):
+        @focusFocalPx.setter
+        def focusFocalPx(self, value):
             self._batchedReadValues[13] = value
 
         @property
-        def whiteBalance(self):
+        def focusLens(self):
             return self._batchedReadValues[14]
 
-        @whiteBalance.setter
-        def whiteBalance(self, value):
+        @focusLens.setter
+        def focusLens(self, value):
             self._batchedReadValues[14] = value
 
         @property
-        def width(self):
+        def height(self):
             return self._batchedReadValues[15]
+
+        @height.setter
+        def height(self, value):
+            self._batchedReadValues[15] = value
+
+        @property
+        def motionPtr(self):
+            return self._batchedReadValues[16]
+
+        @motionPtr.setter
+        def motionPtr(self, value):
+            self._batchedReadValues[16] = value
+
+        @property
+        def motionSize(self):
+            return self._batchedReadValues[17]
+
+        @motionSize.setter
+        def motionSize(self, value):
+            self._batchedReadValues[17] = value
+
+        @property
+        def noiseGain(self):
+            return self._batchedReadValues[18]
+
+        @noiseGain.setter
+        def noiseGain(self, value):
+            self._batchedReadValues[18] = value
+
+        @property
+        def noiseSeed(self):
+            return self._batchedReadValues[19]
+
+        @noiseSeed.setter
+        def noiseSeed(self, value):
+            self._batchedReadValues[19] = value
+
+        @property
+        def strides(self):
+            return self._batchedReadValues[20]
+
+        @strides.setter
+        def strides(self, value):
+            self._batchedReadValues[20] = value
+
+        @property
+        def vignetteInvFocal(self):
+            return self._batchedReadValues[21]
+
+        @vignetteInvFocal.setter
+        def vignetteInvFocal(self, value):
+            self._batchedReadValues[21] = value
+
+        @property
+        def whiteBalance(self):
+            return self._batchedReadValues[22]
+
+        @whiteBalance.setter
+        def whiteBalance(self, value):
+            self._batchedReadValues[22] = value
+
+        @property
+        def width(self):
+            return self._batchedReadValues[23]
 
         @width.setter
         def width(self, value):
-            self._batchedReadValues[15] = value
+            self._batchedReadValues[23] = value
 
         def __getattr__(self, item: str):
             if item in self.LOCAL_PROPERTY_NAMES:
@@ -254,7 +336,7 @@ class SlHdrToSrgbDatabase(og.Database):
                 self._batchedReadValues = newValues
 
     class ValuesForOutputs(og.DynamicAttributeAccess):
-        LOCAL_PROPERTY_NAMES = {"bufferSize", "cudaDeviceIndex", "dataPtr", "exec", "height", "width", "_batchedWriteValues"}
+        LOCAL_PROPERTY_NAMES = {"bufferSize", "cudaDeviceIndex", "cudaStream", "dataPtr", "exec", "height", "width", "_batchedWriteValues"}
         """Helper class that creates natural hierarchical access to output attributes"""
         def __init__(self, node: og.Node, attributes, dynamic_attributes: og.DynamicAttributeInterface):
             """Initialize simplified access for the attribute data"""
@@ -287,6 +369,19 @@ class SlHdrToSrgbDatabase(og.Database):
         @cudaDeviceIndex.setter
         def cudaDeviceIndex(self, value):
             self._batchedWriteValues[self._attributes.cudaDeviceIndex] = value
+
+        @property
+        def cudaStream(self):
+            value = self._batchedWriteValues.get(self._attributes.cudaStream)
+            if value:
+                return value
+            else:
+                data_view = og.AttributeValueHelper(self._attributes.cudaStream)
+                return data_view.get()
+
+        @cudaStream.setter
+        def cudaStream(self, value):
+            self._batchedWriteValues[self._attributes.cudaStream] = value
 
         @property
         def dataPtr(self):
@@ -474,7 +569,7 @@ class SlHdrToSrgbDatabase(og.Database):
                 node_type.set_metadata(ogn.MetadataKeys.HIDDEN, "true")
                 node_type.set_metadata(ogn.MetadataKeys.CATEGORIES, "Stereolabs")
                 node_type.set_metadata(ogn.MetadataKeys.CATEGORY_DESCRIPTIONS, "Stereolabs,Nodes used with Stereolabs ZED cameras")
-                node_type.set_metadata(ogn.MetadataKeys.DESCRIPTION, "Encodes a render product's linear HdrColor (float16 RGBA, on the GPU) into the sRGB RGBA8 image streamed by the ZED node, as a real ZED X outputs it: its sharpness, lens vignetting, motion blur over the exposure time, white balance and sensor noise. Inputs mirror the HdrColor annotator's pointer outputs; outputs mirror the rgb annotator's, so it slots in front of the ZED Stream node. The output buffer is complete when the node's exec fires.")
+                node_type.set_metadata(ogn.MetadataKeys.DESCRIPTION, "Encodes a render product's linear HdrColor (float16 RGBA, on the GPU) into the sRGB RGBA8 image streamed by the ZED Stream node, as a real ZED X outputs it: its focus blur (from the depth), sharpness, lens vignetting, motion blur over the exposure time, white balance and sensor noise. Inputs mirror the HdrColor annotator's pointer outputs; outputs mirror the rgb annotator's, so it slots in front of the ZED Stream node. The output buffer is complete when the node's exec fires.")
                 node_type.set_metadata(ogn.MetadataKeys.LANGUAGE, "Python")
                 SlHdrToSrgbDatabase.INTERFACE.add_to_node_type(node_type)
 

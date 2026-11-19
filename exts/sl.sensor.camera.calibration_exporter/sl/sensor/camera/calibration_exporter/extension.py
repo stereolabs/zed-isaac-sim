@@ -37,7 +37,6 @@ from .global_variables import EXTENSION_TITLE
 
 class Extension(omni.ext.IExt):
     def on_startup(self, ext_id: str):
-        """Initialize extension and UI elements"""
         try:
             from isaacsim.gui.components.element_wrappers import ScrollingWindow
             from isaacsim.gui.components.menu import MenuItemDescription
@@ -53,7 +52,6 @@ class Extension(omni.ext.IExt):
         self.ext_id = ext_id
         self._usd_context = omni.usd.get_context()
 
-        # Build Window
         self._window = ScrollingWindow(
             title=EXTENSION_TITLE, width=600, height=500, visible=False, dockPreference=ui.DockPreference.LEFT_BOTTOM
         )
@@ -64,7 +62,7 @@ class Extension(omni.ext.IExt):
             ext_id,
             f"CreateUIExtension:{EXTENSION_TITLE}",
             self._menu_callback,
-            description=f"Add {EXTENSION_TITLE} Extension to UI toolbar",
+            description=f"Show or hide the {EXTENSION_TITLE} window",
         )
         self._menu_items = [
             MenuItemDescription(name=EXTENSION_TITLE, onclick_action=(ext_id, f"CreateUIExtension:{EXTENSION_TITLE}"))
@@ -120,10 +118,6 @@ class Extension(omni.ext.IExt):
 
         self._task = asyncio.ensure_future(dock_window())
 
-    #################################################################
-    # Functions below this point call user functions
-    #################################################################
-
     def _menu_callback(self):
         self._window.visible = not self._window.visible
 
@@ -132,5 +126,4 @@ class Extension(omni.ext.IExt):
             self.ui_builder.cleanup()
 
     def _build_extension_ui(self):
-        # Call user function for building UI
         self.ui_builder.build_ui()

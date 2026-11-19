@@ -38,7 +38,6 @@ CARB_PLUGIN_IMPL_DEPS(omni::graph::core::IGraphRegistry,
                       omni::fabric::IPath,
                       omni::fabric::IToken)
 
-// This macro sets up the information required to register your node type definitions with OmniGraph
 DECLARE_OGN_NODES()
 
 namespace sl
@@ -53,15 +52,11 @@ class ZEDSimNodeExtension : public omni::ext::IExt
 public:
     void onStartup(const char* extId) override
     {
-        //printf("ZEDSimNodeExtension starting up (ext_id: %s).\n", extId);
-        // This macro walks the list of pending node type definitions and registers them with OmniGraph
-
         INITIALIZE_OGN_NODES()
     }
 
     void onShutdown() override
     {
-        //printf("ZEDSimNodeExtension shutting down.\n");
         // This macro walks the list of registered node type definitions and deregisters all of them. This is required
         // for hot reload to work.
         RELEASE_OGN_NODES()

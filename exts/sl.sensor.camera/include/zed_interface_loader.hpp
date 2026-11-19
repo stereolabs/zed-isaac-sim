@@ -181,10 +181,8 @@ namespace sl
 
                     if (major > ZED_SDK_VERSION_MAJOR) return true;
                     if (major < ZED_SDK_VERSION_MAJOR) return false;
-                    // if major are equals, compare minor
                     if (minor > ZED_SDK_VERSION_MINOR) return true;
                     if (minor < ZED_SDK_VERSION_MINOR) return false;
-                    // if minor are equals, compare patch
                     return patch >= ZED_SDK_VERSION_PATCH;
                 }
                 return false;

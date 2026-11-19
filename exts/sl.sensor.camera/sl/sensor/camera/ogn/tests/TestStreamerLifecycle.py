@@ -29,6 +29,9 @@ class _FakeAnnotator:
     def warn_if_imu_blocks_stream(self):
         pass
 
+    def warn_if_timing_drops_frames(self):
+        pass
+
     def destroy(self):
         self.destroyed = True
 
@@ -48,8 +51,7 @@ class _NodeAtPath:
         return self._path
 
 
-# NOTE: the class must be named TestOgn - ogn/tests/__init__.py auto-imports test
-# modules via omni.graph.tools and only registers each module's `TestOgn` attribute.
+# The class must be named TestOgn: the OGN test loader registers only that name from each module.
 class TestOgn(omni.kit.test.AsyncTestCase):
 
     async def setUp(self):
@@ -64,7 +66,7 @@ class TestOgn(omni.kit.test.AsyncTestCase):
         self._timeline.stop()
         await self._updates(3)
         _streamer.ZEDAnnotator = self._real_annotator
-        used_ports.discard(_PORT)
+        used_ports.difference_update({_PORT, _PORT + 2})
 
     async def _updates(self, count):
         for _ in range(count):
@@ -100,6 +102,42 @@ class TestOgn(omni.kit.test.AsyncTestCase):
         self.assertEqual(len(_FakeAnnotator.instances), 2, "Play after Stop should set the stream up again")
         self.assertFalse(_FakeAnnotator.instances[1].destroyed)
         self.assertIn(_PORT, used_ports)
+
+    async def test_taken_port_moves_to_the_next_even_one(self):
+        self._stage.DefinePrim("/World/ZED_X", "Xform")
+        keys = og.Controller.Keys
+        og.Controller.edit(
+            {"graph_path": "/World/Graph", "evaluator_name": "execution"},
+            {keys.CREATE_NODES: [("OnTick", "omni.graph.action.OnPlaybackTick"),
+                                 ("ZED_A", "sl.sensor.camera.ZED_Camera"),
+                                 ("ZED_B", "sl.sensor.camera.ZED_Camera")],
+             keys.SET_VALUES: [("ZED_A.inputs:streamingPort", _PORT), ("ZED_B.inputs:streamingPort", _PORT)],
+             keys.CONNECT: [("OnTick.outputs:tick", "ZED_A.inputs:execIn"),
+                            ("OnTick.outputs:tick", "ZED_B.inputs:execIn")]})
+        for name in ("ZED_A", "ZED_B"):
+            self._stage.GetPrimAtPath(f"/World/Graph/{name}").GetRelationship("inputs:cameraPrim").SetTargets(
+                [Sdf.Path("/World/ZED_X")])
+
+        def authored_ports():
+            return sorted(self._stage.GetPrimAtPath(f"/World/Graph/{name}").GetAttribute("inputs:streamingPort").Get()
+                          for name in ("ZED_A", "ZED_B"))
+
+        self._timeline.play()
+        await self._updates(5)
+        self.assertEqual(sorted(a.port for a in _FakeAnnotator.instances), [_PORT, _PORT + 2])
+        self.assertIn(_PORT, used_ports)
+        self.assertIn(_PORT + 2, used_ports)
+        self.assertEqual(authored_ports(), [_PORT, _PORT + 2], "the moved camera's node should get its new port")
+
+        self._timeline.stop()
+        await self._updates(3)
+        self.assertNotIn(_PORT, used_ports, "Stop should free both ports")
+        self.assertNotIn(_PORT + 2, used_ports, "Stop should free both ports")
+
+        self._timeline.play()
+        await self._updates(5)
+        self.assertEqual(sorted(a.port for a in _FakeAnnotator.instances[2:]), [_PORT, _PORT + 2])
+        self.assertEqual(authored_ports(), [_PORT, _PORT + 2])
 
     async def test_v2_camera_model_splits_into_base_and_lens(self):
         prim = self._stage.DefinePrim("/World/OldNode")

@@ -28,10 +28,12 @@ class SlCameraOneStreamerDatabase(og.Database):
             inputs.autoExposure
             inputs.autoWhiteBalance
             inputs.bitrate
+            inputs.cameraIndex
             inputs.cameraModel
             inputs.cameraSharpness
             inputs.chunkSize
             inputs.execIn
+            inputs.focusBlur
             inputs.fps
             inputs.leftCameraPrim
             inputs.lensType
@@ -75,14 +77,16 @@ class SlCameraOneStreamerDatabase(og.Database):
     #     Is_Required, DefaultValue, Is_Deprecated, DeprecationMsg
     # You should not need to access any of this data directly, use the defined database interfaces
     INTERFACE = og.Database._get_interface([
-        ('inputs:applyZedSim2Real', 'bool', 0, 'Apply ZED Sim2Real', "Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting and sharpness, each with its own switch below. Off streams the render as is (the scene's own camera exposure, plain sRGB). Can be toggled live.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
+        ('inputs:applyZedSim2Real', 'bool', 0, 'Apply ZED Sim2Real', "Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting, sharpness and focus blur, each with its own switch below. Off streams the render as is (the scene's own camera exposure, plain sRGB). Can be toggled live.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:autoExposure', 'bool', 0, 'Auto exposure', "Real-camera auto exposure: meters the rendered HDR image and drives the cameras' exposure time and gain (exposure:time / exposure:iso) like a real ZED X. Off keeps the scene's own camera exposure. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:autoWhiteBalance', 'bool', 0, 'Auto white balance', "Real-camera auto white balance: estimates the light's colour from the rendered image and balances it like a real ZED X, including its limits (warm lights such as tungsten keep part of their orange cast). Off streams the render's own colours. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:bitrate', 'uint', 0, 'Streaming Bitrate', 'Streaming bitrate (Kbps).', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '8000'}, True, 8000, False, ''),
+        ('inputs:cameraIndex', 'int', 0, 'Camera Index', "Index of the camera among the simulated cameras of the same model and lens, from which the ZED SDK derives its serial number and calibration. -1 picks the first free index at Play. Used when the ZED camera mode is 'virtual' (the default).", {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: '-1'}, True, -1, False, ''),
         ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Mono Camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_XONE_UHD,ZED_XONE_GS,ZED_XONE_S', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_XONE_UHD", "ZED_XONE_GS", "ZED_XONE_S"]', ogn.MetadataKeys.DEFAULT: '"ZED_XONE_GS"'}, True, "ZED_XONE_GS", False, ''),
         ('inputs:cameraSharpness', 'bool', 0, 'Camera sharpness', "Sharpness of a real ZED X instead of the renderer's: the render is much crisper than the camera, which softens fine detail and sharpens edges with light halos. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:chunkSize', 'uint', 0, 'Streaming Chunk Size', 'Streaming chunk size (bytes).', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '4096'}, True, 4096, False, ''),
         ('inputs:execIn', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
+        ('inputs:focusBlur', 'bool', 0, 'Focus blur', "Fixed-focus blur (depth of field) of a real ZED X lens: the 2.2 mm is focused at 1.15 m (f/2.2), the 4 mm at 2 m (f/2.0); surfaces away from that distance, close ones most, are blurred by how far off they are. Renders each eye's depth while on (an extra render output per eye). ZED X, X Mini and X One GS / S lenses only. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
         ('inputs:fps', 'uint', 0, 'FPS', 'Camera stream frame rate.', {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: '30'}, True, 30, False, ''),
         ('inputs:leftCameraPrim', 'target', 0, 'Left Camera Prim', 'Main monocular camera', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0', 'uiGroup': 'Camera Selection'}, True, None, False, ''),
         ('inputs:lensType', 'token', 0, 'Lens Type', 'Lens fitted to the camera. Options shown depend on the selected camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'Wide,Narrow,Fisheye', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["Wide", "Narrow", "Fisheye"]', ogn.MetadataKeys.DEFAULT: '"Wide"'}, True, "Wide", False, ''),
@@ -92,7 +96,7 @@ class SlCameraOneStreamerDatabase(og.Database):
         ('inputs:sensorNoise', 'bool', 0, 'Sensor noise', "Sensor noise of a real ZED X, following the camera's gain (exposure:iso): nearly clean in daylight, visible grain in dim scenes, snow at maximum gain in the dark. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:serialNumber', 'string', 0, 'Serial Number', 'Serial number of the stereo cam. Only used for virtual ZED X cameras.', {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: '"119999999"'}, True, "119999999", False, ''),
         ('inputs:streamDepth', 'bool', 0, 'Stream Depth', 'Enable Left+Depth streaming mode instead of Left+Right. Uses ground-truth depth from Isaac Sim.', {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
-        ('inputs:streamingPort', 'uint', 0, 'Streaming Port', 'Unique port per camera.', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
+        ('inputs:streamingPort', 'uint', 0, 'Streaming Port', 'Even port to stream on. If another camera already uses it, Play changes it to the next free even port, with a warning.', {'uiGroup': 'Streaming', ogn.MetadataKeys.DEFAULT: '30000'}, True, 30000, False, ''),
         ('inputs:transportLayerMode', 'token', 0, 'Transport layer mode', 'Communication protocol used to send data to the ZED SDK. IPC improves streaming performance when streaming to the same machine (Linux and Windows)', {ogn.MetadataKeys.ALLOWED_TOKENS: 'BOTH,NETWORK,IPC', 'uiGroup': 'Streaming', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["BOTH", "NETWORK", "IPC"]', ogn.MetadataKeys.DEFAULT: '"BOTH"'}, True, "BOTH", False, ''),
         ('inputs:vignetting', 'bool', 0, 'Vignetting', 'Lens vignetting of a real ZED X: the image darkens towards its edges. Scaled by field angle, so narrower lenses darken less; not applied to fisheye lenses. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.', {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
     ])
@@ -124,14 +128,14 @@ class SlCameraOneStreamerDatabase(og.Database):
         return role_data
 
     class ValuesForInputs(og.DynamicAttributeAccess):
-        LOCAL_PROPERTY_NAMES = {"applyZedSim2Real", "autoExposure", "autoWhiteBalance", "bitrate", "cameraModel", "cameraSharpness", "chunkSize", "execIn", "fps", "lensType", "motionBlur", "resolution", "sensorNoise", "serialNumber", "streamDepth", "streamingPort", "transportLayerMode", "vignetting", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
+        LOCAL_PROPERTY_NAMES = {"applyZedSim2Real", "autoExposure", "autoWhiteBalance", "bitrate", "cameraIndex", "cameraModel", "cameraSharpness", "chunkSize", "execIn", "focusBlur", "fps", "lensType", "motionBlur", "resolution", "sensorNoise", "serialNumber", "streamDepth", "streamingPort", "transportLayerMode", "vignetting", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
         """Helper class that creates natural hierarchical access to input attributes"""
         def __init__(self, node: og.Node, attributes, dynamic_attributes: og.DynamicAttributeInterface):
             """Initialize simplified access for the attribute data"""
             context = node.get_graph().get_default_graph_context()
             super().__init__(context, node, attributes, dynamic_attributes)
-            self._batchedReadAttributes = [self._attributes.applyZedSim2Real, self._attributes.autoExposure, self._attributes.autoWhiteBalance, self._attributes.bitrate, self._attributes.cameraModel, self._attributes.cameraSharpness, self._attributes.chunkSize, self._attributes.execIn, self._attributes.fps, self._attributes.lensType, self._attributes.motionBlur, self._attributes.resolution, self._attributes.sensorNoise, self._attributes.serialNumber, self._attributes.streamDepth, self._attributes.streamingPort, self._attributes.transportLayerMode, self._attributes.vignetting]
-            self._batchedReadValues = [True, True, True, 8000, "ZED_XONE_GS", True, 4096, 0, 30, "Wide", True, "SVGA", True, "119999999", False, 30000, "BOTH", True]
+            self._batchedReadAttributes = [self._attributes.applyZedSim2Real, self._attributes.autoExposure, self._attributes.autoWhiteBalance, self._attributes.bitrate, self._attributes.cameraIndex, self._attributes.cameraModel, self._attributes.cameraSharpness, self._attributes.chunkSize, self._attributes.execIn, self._attributes.focusBlur, self._attributes.fps, self._attributes.lensType, self._attributes.motionBlur, self._attributes.resolution, self._attributes.sensorNoise, self._attributes.serialNumber, self._attributes.streamDepth, self._attributes.streamingPort, self._attributes.transportLayerMode, self._attributes.vignetting]
+            self._batchedReadValues = [True, True, True, 8000, -1, "ZED_XONE_GS", True, 4096, 0, False, 30, "Wide", True, "SVGA", True, "119999999", False, 30000, "BOTH", True]
 
         @property
         def leftCameraPrim(self):
@@ -192,116 +196,132 @@ class SlCameraOneStreamerDatabase(og.Database):
             self._batchedReadValues[3] = value
 
         @property
-        def cameraModel(self):
+        def cameraIndex(self):
             return self._batchedReadValues[4]
 
-        @cameraModel.setter
-        def cameraModel(self, value):
+        @cameraIndex.setter
+        def cameraIndex(self, value):
             self._batchedReadValues[4] = value
 
         @property
-        def cameraSharpness(self):
+        def cameraModel(self):
             return self._batchedReadValues[5]
 
-        @cameraSharpness.setter
-        def cameraSharpness(self, value):
+        @cameraModel.setter
+        def cameraModel(self, value):
             self._batchedReadValues[5] = value
 
         @property
-        def chunkSize(self):
+        def cameraSharpness(self):
             return self._batchedReadValues[6]
 
-        @chunkSize.setter
-        def chunkSize(self, value):
+        @cameraSharpness.setter
+        def cameraSharpness(self, value):
             self._batchedReadValues[6] = value
 
         @property
-        def execIn(self):
+        def chunkSize(self):
             return self._batchedReadValues[7]
 
-        @execIn.setter
-        def execIn(self, value):
+        @chunkSize.setter
+        def chunkSize(self, value):
             self._batchedReadValues[7] = value
 
         @property
-        def fps(self):
+        def execIn(self):
             return self._batchedReadValues[8]
 
-        @fps.setter
-        def fps(self, value):
+        @execIn.setter
+        def execIn(self, value):
             self._batchedReadValues[8] = value
 
         @property
-        def lensType(self):
+        def focusBlur(self):
             return self._batchedReadValues[9]
 
-        @lensType.setter
-        def lensType(self, value):
+        @focusBlur.setter
+        def focusBlur(self, value):
             self._batchedReadValues[9] = value
 
         @property
-        def motionBlur(self):
+        def fps(self):
             return self._batchedReadValues[10]
 
-        @motionBlur.setter
-        def motionBlur(self, value):
+        @fps.setter
+        def fps(self, value):
             self._batchedReadValues[10] = value
 
         @property
-        def resolution(self):
+        def lensType(self):
             return self._batchedReadValues[11]
 
-        @resolution.setter
-        def resolution(self, value):
+        @lensType.setter
+        def lensType(self, value):
             self._batchedReadValues[11] = value
 
         @property
-        def sensorNoise(self):
+        def motionBlur(self):
             return self._batchedReadValues[12]
 
-        @sensorNoise.setter
-        def sensorNoise(self, value):
+        @motionBlur.setter
+        def motionBlur(self, value):
             self._batchedReadValues[12] = value
 
         @property
-        def serialNumber(self):
+        def resolution(self):
             return self._batchedReadValues[13]
 
-        @serialNumber.setter
-        def serialNumber(self, value):
+        @resolution.setter
+        def resolution(self, value):
             self._batchedReadValues[13] = value
 
         @property
-        def streamDepth(self):
+        def sensorNoise(self):
             return self._batchedReadValues[14]
 
-        @streamDepth.setter
-        def streamDepth(self, value):
+        @sensorNoise.setter
+        def sensorNoise(self, value):
             self._batchedReadValues[14] = value
 
         @property
-        def streamingPort(self):
+        def serialNumber(self):
             return self._batchedReadValues[15]
 
-        @streamingPort.setter
-        def streamingPort(self, value):
+        @serialNumber.setter
+        def serialNumber(self, value):
             self._batchedReadValues[15] = value
 
         @property
-        def transportLayerMode(self):
+        def streamDepth(self):
             return self._batchedReadValues[16]
 
-        @transportLayerMode.setter
-        def transportLayerMode(self, value):
+        @streamDepth.setter
+        def streamDepth(self, value):
             self._batchedReadValues[16] = value
 
         @property
-        def vignetting(self):
+        def streamingPort(self):
             return self._batchedReadValues[17]
+
+        @streamingPort.setter
+        def streamingPort(self, value):
+            self._batchedReadValues[17] = value
+
+        @property
+        def transportLayerMode(self):
+            return self._batchedReadValues[18]
+
+        @transportLayerMode.setter
+        def transportLayerMode(self, value):
+            self._batchedReadValues[18] = value
+
+        @property
+        def vignetting(self):
+            return self._batchedReadValues[19]
 
         @vignetting.setter
         def vignetting(self, value):
-            self._batchedReadValues[17] = value
+            self._batchedReadValues[19] = value
 
         def __getattr__(self, item: str):
             if item in self.LOCAL_PROPERTY_NAMES:

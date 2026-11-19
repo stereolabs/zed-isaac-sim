@@ -9,7 +9,7 @@ Use this together with the core `sl.sensor.camera` extension: this tool writes t
 
 ## Workflow
 
-1. Enable **ZED Calibration Exporter** in the *Third-Party* tab of the Extensions manager.
+1. Enable **Stereolabs ZED Calibration Exporter** in the *Third-Party* tab of the Extensions manager.
 2. Open it from the menu bar: **Stereolabs -> ZED Calibration Exporter**. A window opens.
 3. In the Stage, select the **left** camera prim, then click **Select** for the left camera. Repeat for
    the **right** camera.

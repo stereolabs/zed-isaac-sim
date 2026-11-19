@@ -1,0 +1,76 @@
+{
+    "ZED_FrameImu": {
+        "version": 3,
+        "categories": {
+            "Stereolabs": "Nodes used with Stereolabs ZED cameras"
+        },
+        "description": "Gives the ZED Stream node its frame's time and the IMU at that time. The time is IsaacReadSimulationTime's, the moment whose physics state the frame shows. The IMU comes from the IMU of every physics step that the extension keeps for this node, instead of IsaacReadIMU's latest reading: a frame is streamed a few physics steps after it was rendered. Falls back to the reading it is given. A stream faster than the app updates passes on every n-th frame, the fewest that keep each in an app update of its own, so the frames stay evenly spaced, and gives the ZED Stream node the rate it passes them on at. Linear acceleration out in m/s^2.",
+        "language": "Python",
+        "metadata": {
+            "uiName": "ZED Frame IMU",
+            "hidden": "true"
+        },
+        "inputs": {
+            "execIn": {
+                "type": "execution",
+                "description": "Triggers the node (connect the IMU reader's execOut)"
+            },
+            "orientation": {
+                "type": "quatd[4]",
+                "description": "IMU orientation (IJKR), the fallback",
+                "default": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            },
+            "linAcc": {
+                "type": "vectord[3]",
+                "description": "IMU linear acceleration in stage units per second squared, the fallback",
+                "default": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "metersPerUnit": {
+                "type": "double",
+                "description": "The stage's meters per unit, to give the fallback's acceleration in m/s^2",
+                "default": 1.0
+            },
+            "simulationTime": {
+                "type": "double",
+                "description": "IsaacReadSimulationTime's time of the frame being streamed, seconds",
+                "default": 0.0
+            },
+            "fps": {
+                "type": "uint",
+                "description": "The stream's frame rate, the rate its camera renders at",
+                "default": 30
+            }
+        },
+        "outputs": {
+            "execOut": {
+                "type": "execution",
+                "description": "Fires once the outputs are written"
+            },
+            "frameTime": {
+                "type": "double",
+                "description": "Simulation time of the physics state the frame shows, seconds: its stamp"
+            },
+            "fps": {
+                "type": "uint",
+                "description": "The rate frames are passed on at, which the ZED Stream node declares to receivers: inputs:fps, or the app's update rate when that is lower"
+            },
+            "orientation": {
+                "type": "quatd[4]",
+                "description": "IMU orientation at the frame's time (IJKR)"
+            },
+            "linAcc": {
+                "type": "vectord[3]",
+                "description": "IMU linear acceleration at the frame's time, m/s^2"
+            }
+        }
+    }
+}

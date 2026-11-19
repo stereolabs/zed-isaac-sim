@@ -20,12 +20,12 @@ stream.
 
 | Demo | Robot & scene | ZED mount | Stream |
 |---|---|---|---|
-| **ZED Pick-Place Integration** | Franka arm on a workbench in the Simple Warehouse; continuously picks a random cube and drops it in a KLT bin (Isaac Sim 6.0); on 6.1 there is no bin and the two cubes alternate between their bench positions. | Wrist-mounted ZED X Nano. | `127.0.0.1:30000` |
+| **ZED Pick-Place Integration** | Franka arm on a workbench in the Simple Warehouse; continuously picks a cube and drops it in a KLT bin: a random one on Isaac Sim 6.0, the two cubes in turn from their bench positions on 6.1 and 6.2. | Wrist-mounted ZED X Nano. | `127.0.0.1:30000` |
 | **ZED Humanoid Integration** | Unitree H1 humanoid walking up and down a warehouse aisle. | Head-mounted ZED Mini (stereo) plus two ZED X One fisheye peripherals. | ZED Mini `127.0.0.1:30000`, fisheyes `127.0.0.1:30002` and `30004` |
-| **ZED AMR Integration** | Idealworks iw.hub AMR patrolling a warehouse aisle. | Front and rear ZED X, selectable stream. | Front `127.0.0.1:30000`, rear `127.0.0.1:30002` (Both mode) |
+| **ZED AMR Integration** | Idealworks iw.hub AMR patrolling a warehouse aisle. | Front and rear ZED X, selectable stream. | Front or rear alone `127.0.0.1:30000`; Both: front `30000`, rear `30002` |
 
-For the AMR, pick **Front**, **Rear**, or **Both** in the demo panel before **Load & Run**. Both runs
-two streams (front on `30000`, rear on `30002`).
+For the AMR, pick **Front**, **Rear**, or **Both** in the demo panel before **Load & Run**. A single
+camera streams on `30000`, whichever it is; Both runs two streams (front on `30000`, rear on `30002`).
 
 ## Troubleshooting
 

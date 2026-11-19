@@ -15,6 +15,7 @@ Frame writing and the camera optics come from ``frames`` and ``optics``, shared 
 ZED Capture node.
 """
 
+import argparse
 import os
 from typing import Optional
 
@@ -25,6 +26,7 @@ from .utils import (
     get_pinhole_parameters,
     get_supported_models,
     get_supported_resolutions,
+    select_lens_variant,
 )
 
 
@@ -63,11 +65,12 @@ def add_zed_cli_args(parser, default_model: str = "ZED_X",
         parser.add_argument("--save_dir", type=str, default=None,
                             help="Dir to save per-frame stereo+depth. If omitted, streams to console only (no files).")
     if sim2real:
-        parser.add_argument("--apply_zed_sim2real", action="store_true",
+        parser.add_argument("--apply_zed_sim2real", action=argparse.BooleanOptionalAction, default=True,
                             help="Apply ZED Sim2Real, the ZED X camera model, to the RGB tensors: the cameras "
                                  "render HDR (rgb_hdr) and get the real camera's auto exposure, white balance, "
                                  "noise, vignetting and sharpness (needs the sl_zed_sim2real library; see "
-                                 "zed_sim2real.py).")
+                                 "zed_sim2real.py). On by default; --no-apply_zed_sim2real gives the render's "
+                                 "own RGB.")
     return parser
 
 
@@ -76,6 +79,7 @@ def add_zed_cli_args(parser, default_model: str = "ZED_X",
 # schema extension only registers its schemas when it starts with the app, so enabling it from the
 # script is too late.
 _KIT_EXTENSIONS = ("omni.usd.schema.omni_lens_distortion",)
+_LENS_SCHEMA = "OmniLensDistortionOpenCvPinholeAPI"
 
 
 def add_zed_kit_args(args):
@@ -98,8 +102,8 @@ def make_camera_cfg(prim_path: str, camera_model: str, camera_resolution: str,
                     data_types=("rgb",), update_period: float = 0.0):
     """Build an ``isaaclab.sensors.CameraCfg`` for a ZED USD's authored camera prim.
 
-    The sensor attaches to the existing prim (``spawn=None``) - the real ZED camera, with its
-    real baseline - so pair it with :func:`apply_zed_optics`. Sized from the ZED spec tables.
+    The sensor attaches to the existing prim (``spawn=None``), the real ZED camera with its
+    real baseline, so pair it with :func:`apply_zed_optics`. Sized from the ZED spec tables.
 
     Args:
         prim_path: sensor prim path (regex env paths supported by Isaac Lab work).
@@ -132,11 +136,12 @@ def make_zed_usd_link_mount(zed_prim_path: str, camera_model: str, camera_resolu
 
     Returns ``(model_cfg, left_cam_cfg, right_cam_cfg)``:
 
-    - ``model_cfg`` (``AssetBaseCfg``): the ``ZED_X.usdc`` model spawned as a rigid body at
-      ``zed_prim_path``. Pair it with :func:`author_zed_link_joint` (a fixed joint to the link)
-      so the model + its authored cameras track the moving link.
+    - ``model_cfg`` (``AssetBaseCfg``): the model's USD (``data/usd/<base_model>.usdc``) spawned
+      as a rigid body at ``zed_prim_path``. Pair it with :func:`author_zed_link_joint` (a fixed
+      joint to the link) so the model + its authored cameras track the moving link. Once it is on
+      the stage, call :func:`apply_zed_optics` per env for the model's lens variant and optics.
     - ``left_cam_cfg`` / ``right_cam_cfg`` (``CameraCfg``): sensors attached (spawn=None) to the
-      model's authored ``CameraLeft`` / ``CameraRight`` prims - the real ZED cameras, no pinhole.
+      model's authored ``CameraLeft`` / ``CameraRight`` prims (the real ZED cameras, no pinhole).
 
     Args:
         zed_prim_path: prim path for the ZED model (e.g. "{ENV_REGEX_NS}/zed"). Its authored
@@ -165,14 +170,22 @@ def make_zed_usd_link_mount(zed_prim_path: str, camera_model: str, camera_resolu
     return model_cfg, left_cfg, right_cfg
 
 
-def apply_zed_optics(stage, zed_prim_path: str, camera_model: str, camera_resolution: str) -> bool:
+def apply_zed_optics(stage, zed_prim_path: str, camera_model: str, camera_resolution: str,
+                     camera_index: Optional[int] = None, mode: Optional[str] = None):
     """Author the ZED model's optics on the authored cameras of a ZED USD placed in the stage.
 
-    The assets ship one nominal lens for every variant, so the prims need the model's real focal
-    length and lens; this is the same call the streaming and capture paths make
-    (``optics.apply_camera_optics``).
+    First selects the model's ``lens`` variant on the asset (``utils.select_lens_variant``), which
+    sets the lens mesh and the cameras' position. The assets ship one nominal lens for every
+    variant, so the prims then need the model's real focal length and lens; this is the same call
+    the streaming and capture paths make.
 
-    Call once the ZED USD is on the stage and before the ``Camera`` sensors initialize - Isaac Lab
+    In ``virtual`` mode (the default) the ZED SDK generates a simulated camera (serial number and
+    calibration) and both eyes are rendered with it, including the right eye's pose. Isaac Lab's
+    ``Camera.data.intrinsic_matrices`` assumes square pixels centered on the image, so build the
+    true K from the returned camera's ``calibration`` (fx, fy, cx, cy per eye). In ``legacy``
+    mode the optics come from the extension's spec tables.
+
+    Call once the ZED USD is on the stage and before the ``Camera`` sensors initialize: Isaac Lab
     reads focal length and aperture off the prim when the sensor starts, so authoring afterwards
     changes the image but not the reported intrinsics.
 
@@ -180,22 +193,52 @@ def apply_zed_optics(stage, zed_prim_path: str, camera_model: str, camera_resolu
         stage: the USD stage holding the placed ZED.
         zed_prim_path: prim path the ZED USD was referenced at (one env; not a regex).
         camera_model / camera_resolution: ZED spec selectors.
+        camera_index: virtual mode only, see :func:`sdk_virtual_camera.acquire` (None = first free).
+        mode: ``"virtual"`` or ``"legacy"``; None reads the ``simCameraMode`` extension setting.
 
     Returns:
-        True if every camera of the model was authored.
-    """
-    from .optics import apply_camera_optics   # pxr; kept out of this module's import-time deps
+        Virtual mode: the ``sdk_virtual_camera.VirtualCamera``, or False if a camera prim is missing.
+        Legacy mode: True if every camera of the model was authored.
 
+    Raises:
+        sdk_virtual_camera.VirtualCameraError: virtual mode, the SDK could not provide the camera.
+        RuntimeError: virtual mode, the app was started without the lens schema, see
+            :func:`add_zed_kit_args`.
+    """
+    from pxr import Usd
+
+    from . import sdk_virtual_camera
+    from .optics import apply_camera_optics, setup_virtual_camera   # pxr; kept out of this module's import-time deps
+
+    select_lens_variant(stage, zed_prim_path, camera_model)
     paths = get_camera_paths(zed_prim_path, camera_model)
     eyes = [paths[key] for key in ("left", "right") if key in paths]
-    authored = True
+    missing = [path for path in eyes if not stage.GetPrimAtPath(path).IsValid()]
+    for path in missing:
+        print(f"[ZED] No camera prim at {path}; its optics are left as authored.")
+
+    if (mode or sdk_virtual_camera.get_mode()) == sdk_virtual_camera.MODE_VIRTUAL:
+        if missing:
+            return False
+        if not Usd.SchemaRegistry().FindAppliedAPIPrimDefinition(_LENS_SCHEMA):
+            raise RuntimeError("The OmniLensDistortion USD schema is not loaded, so the ZED lens cannot be "
+                               "authored: call add_zed_kit_args(args) before AppLauncher(args).")
+        prims = [stage.GetPrimAtPath(path) for path in eyes]
+        camera = setup_virtual_camera(prims[0], prims[1] if len(prims) > 1 else None,
+                                      camera_model, camera_resolution, camera_index)
+        if len(prims) > 1:
+            # The right eye's calibrated pose is one matrix op on the session layer, and Isaac Lab's
+            # Camera only takes translate/orient/scale. Restating it on that layer keeps the session
+            # op order, which would otherwise win over the one Isaac Lab authors on the root layer.
+            import isaaclab.sim as sim_utils
+            with Usd.EditContext(stage, stage.GetSessionLayer()):
+                sim_utils.standardize_xform_ops(prims[1])
+        return camera
+
+    authored = not missing
     for path in eyes:
-        prim = stage.GetPrimAtPath(path)
-        if not prim.IsValid():
-            print(f"[ZED] No camera prim at {path}; its optics are left as authored.")
-            authored = False
-            continue
-        authored = apply_camera_optics(prim, camera_model, camera_resolution) and authored
+        if path not in missing:
+            authored = apply_camera_optics(stage.GetPrimAtPath(path), camera_model, camera_resolution) and authored
     return authored
 
 
@@ -204,7 +247,7 @@ def author_zed_link_joint(stage, link_prim_path: str, zed_prim_path: str,
     """Author a ``UsdPhysics.FixedJoint`` fixing the ZED rigid body to a robot link.
 
     Places the ZED at ``local_pos`` (translate) + ``euler_deg`` (``RotateXYZ`` degrees) in the
-    link frame - the same placement convention as the Stereolabs Isaac-Sim demo. Idempotent
+    link frame, the same placement convention as the Stereolabs Isaac-Sim demo. Idempotent
     and safe if the prim is missing (returns False). Call once per env before physics starts
     (a ``prestartup`` event in manager-based tasks, or before ``sim.reset()`` in standalone).
 
@@ -264,7 +307,7 @@ def wait_for_camera_data(sim, cameras, keys=("rgb", "distance_to_image_plane"),
 
     Returns:
         The number of frames stepped, or -1 if data never arrived (usually
-        the renderer is off - is --enable_cameras set?).
+        the renderer is off; is --enable_cameras set?).
     """
     cameras = [cam for cam in cameras if cam is not None]
     dt = sim.get_physics_dt()

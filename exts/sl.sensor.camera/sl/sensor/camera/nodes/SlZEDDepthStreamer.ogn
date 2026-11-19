@@ -1,10 +1,10 @@
 {
   "ZED_Depth": {
-    "version": 2,
+    "version": 3,
     "categories": {
       "Stereolabs": "Nodes used with Stereolabs ZED cameras"
     },
-    "description": "SDK-free capture from a ZED camera using Isaac Sim's renderer: RGB images and optionally simulated stereo depth. Nothing is streamed and no ZED SDK is required.",
+    "description": "SDK-free capture from a ZED camera using Isaac Sim's renderer: RGB images and optionally the renderer's depth. Nothing is streamed and no ZED SDK is required.",
     "language": "Python",
     "metadata": {
       "uiName": "ZED Capture"
@@ -56,6 +56,96 @@
           "uiName": "Resolution",
           "allowedTokens": ["HD2K", "HD1200", "HD1080", "HD720", "SVGA", "VGA"],
           "uiGroup": "Configuration"
+        }
+      },
+      "cameraIndex": {
+        "type": "int",
+        "description": "Index of the camera among the simulated cameras of the same model and lens, from which the ZED SDK derives its serial number and calibration. -1 picks the first free index at Play. Used when the ZED camera mode is 'virtual' (the default).",
+        "default": -1,
+        "metadata": {
+          "uiName": "Camera Index",
+          "uiGroup": "Configuration"
+        }
+      },
+      "fps": {
+        "type": "double",
+        "description": "Rate the camera renders at, in frames per second. It caps the render rate as on a streamed camera, and the ZED Sim2Real auto exposure and motion blur need it: the motion vectors span one rendered frame, so a wrong rate scales the blur by the same ratio. 0 takes the camera's own omni:sensor:tickRate, and without that the app's update rate, which the camera then renders at; when the app updates on the wall clock, the auto exposure and motion blur stay off.",
+        "default": 0.0,
+        "metadata": {
+          "uiName": "FPS",
+          "uiGroup": "Configuration"
+        }
+      },
+      "applyZedSim2Real": {
+        "type": "bool",
+        "description": "Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting, sharpness and focus blur, each with its own switch below. Off captures the render as is (the scene's own camera exposure, plain sRGB). Set before Play.",
+        "default": true,
+        "metadata": {
+          "uiName": "Apply ZED Sim2Real",
+          "uiGroup": "ZED Sim2Real"
+        }
+      },
+      "autoExposure": {
+        "type": "bool",
+        "description": "Real-camera auto exposure: meters the rendered HDR image and drives the cameras' exposure time and gain (exposure:time / exposure:iso) like a real ZED X, so the sensor noise and the motion blur follow it. It takes a moment to settle on a new scene, as a real camera does, so the first frames saved can be over- or under-exposed. Off keeps the scene's own camera exposure. Needs Apply ZED Sim2Real and the camera's render rate (see FPS).",
+        "default": true,
+        "metadata": {
+          "uiName": "Auto Exposure",
+          "uiGroup": "ZED Sim2Real"
+        }
+      },
+      "autoWhiteBalance": {
+        "type": "bool",
+        "description": "The real camera's auto white balance, metered on the right image of a stereo camera (the only image of a mono camera); both eyes share its gains. Needs Apply ZED Sim2Real.",
+        "default": true,
+        "metadata": {
+          "uiName": "Auto White Balance",
+          "uiGroup": "ZED Sim2Real"
+        }
+      },
+      "sensorNoise": {
+        "type": "bool",
+        "description": "The sensor noise of a real ZED X at the camera's gain (exposure:iso / 100), with its fixed pattern and row noise. Needs Apply ZED Sim2Real.",
+        "default": true,
+        "metadata": {
+          "uiName": "Sensor Noise",
+          "uiGroup": "ZED Sim2Real"
+        }
+      },
+      "motionBlur": {
+        "type": "bool",
+        "description": "Motion blur over each frame's exposure time, as on a real ZED X: sharp in daylight, smeared indoors and in the dark. Follows the auto exposure, or the camera's exposure:time when it is off. Needs Apply ZED Sim2Real and the camera's render rate (see FPS).",
+        "default": true,
+        "metadata": {
+          "uiName": "Motion Blur",
+          "uiGroup": "ZED Sim2Real"
+        }
+      },
+      "vignetting": {
+        "type": "bool",
+        "description": "The lens's falloff: darker image corners with a slight colour fringe. Needs Apply ZED Sim2Real.",
+        "default": true,
+        "metadata": {
+          "uiName": "Vignetting",
+          "uiGroup": "ZED Sim2Real"
+        }
+      },
+      "cameraSharpness": {
+        "type": "bool",
+        "description": "The real camera's sharpness instead of the render's. Needs Apply ZED Sim2Real.",
+        "default": true,
+        "metadata": {
+          "uiName": "Camera Sharpness",
+          "uiGroup": "ZED Sim2Real"
+        }
+      },
+      "focusBlur": {
+        "type": "bool",
+        "description": "The ZED X lenses' fixed focus blurs what is closer than it (1.15 m for the 2.2 mm lens, 2 m for the 4 mm). Renders a depth image per eye while it is on. ZED X, X Mini and X One GS / S lenses only. Needs Apply ZED Sim2Real.",
+        "default": false,
+        "metadata": {
+          "uiName": "Focus Blur",
+          "uiGroup": "ZED Sim2Real"
         }
       },
       "enableSave": {

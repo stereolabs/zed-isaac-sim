@@ -14,8 +14,8 @@ if %errorlevel%==0 (
 REM Each dependency is versioned independently under its own path segment
 REM (<CDN_BASE>/<lib>/<version>/<archive>), so bumping one lib's version never forces
 REM re-uploading another unchanged lib.
-set "SL_ZED_VERSION=5.2.0"
-set "SL_ZED_SIM2REAL_VERSION=1.0.0"
+set "SL_ZED_VERSION=5.6.0"
+set "SL_ZED_SIM2REAL_VERSION=1.0.1"
 set "BUILD_PATH=_build\windows-x86_64\release\exts\sl.sensor.camera\bin"
 set "BIN_TARGET=exts\sl.sensor.camera\bin"
 set "CDN_BASE=https://stereolabs.sfo2.cdn.digitaloceanspaces.com/utils/zed_isaac_sim"
@@ -27,6 +27,32 @@ set "SL_ZED_SIM2REAL_URL=!CDN_BASE!/sl_zed_sim2real/!SL_ZED_SIM2REAL_VERSION!/!S
 REM Windows' own tar: from Git Bash, a bare "tar" resolves to Git's GNU tar, which cannot open
 REM the backslash -C path.
 set "TAR=%SystemRoot%\System32\tar.exe"
+
+REM -x / --rebuild and -c / --clean also remove bin\, which holds the downloaded libraries and a
+REM copy of the build outputs; repo build itself cleans _build, _compiler and _builtpackages.
+REM -c stops after repo's clean: there is nothing to download or sync.
+set "CLEAN_BIN="
+set "CLEAN_ONLY="
+for %%a in (%*) do (
+    if "%%~a"=="-x" set "CLEAN_BIN=1"
+    if "%%~a"=="--rebuild" set "CLEAN_BIN=1"
+    if "%%~a"=="-c" set "CLEAN_ONLY=1"
+    if "%%~a"=="--clean" set "CLEAN_ONLY=1"
+)
+if defined CLEAN_ONLY set "CLEAN_BIN=1"
+if defined CLEAN_BIN if exist "%BIN_TARGET%" (
+    echo [INFO] Removing %BIN_TARGET%...
+    rmdir /s /q "%BIN_TARGET%"
+    if exist "%BIN_TARGET%" (
+        echo [ERROR] Could not remove all of %BIN_TARGET%: close Isaac Sim or any other app that
+        echo         loaded the extension, then run again.
+        exit /b 1
+    )
+)
+if defined CLEAN_ONLY (
+    call "%SCRIPT_DIR%repo.bat" build %*
+    exit /b !errorlevel!
+)
 
 echo ====================================================
 echo Initializing Dependencies (Version: !SL_ZED_VERSION!)
@@ -63,7 +89,6 @@ if not "!SL_ZED_INSTALLED!"=="!SL_ZED_VERSION!" (
         exit /b 1
     )
 
-    REM --- NEW: Cleanup the archive after extraction ---
     echo [INFO] Cleaning up archive...
     del /f /q "%BIN_TARGET%\!SL_ZED_FILENAME!"
     (echo !SL_ZED_VERSION!)>"%BIN_TARGET%\sl_zed.version"
@@ -97,7 +122,7 @@ if not "!SL_ZED_SIM2REAL_INSTALLED!"=="!SL_ZED_SIM2REAL_VERSION!" (
     echo [INFO] sl_zed_sim2real !SL_ZED_SIM2REAL_VERSION! already downloaded, skipping.
 )
 
-REM 3. Remove old build binaries safely
+REM 3. Remove old plugin binaries
 if exist "%BIN_TARGET%\sl.sensor.camera.plugin*" (
     echo [INFO] Removing old plugin binaries...
     del /q "%BIN_TARGET%\sl.sensor.camera.plugin*"
@@ -120,7 +145,6 @@ xcopy /e /i /y "%BUILD_PATH%\*" "%BIN_TARGET%"
 
 REM 6. Remove generated __ogn_files_prebuilt file
 if exist "exts\sl.sensor.camera\sl\sensor\camera\ogn\__ogn_files_prebuilt" (
-    REM echo [INFO] Removing __ogn_files_prebuilt file...
     del /f /q "exts\sl.sensor.camera\sl\sensor\camera\ogn\__ogn_files_prebuilt"
 )
 

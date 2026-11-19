@@ -1,13 +1,10 @@
-########################################################################################################################
 # Repo tool base settings
-########################################################################################################################
 
 [repo]
 
 # Use the Kit Template repo configuration as a base. Only override things specific to the repo.
 import_configs = ["${root}/_repo/deps/repo_kit_tools/kit-template/repo.toml"]
 
-# Repository Name
 name = "IsaacSimZED"
 
 [repo_build]
@@ -20,7 +17,9 @@ enabled = false
 
 [repo_build.msbuild]
 link_host_toolchain = true
-vs_version = "vs2022" # Local default: drive msbuild with VS2022. ABI stays compatible because the compiler toolset is pinned to v142 (MSVC_VERSION in premake5.lua) - the actual USD-libs-vs2022 concern is the toolset, not the IDE year. Requires the v142 (14.27) build-tools component installed in VS2022. CI overrides below.
+# VS2022 drives msbuild locally. The ABI follows the compiler toolset, pinned to v142 (MSVC_VERSION in
+# premake5.lua), which needs the v142 (14.27) build-tools component in VS2022. CI uses VS2019 below.
+vs_version = "vs2022"
 "token:in_ci==true".vs_version = "vs2019"
 "token:in_ci==true".vs_path = "C:\\vs2019"
 
