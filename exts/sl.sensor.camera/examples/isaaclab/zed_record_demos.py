@@ -13,7 +13,8 @@
 # task's static table camera is dropped, the robot-mounted view is the relevant one here.
 #
 # Keyboard teleop:
-#   arrow / WASDQE etc. move the end-effector, K/L toggle the gripper, R resets the demo.
+#   W/S, A/D, Q/E move the end-effector, Z/X, T/G, C/V rotate it, K toggles the gripper,
+#   L stops the motion and opens the gripper, R resets the demo.
 #
 # Usage:
 #   F:\IsaacLab\isaaclab.bat -p exts\sl.sensor.camera\examples\isaaclab\zed_record_demos.py --num_demos 1 --dataset_file F:\demos\zed_stack.hdf5

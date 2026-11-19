@@ -48,12 +48,13 @@ their Apache 2.0 headers:
 
 ## Not covered by the MIT license
 
-### ZED SDK runtime (Stereolabs)
+### ZED SDK runtime and ZED Sim2Real library (Stereolabs)
 
-`sl_zed64.dll` / `libsl_zed.so` are not in this repository. `build.bat` / `build.sh`
-download them, and release packages bundle them. They are proprietary Stereolabs
-software, licensed separately under the ZED SDK license and not under this repository's
-MIT license: https://www.stereolabs.com/developers/license
+`sl_zed64.dll` / `libsl_zed.so` (the ZED SDK runtime) and `sl_zed_sim2real.dll` /
+`libsl_zed_sim2real.so` (the ZED Sim2Real camera model) are not in this repository.
+`build.bat` / `build.sh` download them, and release packages bundle them. They are
+proprietary Stereolabs software, licensed separately under the ZED SDK license and not
+under this repository's MIT license: https://www.stereolabs.com/developers/license
 
 ### Omniverse Kit and Isaac Sim
 

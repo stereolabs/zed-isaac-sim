@@ -16,8 +16,10 @@ Standalone example scripts for the ZED Isaac Sim / Isaac Lab integration, groupe
 > the streaming path. `isaaclab/` and `isaac_sim/` capture identical data and differ only in
 > framework and delivery (Isaac Lab GPU tensors vs. numpy/disk).
 
-The scripts run without installing the extension: each imports [`_bootstrap.py`](_bootstrap.py),
-which locates the extension root and puts `sl.sensor.camera` on `sys.path`.
+The command-line scripts run without installing the extension: each imports
+[`_bootstrap.py`](_bootstrap.py), which locates the extension root and puts `sl.sensor.camera` on
+`sys.path`. The two Script Editor scripts (`zed_depth_example.py`, `pose_to_zed_fusion.py`) need the
+extension enabled.
 
 ## Isaac Lab - tensor path
 
@@ -27,7 +29,7 @@ automatically.
 
 | Script | What it shows |
 | --- | --- |
-| [`isaaclab/zed_single.py`](isaaclab/zed_single.py) | Single ZED X: reference the USD, attach sensors to its authored `CameraLeft`/`CameraRight`, read stereo RGB + depth tensors. Optional robot mount. |
+| [`isaaclab/zed_single.py`](isaaclab/zed_single.py) | Single ZED X: reference the USD, attach sensors to its authored `CameraLeft`/`CameraRight`, read stereo RGB + depth tensors. Optionally placed under a robot prim. |
 | [`isaaclab/zed_multi_env.py`](isaaclab/zed_multi_env.py) | Vectorized capture: batched `(N, H, W, C)` tensors across N environments. |
 | [`isaaclab/zed_quadruped.py`](isaaclab/zed_quadruped.py) | ANYmal-C on rough terrain with the ZED on the base link; batched stereo RGB + depth. |
 | [`isaaclab/zed_franka_manipulation.py`](isaaclab/zed_franka_manipulation.py) | Autonomous Franka pick-and-lift (state machine) with a wrist-mounted ZED; fully headless-able. |
@@ -39,7 +41,7 @@ See [`isaac_sim/README.md`](isaac_sim/README.md) for arguments and usage.
 
 | Script | What it shows |
 | --- | --- |
-| [`isaac_sim/zed_depth_standalone.py`](isaac_sim/zed_depth_standalone.py) | Standalone / CLI capture (`python.bat` / `python.sh`): opens a USD scene with a ZED, saves RGB + depth as PNG/EXR. |
+| [`isaac_sim/zed_depth_standalone.py`](isaac_sim/zed_depth_standalone.py) | Standalone / CLI capture (`python.bat` / `python.sh`): captures from your USD scene or a built-in minimal one, and optionally saves RGB + depth as PNG/EXR. |
 | [`isaac_sim/zed_depth_example.py`](isaac_sim/zed_depth_example.py) | GUI Script Editor variant: captures every N physics steps while the timeline plays. |
 
 ## ZED Fusion calibration - streaming path

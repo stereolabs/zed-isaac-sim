@@ -80,7 +80,7 @@ RENDERING_DT = SUBSTEPS * PHYSICS_DT
 
 
 class _H1Runner:
-    """H1 flat-terrain locomotion on isaacsim.robot.policy.examples 7.x (Isaac Sim 6.1)."""
+    """H1 flat-terrain locomotion on isaacsim.robot.policy.examples 7.x (Isaac Sim 6.1 and 6.2)."""
 
     def __init__(self, prim_path, position) -> None:
         from isaacsim.robot.policy.examples import RobotPolicyRunner, get_h1_spec

@@ -62,7 +62,10 @@ class SlZEDDepthStreamer:
                     omni.usd.get_context().get_stage(), camera_prim_path,
                     compose_model(db.inputs.cameraModel, db.inputs.lensType))
                 setup = (camera_prim_path, effective_model, db.inputs.resolution, db.inputs.enableSave,
-                         db.inputs.outputDir, db.inputs.saveDepth)
+                         db.inputs.outputDir, db.inputs.saveDepth, db.inputs.fps,
+                         db.inputs.applyZedSim2Real, db.inputs.autoExposure, db.inputs.autoWhiteBalance,
+                         db.inputs.sensorNoise, db.inputs.motionBlur, db.inputs.vignetting,
+                         db.inputs.cameraSharpness, db.inputs.focusBlur)
                 if setup == state.failed_setup:
                     return False
 
@@ -82,6 +85,19 @@ class SlZEDDepthStreamer:
                     enable_save=db.inputs.enableSave,
                     output_dir=db.inputs.outputDir,
                     save_depth=db.inputs.saveDepth,
+                    camera_index=db.inputs.cameraIndex,
+                    # The ZED Sim2Real group, as on the ZED Camera Helper node. fps 0 means "not
+                    # set": the camera's own omni:sensor:tickRate, or the app's update rate, then
+                    # decides (see ZEDDepthCamera).
+                    fps=db.inputs.fps if db.inputs.fps > 0 else None,
+                    apply_zed_sim2real=db.inputs.applyZedSim2Real,
+                    auto_exposure=db.inputs.autoExposure,
+                    auto_white_balance=db.inputs.autoWhiteBalance,
+                    sensor_noise=db.inputs.sensorNoise,
+                    motion_blur=db.inputs.motionBlur,
+                    vignetting=db.inputs.vignetting,
+                    camera_sharpness=db.inputs.cameraSharpness,
+                    focus_blur=db.inputs.focusBlur,
                 )
 
                 if state.zed_depth._init_failed:

@@ -42,7 +42,7 @@ class SlImuNoiseDatabase(og.Database):
 
     # Imprint the generator and target ABI versions in the file for JIT generation
     GENERATOR_VERSION = (1, 81, 0)
-    TARGET_VERSION = (3, 1, 2)
+    TARGET_VERSION = (0, 0, 0)
 
     # This is an internal object that provides per-class storage of a per-node data dictionary
     PER_NODE_DATA = {}
@@ -59,7 +59,7 @@ class SlImuNoiseDatabase(og.Database):
         ('inputs:execIn', 'execution', 0, None, "Triggers the node (connect the IMU reader's execOut)", {}, True, None, False, ''),
         ('inputs:linAcc', 'vector3d', 0, None, 'IMU linear acceleration, m/s^2', {ogn.MetadataKeys.DEFAULT: '[0.0, 0.0, 0.0]'}, True, [0.0, 0.0, 0.0], False, ''),
         ('inputs:orientation', 'quatd', 0, None, 'IMU orientation (IJKR)', {ogn.MetadataKeys.DEFAULT: '[0.0, 0.0, 0.0, 1.0]'}, True, [0.0, 0.0, 0.0, 1.0], False, ''),
-        ('inputs:orientationNoise', 'float', 0, None, "Orientation jitter per sample, degrees; 0 = none", {ogn.MetadataKeys.DEFAULT: '0.0'}, True, 0.0, False, ''),
+        ('inputs:orientationNoise', 'float', 0, None, 'Orientation jitter per sample, degrees; 0 = none', {ogn.MetadataKeys.DEFAULT: '0.0'}, True, 0.0, False, ''),
         ('inputs:seed', 'uint', 0, None, "Decorrelates this IMU's noise from other cameras'", {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
         ('outputs:execOut', 'execution', 0, None, 'Fires once the outputs are written', {}, True, None, False, ''),
         ('outputs:linAcc', 'vector3d', 0, None, 'IMU linear acceleration with the noise and bias, m/s^2', {}, True, None, False, ''),

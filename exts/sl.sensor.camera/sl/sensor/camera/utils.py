@@ -26,6 +26,17 @@ class LensType(Enum):
     NARROW = "Narrow"
     FISHEYE = "Fisheye"
 
+
+# The frame rates a stream runs at; it falls back to the default for any other.
+STREAM_FRAME_RATES = (15, 30, 60, 120)
+DEFAULT_STREAM_FPS = 30
+
+
+def stream_frame_rate(fps) -> int:
+    """The frame rate a stream set to ``fps`` runs at."""
+    return fps if fps in STREAM_FRAME_RATES else DEFAULT_STREAM_FPS
+
+
 # Camera specifications mapping for ZED X, ZED XM and ZED X ONE GS
 _ZEDX_SPECIFICATIONS = {
     "HD1200": {
@@ -436,28 +447,35 @@ def get_camera_model(camera_model: str) -> str:
 # Lets a single placed asset drive the streamed camera model from its lens variant.
 SL_CAMERA_MODEL_ATTR = "sl:cameraModel"
 
-# Maps a camera model to the 'lens' variant that selects its optic + sl:cameraModel
-# on a shared-body variant asset. Only models served by a variant asset appear here;
-# single-lens assets (ZED_M, ZED_X, ...) are absent and need no selection.
-_LENS_VARIANT = {
-    "ZED_XONE_S":         "Wide",
-    "ZED_XONE_S_4MM":     "Narrow",
-    "ZED_XONE_S_FISHEYE": "Fisheye",
-    "ZED_XONE_GS":        "Wide",
-    "ZED_XONE_GS_4MM":    "Narrow",
-    # ZED_XONE_UHD is a fixed-lens product (no variantSet) -> absent here.
-}
+def select_lens_variant(stage, root_prim_path: str, camera_model: str) -> bool:
+    """Select the 'lens' variant of a placed ZED asset that matches a camera model.
 
-def get_lens_variant(camera_model: str) -> Optional[str]:
-    """Get the 'lens' variant name that a shared-body asset should select for a model.
+    The variant sets the lens mesh and where the cameras sit. Its variantSet is on
+    ``<root>/base_link/<base_model>``; a selection made on the asset root has no effect.
+    Assets without one (ZED_M, ZED_X_Nano, ZED_XONE_UHD) are left as they are.
 
     Args:
-        camera_model: The camera model name
+        stage: The USD stage holding the placed asset
+        root_prim_path: The prim path the ZED USD is referenced at (one prim, not a regex)
+        camera_model: The camera model name (e.g. "ZED_X_4MM" selects "Narrow")
 
     Returns:
-        The variant name (e.g. "Fisheye"), or None if the model uses a single-lens asset
+        True if the variant was selected
     """
-    return _LENS_VARIANT.get(camera_model)
+    model_path = f"{root_prim_path.rstrip('/')}/base_link/{get_camera_model(camera_model)}"
+    prim = stage.GetPrimAtPath(model_path)
+    if not prim or not prim.IsValid():
+        _log_warn(f"[ZED] No ZED model prim at {model_path}; its lens is left as authored.")
+        return False
+    vsets = prim.GetVariantSets()
+    if "lens" not in vsets.GetNames():
+        return False
+    vset = vsets.GetVariantSet("lens")
+    lens = get_lens_type(camera_model).value
+    if lens not in vset.GetVariantNames():
+        _log_warn(f"[ZED] {model_path} has no '{lens}' lens variant; it keeps '{vset.GetVariantSelection()}'.")
+        return False
+    return vset.SetVariantSelection(lens)
 
 def resolve_camera_model(stage, target_prim_path: str, fallback):
     """Resolve the effective composite camera model for a placed ZED asset.

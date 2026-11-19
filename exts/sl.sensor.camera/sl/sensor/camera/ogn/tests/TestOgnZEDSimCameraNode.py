@@ -62,6 +62,20 @@ class TestOgn(ogts.OmniGraphTestCase):
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
 
+        self.assertTrue(test_node.get_attribute_exists("inputs:cudaStreamLeft"))
+        attribute = test_node.get_attribute("inputs:cudaStreamLeft")
+        self.assertTrue(attribute.is_valid())
+        expected_value = 0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:cudaStreamRight"))
+        attribute = test_node.get_attribute("inputs:cudaStreamRight")
+        self.assertTrue(attribute.is_valid())
+        expected_value = 0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+
         self.assertTrue(test_node.get_attribute_exists("inputs:dataPtrDepth"))
         attribute = test_node.get_attribute("inputs:dataPtrDepth")
         self.assertTrue(attribute.is_valid())
@@ -188,9 +202,20 @@ class TestOgn(ogts.OmniGraphTestCase):
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
 
+        self.assertTrue(test_node.get_attribute_exists("inputs:virtualCamera"))
+        attribute = test_node.get_attribute("inputs:virtualCamera")
+        self.assertTrue(attribute.is_valid())
+        expected_value = False
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+
         self.assertTrue(test_node.get_attribute_exists("inputs:width"))
         attribute = test_node.get_attribute("inputs:width")
         self.assertTrue(attribute.is_valid())
         expected_value = 960
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+
+        self.assertTrue(test_node.get_attribute_exists("outputs:streamerId"))
+        attribute = test_node.get_attribute("outputs:streamerId")
+        self.assertTrue(attribute.is_valid())

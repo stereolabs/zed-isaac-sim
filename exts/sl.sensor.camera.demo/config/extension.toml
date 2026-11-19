@@ -10,15 +10,15 @@ readme = "docs/README.md"
 
 [package.target]
 platform = ["windows-x86_64", "linux-x86_64"]
-kit = ["110.1.2", "110.3.0"] # Isaac Sim 6.0 and 6.1
+kit = ["110.1.2", "110.3.0", "110.4.0"] # Isaac Sim 6.0, 6.1 and 6.2
 
 [dependencies]
 "sl.sensor.camera" = {}
 # isaacsim.* deps are optional: the repo builds against kit-kernel only (no full Isaac Sim),
 # so these packages aren't in the registry at build time and would fail the dependency solver.
-# They resolve at runtime inside Isaac Sim. See CLAUDE.md "isaacsim.* deps break precache".
+# They resolve at runtime inside Isaac Sim.
 "isaacsim.examples.browser" = { optional = true }
-"isaacsim.robot_motion.examples" = { optional = true }                      # pick-place, Isaac Sim 6.1
+"isaacsim.robot_motion.examples" = { optional = true }                      # pick-place, Isaac Sim 6.1 and 6.2
 "isaacsim.robot.experimental.manipulators.examples" = { optional = true }   # pick-place, Isaac Sim 6.0
 "isaacsim.robot_motion.motion_generation" = { optional = true }
 "isaacsim.robot.policy.examples" = { optional = true }

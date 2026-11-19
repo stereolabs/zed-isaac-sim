@@ -74,6 +74,15 @@
                     "uiGroup": "Configuration"
                 }
             },
+            "cameraIndex": {
+                "type": "int",
+                "description": "Index of the camera among the simulated cameras of the same model and lens, from which the ZED SDK derives its serial number and calibration. -1 picks the first free index at Play. Used when the ZED camera mode is 'virtual' (the default).",
+                "default": -1,
+                "metadata": {
+                    "uiName": "Camera Index",
+                    "uiGroup": "Configuration"
+                }
+            },
             "fps": {
                 "type": "uint",
                 "description": "Camera stream frame rate.",
@@ -99,7 +108,7 @@
             },
             "streamingPort": {
                 "type": "uint",
-                "description": "Unique port per camera.",
+                "description": "Even port to stream on. If another camera already uses it, Play changes it to the next free even port, with a warning.",
                 "default": 30000,
                 "metadata": {
                     "uiName": "Streaming Port",
@@ -184,6 +193,15 @@
                 "description": "Sharpness of a real ZED X instead of the renderer's: the render is much crisper than the camera, which softens fine detail and sharpens edges with light halos. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.",
                 "metadata": {
                     "uiName": "Camera sharpness",
+                    "uiGroup": "ZED Sim2Real"
+                }
+            },
+            "focusBlur": {
+                "type": "bool",
+                "default": false,
+                "description": "Fixed-focus blur (depth of field) of a real ZED X lens: the 2.2 mm is focused at 1.15 m (f/2.2), the 4 mm at 2 m (f/2.0); surfaces away from that distance, close ones most, are blurred by how far off they are. Renders each eye's depth while on (an extra render output per eye). ZED X, X Mini and X One GS / S lenses only. Needs the sRGB stream. Can be toggled live. Needs Apply ZED Sim2Real.",
+                "metadata": {
+                    "uiName": "Focus blur",
                     "uiGroup": "ZED Sim2Real"
                 }
             },

@@ -1,15 +1,16 @@
 # SDK-free ZED depth capture in Isaac Sim
 
 Capture **RGB + depth** from a simulated ZED inside Isaac Sim using the renderer, with **no ZED SDK
-and no streaming**. Both scripts are driven by `sl.sensor.camera.zed_depth.ZEDDepthCamera`, which pairs
-Replicator's `rgb` and `distance_to_image_plane` annotators.
+and no streaming**. Both scripts are driven by `sl.sensor.camera.zed_depth.ZEDDepthCamera`, which reads
+the color image and the depth (`distance_to_image_plane`) from Replicator annotators.
 
 > The depth here is Isaac Sim's *renderer* depth (ground truth), **not** the ZED SDK's stereo-matched
 > depth. For real ZED SDK depth, use the streaming path (see the
 > [extension reference](../../docs/README.md)).
 
-Both scripts locate the extension via the shared [`../_bootstrap.py`](../_bootstrap.py), so they run
-from any location without installing the extension.
+`zed_depth_standalone.py` locates the extension via the shared [`../_bootstrap.py`](../_bootstrap.py),
+so it runs from any location without installing the extension. `zed_depth_example.py` runs in the
+Script Editor and needs the extension enabled.
 
 ## Scripts
 
@@ -58,11 +59,12 @@ For interactive use inside the Isaac Sim GUI (extension enabled):
    `CAMERA_PRIM_PATH`, `CAMERA_MODEL`, `RESOLUTION`, `CAPTURE_INTERVAL` (capture every N physics steps),
    and `SAVE_DIR` (leave empty to only print stats).
 3. Execute the script, then press **Play**: RGB + depth are captured every `CAPTURE_INTERVAL` steps.
+   With `SAVE_DIR` set, frames are saved once the auto exposure has settled.
 4. Press **Stop** to clean up.
 
 ## Output
 
 - **Console** - per-capture shape and depth range stats.
 - **Files** (when a save path is set) - `rgb_left_NNNNNN.png` (left RGB) and `depth_NNNNNN.exr` (float32
-  depth in meters, `0` = invalid). For stereo models, `rgb_right_NNNNNN.png` (right RGB) is saved too;
-  depth stays left-referenced.
+  depth in meters, `inf` where nothing is in range). For stereo models, `rgb_right_NNNNNN.png` (right
+  RGB) is saved too; depth stays left-referenced.

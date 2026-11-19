@@ -42,7 +42,7 @@ PICK_XY = [(0.50, -0.15), (0.48, 0.12)]
 
 
 class _ArmTask:
-    """Franka pick-place on isaacsim.robot_motion.examples (Isaac Sim 6.1)."""
+    """Franka pick-place on isaacsim.robot_motion.examples (Isaac Sim 6.1 and 6.2)."""
 
     def __init__(self) -> None:
         from isaacsim.robot_motion.examples.manipulation import PickPlaceTask

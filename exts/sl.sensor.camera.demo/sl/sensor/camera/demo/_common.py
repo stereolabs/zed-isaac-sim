@@ -18,7 +18,7 @@ from pxr import Usd, UsdGeom, UsdPhysics, UsdShade, Gf, Sdf
 
 from sl.sensor.camera.mounting import author_fixed_joint
 from sl.sensor.camera.utils import (get_camera_model, get_camera_usd_path,
-                                     get_lens_type, get_lens_variant, is_stereo_camera)
+                                     get_lens_type, is_stereo_camera, select_lens_variant)
 
 # Stereolabs floor decals along the warehouse aisle, shared by the humanoid and AMR scenes.
 AISLE_LOGOS = [(-8.3, 10.5), (-8.3, 4.5), (-8.3, -1.5)]
@@ -45,21 +45,6 @@ def _asset(model: str) -> str:
     return path.replace("\\", "/") if path else path
 
 
-def _select_lens(stage, ref_prim_path: str, model: str) -> None:
-    """Select the 'lens' variant matching `model` on a referenced shared-body ZED asset.
-
-    No-op for single-lens assets (no variant mapping / no 'lens' variantSet).
-    """
-    variant = get_lens_variant(model)
-    if not variant:
-        return
-    model_prim = stage.GetPrimAtPath(ref_prim_path + "/base_link/" + get_camera_model(model))
-    if model_prim and model_prim.IsValid():
-        vsets = model_prim.GetVariantSets()
-        if "lens" in vsets.GetNames():
-            vsets.GetVariantSet("lens").SetVariantSelection(variant)
-
-
 # ---------------- streaming graph ----------------
 
 def make_zed_graph(stage, graph_path, cam_path, port, *, model="ZED_X", res="SVGA", fps=30):
@@ -82,10 +67,10 @@ def make_zed_graph(stage, graph_path, cam_path, port, *, model="ZED_X", res="SVG
                            ("ZED.inputs:fps", fps), ("ZED.inputs:streamingPort", port)],
          keys.CONNECT: [("OnTick.outputs:tick", "ZED.inputs:execIn")]})
     stage.GetPrimAtPath(graph_path + "/ZED").GetRelationship(rel_attr).SetTargets([Sdf.Path(cam_path)])
-    # Select the matching 'lens' variant on the target so the node (which now derives
+    # Select the matching 'lens' variant on the target so the node (which derives
     # model+lens from the asset) streams the intended lens even if the caller mounted
     # the asset without going through mount_zed_*. No-op for single-lens models.
-    _select_lens(stage, cam_path, model)
+    select_lens_variant(stage, cam_path, model)
 
 
 # ---------------- Stereolabs logo decals ----------------
@@ -184,7 +169,7 @@ def mount_zed_nested(stage, rig_path, translate, *, rotate=None, model="ZED_X"):
     cam_path = rig_path + "/" + model
     zedx = stage.DefinePrim(cam_path, "Xform")
     zedx.GetReferences().AddReference(_asset(model))
-    _select_lens(stage, cam_path, model)
+    select_lens_variant(stage, cam_path, model)
     for pr in Usd.PrimRange(zedx):
         if pr.HasAPI(UsdPhysics.RigidBodyAPI):
             UsdPhysics.RigidBodyAPI(pr).CreateRigidBodyEnabledAttr().Set(False)
@@ -207,7 +192,7 @@ def mount_zed_fixedjoint(stage, cam_path, link_path, link_world, *, model, pos, 
     wpose = Gf.Transform(rel * link_world)
     cam = stage.DefinePrim(cam_path, "Xform")
     cam.GetReferences().AddReference(_asset(model))
-    _select_lens(stage, cam_path, model)
+    select_lens_variant(stage, cam_path, model)
     cxf = UsdGeom.Xformable(cam)
     cxf.ClearXformOpOrder()   # asset root ships its own xformOps; override them
     cxf.AddTranslateOp().Set(wpose.GetTranslation())

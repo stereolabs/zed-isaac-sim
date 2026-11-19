@@ -12,6 +12,9 @@ camera model stay in sync.
 
 Fixed-lens models (ZED M, ZED X Nano, ZED X One UHD) are listed with their single
 lens as a static tag (e.g. "Wide lens") instead of buttons.
+
+A Settings tab holds the camera mode (the simCameraMode setting) and the stream timing (the
+streamTiming setting), shared by every camera.
 """
 import asyncio
 import functools
@@ -26,11 +29,47 @@ from omni.kit.menu.utils import add_menu_items, remove_menu_items
 from omni.usd import StageEventType
 from pxr import Tf, Usd
 
+from .. import retime, sdk_virtual_camera
 from ..utils import find_placed_zed_cameras, get_camera_thumbnail_path, get_lens_type
 
 _TITLE = "ZED Cameras"
 _MENU_GROUP = "Stereolabs"
 _LENS_ORDER = ("Wide", "Narrow", "Fisheye")
+_TABS = ("Cameras", "Settings")
+_CAMERAS_TAB, _SETTINGS_TAB = range(len(_TABS))
+# (setting value, combo label, tooltip), in combo order. The setting's own tooltip
+# is on its name, the selected option's on the combo.
+_MODES = (
+    (sdk_virtual_camera.MODE_VIRTUAL, "SDK virtual camera",
+     "The ZED SDK generates each camera's serial number and calibration, which the receiver\n"
+     "regenerates from the serial number. Any number of cameras.\n"
+     "The receiver needs ZED SDK 5.6.0 or newer."),
+    (sdk_virtual_camera.MODE_LEGACY, "Legacy serial number",
+     "Serial numbers from the SDK whitelist, calibration from their reserved file.\n"
+     "A few cameras per model and lens. For receivers older than 5.6.0."),
+)
+_MODE_TOOLTIP = (
+    "Which serial numbers and calibration the streamed cameras use.\n"
+    "Applies from the next Play."
+)
+_TIMINGS = (
+    (retime.TIMING_FIT, "Fit the stream fps",
+     "A timing where no app update spans more than one frame is kept (60 Hz with a 15, 30 or\n"
+     "60 fps stream), otherwise the update rate goes to the highest multiple of the stream fps\n"
+     "at or below it."),
+    (retime.TIMING_FRAME, "One update per frame",
+     "The app updates at the stream fps instead of a multiple of it, for machines that cannot\n"
+     "keep up with 60 Hz updates. During Play the viewport refreshes at the stream fps, USD\n"
+     "time-sampled animation plays slower, and a script that calls save_frame() itself at the\n"
+     "stream fps can miss frames."),
+    (retime.TIMING_OFF, "Keep the app's timing",
+     "Play leaves the app's timing as it is. When an app update spans more than one frame,\n"
+     "a stream can send fewer frames than its fps, at most one per app update."),
+)
+_TIMING_TOOLTIP = (
+    "How Play sets the app's timing so each stream sends every frame. Stop puts it back.\n"
+    "Applies from the next Play."
+)
 
 # omni.ui colors are 0xAABBGGRR. Accent = Stereolabs lime, RGB (187, 255, 36).
 _ACCENT = 0xFF24FFBB
@@ -55,6 +94,12 @@ _BTN_OFF_STYLE = {
     "Button.Label": {"color": 0xFFCCCCCC},
     "Tooltip": _TOOLTIP_STYLE,
 }
+_TAB_STYLE = {
+    "Button": {"background_color": 0x0, "border_radius": 0.0},
+    "Button:hovered": {"background_color": _BTN_OFF_BG},
+    "Button.Label": {"color": _TEXT_DIM},
+}
+_TAB_ON_STYLE = {**_TAB_STYLE, "Button.Label": {"color": 0xFFEEEEEE}}
 
 
 def _lens_sort_key(name: str):
@@ -71,6 +116,8 @@ class ZedLensPanel:
         self._stage_event_sub = None
         self._usd_listener = None
         self._rebuild_pending = False
+        # Kept on self: every stage selection change rebuilds the window.
+        self._tab = _CAMERAS_TAB
 
         self._window = ScrollingWindow(
             title=_TITLE, width=460, height=380, visible=False,
@@ -198,20 +245,69 @@ class ZedLensPanel:
     def _build(self):
         with self._window.frame:
             with ui.VStack(spacing=6, height=0):
-                ui.Spacer(height=2)
-                cameras = find_placed_zed_cameras(self._usd_context.get_stage())
-                self._build_header(len(cameras))
-                if not cameras:
-                    with ui.HStack(height=40):
-                        ui.Spacer(width=10)
-                        ui.Label(
-                            "No ZED camera in the stage.\n"
-                            "Reference a ZED asset (data/usd) to see it here.",
-                            style={"color": _TEXT_DIM},
-                        )
-                    return
-                for cam in cameras:
-                    self._build_row(cam)
+                self._build_tab_bar()
+                if self._tab == _SETTINGS_TAB:
+                    self._build_settings()
+                else:
+                    self._build_cameras()
+
+    def _show_tab(self, tab: int):
+        self._tab = tab
+        self._build()
+
+    def _build_tab_bar(self):
+        with ui.VStack(height=0, spacing=0):
+            with ui.HStack(height=26):
+                for tab, name in enumerate(_TABS):
+                    selected = tab == self._tab
+                    with ui.VStack(width=90, spacing=0):
+                        ui.Button(name, style=_TAB_ON_STYLE if selected else _TAB_STYLE,
+                                  clicked_fn=functools.partial(self._show_tab, tab))
+                        ui.Rectangle(height=2, style={"background_color": _ACCENT if selected else 0x0})
+                ui.Spacer()
+            ui.Rectangle(height=1, style={"background_color": _BTN_OFF_BG})
+
+    def _build_cameras(self):
+        cameras = find_placed_zed_cameras(self._usd_context.get_stage())
+        self._build_header(len(cameras))
+        if not cameras:
+            with ui.HStack(height=40):
+                ui.Spacer(width=10)
+                ui.Label(
+                    "No ZED camera in the stage.\n"
+                    "Reference a ZED asset (data/usd) to see it here.",
+                    style={"color": _TEXT_DIM},
+                )
+            return
+        for cam in cameras:
+            self._build_row(cam)
+
+    def _build_settings(self):
+        with ui.HStack(height=22):
+            ui.Spacer(width=10)
+            ui.Label("Shared by every ZED camera. Changes apply from the next Play.", style={"color": _TEXT_DIM})
+        self._build_setting_selector("Camera mode", _MODES, sdk_virtual_camera.get_mode_setting(),
+                                     sdk_virtual_camera.set_mode, _MODE_TOOLTIP)
+        self._build_setting_selector("Stream timing", _TIMINGS, retime.stream_timing(),
+                                     retime.set_stream_timing, _TIMING_TOOLTIP)
+
+    def _build_setting_selector(self, name: str, options, current: str, set_value, tooltip: str):
+        """A combo over ``options``, (setting value, label, tooltip) triples, that calls ``set_value`` with the pick."""
+        values = [value for value, _, _ in options]
+        index = values.index(current)
+
+        def on_pick(model):
+            set_value(values[model.as_int])
+            self._schedule_rebuild()  # so the combo's tooltip describes the new pick
+
+        with ui.HStack(height=22):
+            ui.Spacer(width=10)
+            ui.Label(name, width=100, style={"Label": {"color": _TEXT_DIM}, "Tooltip": _TOOLTIP_STYLE},
+                     tooltip=tooltip)
+            combo = ui.ComboBox(index, *[label for _, label, _ in options],
+                                style={"Tooltip": _TOOLTIP_STYLE}, tooltip=options[index][2])
+            combo.model.get_item_value_model().add_value_changed_fn(on_pick)
+            ui.Spacer(width=6)
 
     def _build_header(self, count: int):
         with ui.HStack(height=22):

@@ -40,6 +40,12 @@
       "version": 1,
       "uiName": "ZED IMU Noise",
       "language": "Python"
+    },
+    "ZED_FrameImu": {
+      "description": "Gives the ZED node the IMU at the time its frame was rendered",
+      "version": 1,
+      "uiName": "ZED Frame IMU",
+      "language": "Python"
     }
   }
 }

@@ -69,6 +69,16 @@ class TestOgn(ogts.OmniGraphTestCase):
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
 
+        self.assertTrue(test_node.get_attribute_exists("inputs:cameraIndex"))
+        attribute = test_node.get_attribute("inputs:cameraIndex")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.cameraIndex
+        database.inputs.cameraIndex = db_value
+        expected_value = -1
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
         self.assertTrue(test_node.get_attribute_exists("inputs:cameraModel"))
         attribute = test_node.get_attribute("inputs:cameraModel")
         self.assertTrue(attribute.is_valid())
@@ -110,6 +120,16 @@ class TestOgn(ogts.OmniGraphTestCase):
         db_value = database.inputs.execIn
         database.inputs.execIn = db_value
         expected_value = 0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:focusBlur"))
+        attribute = test_node.get_attribute("inputs:focusBlur")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.focusBlur
+        database.inputs.focusBlur = db_value
+        expected_value = False
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))

@@ -1,0 +1,58 @@
+#usda 1.0
+(
+    doc ="""Generated from node description file SlFrameImu.ogn
+Contains templates for node types found in that file."""
+)
+
+def OmniGraph "TestGraph"
+{
+    token evaluator:type = "push"
+    int2 fileFormatVersion = (1, 3)
+    token flatCacheBacking = "Shared"
+    token pipelineStage = "pipelineStageSimulation"
+
+    def OmniGraphNode "Template_sl_sensor_camera_ZED_FrameImu" (
+        docs="""Gives the ZED Stream node its frame's time and the IMU at that time. The time is IsaacReadSimulationTime's, the moment whose physics state the frame shows. The IMU comes from the IMU of every physics step that the extension keeps for this node, instead of IsaacReadIMU's latest reading: a frame is streamed a few physics steps after it was rendered. Falls back to the reading it is given. A stream faster than the app updates passes on every n-th frame, the fewest that keep each in an app update of its own, so the frames stay evenly spaced, and gives the ZED Stream node the rate it passes them on at. Linear acceleration out in m/s^2."""
+    )
+    {
+        token node:type = "sl.sensor.camera.ZED_FrameImu"
+        int node:typeVersion = 3
+
+        # 6 attributes
+        custom uint inputs:execIn (
+            docs="""Triggers the node (connect the IMU reader's execOut)"""
+        )
+        custom uint inputs:fps = 30 (
+            docs="""The stream's frame rate, the rate its camera renders at"""
+        )
+        custom vector3d inputs:linAcc = (0.0, 0.0, 0.0) (
+            docs="""IMU linear acceleration in stage units per second squared, the fallback"""
+        )
+        custom double inputs:metersPerUnit = 1.0 (
+            docs="""The stage's meters per unit, to give the fallback's acceleration in m/s^2"""
+        )
+        custom quatd inputs:orientation = (1.0, 0.0, 0.0, 0.0) (
+            docs="""IMU orientation (IJKR), the fallback"""
+        )
+        custom double inputs:simulationTime = 0.0 (
+            docs="""IsaacReadSimulationTime's time of the frame being streamed, seconds"""
+        )
+
+        # 5 attributes
+        custom uint outputs:execOut (
+            docs="""Fires once the outputs are written"""
+        )
+        custom uint outputs:fps (
+            docs="""The rate frames are passed on at, which the ZED Stream node declares to receivers: inputs:fps, or the app's update rate when that is lower"""
+        )
+        custom double outputs:frameTime (
+            docs="""Simulation time of the physics state the frame shows, seconds: its stamp"""
+        )
+        custom vector3d outputs:linAcc (
+            docs="""IMU linear acceleration at the frame's time, m/s^2"""
+        )
+        custom quatd outputs:orientation (
+            docs="""IMU orientation at the frame's time (IJKR)"""
+        )
+    }
+}

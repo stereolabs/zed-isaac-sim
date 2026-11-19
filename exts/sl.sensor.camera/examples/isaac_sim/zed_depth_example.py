@@ -73,7 +73,10 @@ def _on_physics_step(dt):
         f"range [{depth_min:.3f}, {depth_max:.3f}] m"
     )
 
-    if SAVE_DIR:
+    # The ZED X auto exposure takes a moment to settle on the scene, or to reach the end of its range in a
+    # scene too bright or too dark for it: skip the frames before.
+    state = _camera.exposure_state
+    if SAVE_DIR and (state is None or state.converged or state.saturated):
         _camera.save_frame(SAVE_DIR)
 
 

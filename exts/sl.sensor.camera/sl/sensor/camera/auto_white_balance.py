@@ -60,7 +60,7 @@ class ZedAutoWhiteBalance:
 
 
 class CameraWhiteBalanceLoop:
-    """Auto white balance of one ZED camera: meters the left eye's HdrColor every camera frame and
+    """Auto white balance of one ZED camera: meters the metered eye's HdrColor every camera frame and
     hands the gains to ``on_apply(gains)`` (both eyes share them, as on the real camera).
 
     Args:

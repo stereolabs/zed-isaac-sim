@@ -16,14 +16,29 @@ def OmniGraph "TestGraph"
     )
     {
         token node:type = "sl.sensor.camera.ZED_Depth"
-        int node:typeVersion = 2
+        int node:typeVersion = 3
 
-        # 8 attributes
+        # 18 attributes
+        custom bool inputs:applyZedSim2Real = true (
+            docs="""Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting, sharpness and focus blur, each with its own switch below. Off captures the render as is (the scene's own camera exposure, plain sRGB). Set before Play."""
+        )
+        custom bool inputs:autoExposure = true (
+            docs="""Real-camera auto exposure: meters the rendered HDR image and drives the cameras' exposure time and gain (exposure:time / exposure:iso) like a real ZED X, so the sensor noise and the motion blur follow it. It takes a moment to settle on a new scene, as a real camera does, so the first frames saved can be over- or under-exposed. Off keeps the scene's own camera exposure. Needs Apply ZED Sim2Real and the camera's render rate (see FPS)."""
+        )
+        custom bool inputs:autoWhiteBalance = true (
+            docs="""The real camera's auto white balance; both eyes share the left image's gains. Needs Apply ZED Sim2Real."""
+        )
+        custom int inputs:cameraIndex = -1 (
+            docs="""Index of the camera among the simulated cameras of the same model and lens, from which the ZED SDK derives its serial number and calibration. -1 picks the first free index at Play. Used when the ZED camera mode is 'virtual' (the default)."""
+        )
         custom token inputs:cameraModel = "ZED_X" (
             docs="""ZED Camera model. Determines intrinsics and stereo baseline."""
         )
         custom rel inputs:cameraPrim (
             docs="""ZED Camera prim (e.g. /World/ZED_X)."""
+        )
+        custom bool inputs:cameraSharpness = true (
+            docs="""The real camera's sharpness instead of the render's. Needs Apply ZED Sim2Real."""
         )
         custom bool inputs:enableSave = false (
             docs="""Save RGB (PNG) and depth (EXR) to disk each frame."""
@@ -31,8 +46,17 @@ def OmniGraph "TestGraph"
         custom uint inputs:execIn = 0 (
             docs="""Triggers execution"""
         )
+        custom bool inputs:focusBlur = false (
+            docs="""The ZED X lenses' fixed focus blurs what is closer than it (1.15 m for the 2.2 mm lens, 2 m for the 4 mm). Renders a depth image per eye while it is on. ZED X, X Mini and X One GS / S lenses only. Needs Apply ZED Sim2Real."""
+        )
+        custom double inputs:fps = 0.0 (
+            docs="""Rate the camera renders at, in frames per second. It caps the render rate as on a streamed camera, and the ZED Sim2Real auto exposure and motion blur need it: the motion vectors span one rendered frame, so a wrong rate scales the blur by the same ratio. 0 takes the camera's own omni:sensor:tickRate, and without that the app's update rate, which the camera then renders at; when the app updates on the wall clock, the auto exposure and motion blur stay off."""
+        )
         custom token inputs:lensType = "Wide" (
             docs="""Lens fitted to the camera. Options shown depend on the selected camera model."""
+        )
+        custom bool inputs:motionBlur = true (
+            docs="""Motion blur over each frame's exposure time, as on a real ZED X: sharp in daylight, smeared indoors and in the dark. Follows the auto exposure, or the camera's exposure:time when it is off. Needs Apply ZED Sim2Real and the camera's render rate (see FPS)."""
         )
         custom string inputs:outputDir = "" (
             docs="""Directory to save frames. Required when Enable Save is on."""
@@ -42,6 +66,12 @@ def OmniGraph "TestGraph"
         )
         custom bool inputs:saveDepth = true (
             docs="""Write the depth map (EXR) alongside the RGB frames. Turn off to record images only: depth costs an extra render annotator and a float32 EXR per frame, which dominates capture I/O. Depth is a stereo feature and is unavailable on mono cameras."""
+        )
+        custom bool inputs:sensorNoise = true (
+            docs="""The sensor noise of a real ZED X at the camera's gain (exposure:iso / 100), with its fixed pattern and row noise. Needs Apply ZED Sim2Real."""
+        )
+        custom bool inputs:vignetting = true (
+            docs="""The lens's falloff: darker image corners with a slight colour fringe. Needs Apply ZED Sim2Real."""
         )
     }
 }

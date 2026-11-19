@@ -168,7 +168,7 @@ def main():
             eye_paths += [p[k] for k in ("left", "right") if k in p]
         sim2real.prepare_cameras(omni.usd.get_context().get_stage(), eye_paths)
         if not sim2real.ok:
-            print("[ZED] --apply_zed_sim2real set but sl_zed_sim2real is unavailable; plain sRGB instead.")
+            print("[ZED] ZED Sim2Real is on but sl_zed_sim2real is unavailable; plain sRGB instead.")
 
     sim.reset()
     dt = sim.get_physics_dt()

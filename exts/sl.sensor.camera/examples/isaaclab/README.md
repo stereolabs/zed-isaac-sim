@@ -27,7 +27,7 @@ frame.
 ## Requirements
 
 - An [Isaac Lab](https://isaac-sim.github.io/IsaacLab/) installation (verified on Isaac Lab 3.0 /
-  Kit 110.3.0, Isaac Sim 6.1), with the `sl.sensor.camera` extension from this repository (v5.3.0 or
+  Kit 110.3.0, Isaac Sim 6.1), with the `sl.sensor.camera` extension from this repository (v5.4.0 or
   newer) available on `sys.path`.
   Each example imports the shared [`_bootstrap.py`](../_bootstrap.py), which handles this
   automatically, so no install step is needed.
@@ -38,7 +38,7 @@ frame.
   when it was omitted. You only need to pass the flag when launching your own scripts.
 
 > **First run is slow.** The first rendered frame compiles RTX shaders and can take several minutes
-> on a cold cache (the console prints `[ZED] warmup frame N ...` while this happens). It is
+> on a cold cache (the console prints `[ZED] Submitting first render ...` before it starts). It is
 > compiling, not hung; subsequent runs are fast.
 
 ## Quick start
@@ -60,29 +60,33 @@ To watch live in a GUI window instead of saving files, request a viewer:
 ./isaaclab.sh -p exts/sl.sensor.camera/examples/isaaclab/zed_single.py --resolution SVGA --viz kit
 ```
 
-To mount the ZED on a robot, load the robot USD and point `--camera_prim` at a path under it:
+To place the ZED under a robot, load the robot USD and point `--camera_prim` at a path under it. The
+camera is a plain reference there, 0.9 m up its parent prim's Z axis, and it does not follow a link that
+moves. On a moving robot, use the FixedJoint mount described in
+[Using the sensor in your own script](#using-the-sensor-in-your-own-script), as the robot demos do.
 
 ```bash
 ./isaaclab.sh -p exts/sl.sensor.camera/examples/isaaclab/zed_single.py --robot_usd /path/to/robot.usd --camera_prim /World/Robot/wrist/ZED_X
 ```
 
 The remaining commands in this document use the Linux form; on Windows, replace `./isaaclab.sh`
-with `isaaclab.bat` and use back-slash paths.
+with `isaaclab.bat` and use backslash paths.
 
 ## Command-line arguments
 
 ### Script arguments
 
-Shared by all examples in this folder (via `add_zed_cli_args`):
+Shared by the examples in this folder (via `add_zed_cli_args`), except where a row names its scripts:
 
 | Argument | Default | Description |
 | --- | --- | --- |
-| `--camera_model` | `ZED_X` (`ZED_X_Nano` in `zed_franka_manipulation.py`) | Stereo ZED model: `ZED_X`, `ZED_XM`, `ZED_X_4MM`, `ZED_XM_4MM`, `ZED_X_Nano`. Sets the baseline and camera prim paths. |
+| `--camera_model` | `ZED_X` (`ZED_X_Nano` in `zed_franka_manipulation.py`) | Stereo ZED model: `ZED_X`, `ZED_XM`, `ZED_X_4MM`, `ZED_XM_4MM`, `ZED_X_Nano`, `ZED_M`, `ZED_2i`, `ZED_2i_4MM`. Sets the baseline and camera prim paths. |
 | `--resolution` | `SVGA` | Capture resolution. ZED X family: `HD1200` (1920x1200), `HD1080` (1920x1080), `SVGA` (960x600). Validated against the selected model. |
-| `--camera_prim` | `/World/ZED_X` | Stage path where the ZED USD is referenced. Must be the model root (its children are `base_link/<model>/CameraLeft\|CameraRight`). Put it under a robot link to mount it. |
+| `--camera_prim` | `/World/ZED_X` | Stage path where the ZED USD is referenced. Must be the model root (its children are `base_link/<model>/CameraLeft\|CameraRight`). Put it under a robot prim to place it there; it does not follow a moving link. (`zed_single.py`) |
 | `--robot_usd` | `None` | Optional robot USD referenced at `/World/Robot`. When set, also pass `--camera_prim` pointing under the robot. (`zed_single.py`) |
-| `--num_frames` | `10` | Frames to capture when `--save_dir` is set; ignored otherwise. |
-| `--save_dir` | `None` | If set, save each frame to disk (see [Output](#output)) and stop after `--num_frames`. If omitted, the script runs until stopped (Ctrl-C / close) and only prints stats. |
+| `--num_frames` | `10` | Frames to capture when `--save_dir` is set; ignored otherwise. (not in `zed_record_demos.py`) |
+| `--save_dir` | `None` | If set, save each frame to disk (see [Output](#output)) and stop after `--num_frames`. If omitted, the script runs until stopped (Ctrl-C / close) and saves nothing; its stats print with `--verbose`. (not in `zed_record_demos.py`) |
+| `--apply_zed_sim2real` | on | Apply [ZED Sim2Real](../../docs/README.md#zed-sim2real-camera-model), the ZED X camera model, to the RGB tensors: auto exposure, white balance, noise, vignetting and sharpness. `--no-apply_zed_sim2real` gives the render's own RGB. Needs the `sl_zed_sim2real` library, else plain sRGB. (`zed_single.py`, `zed_multi_env.py`) |
 
 ### Isaac Lab launcher arguments
 
@@ -91,7 +95,7 @@ The most relevant of the standard `AppLauncher` arguments (run with `-h` for the
 | Argument | Description |
 | --- | --- |
 | `--enable_cameras` | Turns on the renderer so the camera sensors produce data. Enabled automatically by all example scripts; required when launching your own script. |
-| `--headless` / `--viz` | Run without a GUI / select a viewer (`--viz kit` opens a window). Newer Isaac Lab versions deprecate `--headless` in favor of `--viz none`. |
+| `--headless` / `--viz` | Run without a GUI / select a viewer (`--viz kit` opens a window). Isaac Lab 3.0 runs headless unless `--viz` is given (`zed_quadruped.py` opens the Kit window itself), and deprecates `--headless` in favor of `--viz none`. |
 | `--device` | Compute device for the tensors, e.g. `cuda:0` (default) or `cpu`. |
 | `--verbose` | Also enables this script's per-frame log line and warmup heartbeat; off by default (only milestones and errors print). Note that it raises Kit logging to DEBUG as well. |
 
@@ -102,14 +106,14 @@ The most relevant of the standard `AppLauncher` arguments (run with `-h` for the
 ```
 [ZED] baseline = 0.120 m, stereo = True, 960x600.
 [ZED] Streaming data after 1 frames.
-[ZED] frame 0: rgb_l (600, 960, 3) | rgb_r (600, 960, 3) | depth (600, 960) [1.05, 4.89] m (94.6% valid)
+[ZED] frame 0: rgb_l (600, 960, 3) | rgb_r (600, 960, 3) | depth (600, 960) [1.05, 4.89] m
 ```
 
 **Saved files** (when `--save_dir` is set), one set per frame:
 
 - `left_NNNNNN.png`, `right_NNNNNN.png` - 8-bit RGB.
-- `depth_NNNNNN.exr` - float32 depth in **meters** (`0` = invalid / no return). Falls back to `.npy`
-  if OpenCV is not available.
+- `depth_NNNNNN.exr` - float32 depth in **meters** (`inf` where nothing is in range, Isaac Lab's
+  default depth clipping). Falls back to `.npy` if OpenCV or its EXR writer is not available.
 
 **In code**, per camera sensor:
 
@@ -119,8 +123,8 @@ The most relevant of the standard `AppLauncher` arguments (run with `-h` for the
 
 ## Example scripts
 
-Beyond `zed_single.py` (covered above), the folder contains a vectorized example, a keyboard-teleop
-demo, and three ports of flagship Isaac Lab demos.
+Beyond `zed_single.py` (covered above), the folder contains a vectorized example and three ports of
+flagship Isaac Lab demos, two of them driven from the keyboard.
 
 ### `zed_multi_env.py` - vectorized capture (many environments)
 
@@ -142,10 +146,11 @@ environment (`left_env00.png`, ...).
 ### Flagship demo ports
 
 Three ports of flagship Isaac Lab demos. Each mounts a real ZED USD model (`ZED_X.usdc`, or
-`ZED_X_Nano.usdc` on the Franka wrist) rigidly to a robot link and reads its authored `CameraLeft` /
-`CameraRight`, not ad-hoc pinhole cameras, so intrinsics and baseline match real hardware. The mount
-pose (a translate plus `RotateXYZ` in the link frame) is exposed as per-demo constants near the top
-of each script; tune them in the viewport. All three accept the shared script arguments.
+`ZED_X_Nano.usdc` in `zed_franka_manipulation.py`) rigidly to a robot link and reads its authored
+`CameraLeft` / `CameraRight`, not ad-hoc pinhole cameras, so intrinsics and baseline match real
+hardware. The mount pose (a translate plus `RotateXYZ` in the link frame) is exposed as per-demo
+constants near the top of each script; tune them in the viewport. All three accept `--camera_model`
+and `--resolution`.
 
 #### [`zed_quadruped.py`](zed_quadruped.py) - walking ANYmal-C on rough terrain
 
@@ -156,13 +161,13 @@ robots).
 
 ```bash
 ./isaaclab.sh -p exts/sl.sensor.camera/examples/isaaclab/zed_quadruped.py --verbose            # GUI, keyboard-steered
-./isaaclab.sh -p exts/sl.sensor.camera/examples/isaaclab/zed_quadruped.py --command 1 0 0 --save_dir /tmp/zed_quad --num_frames 5 --save_every 10   # headless walk
+./isaaclab.sh -p exts/sl.sensor.camera/examples/isaaclab/zed_quadruped.py --headless --command 1 0 0 --save_dir /tmp/zed_quad --num_frames 5 --save_every 10   # headless walk
 ```
 
 Keyboard ([Isaac Lab `Se2Keyboard`](https://isaac-sim.github.io/IsaacLab/)), after **clicking the
-3D viewport to focus it**: `↑`/`↓` walk forward/back, `←`/`→` strafe, `Z`/`X` turn, `L` reset.
-For a non-interactive / headless walk, pass `--command VX VY WZ` (m/s, m/s, rad/s) instead of using
-the keyboard.
+3D viewport to focus it**: `↑`/`↓` walk forward/back, `←`/`→` strafe, `Z`/`X` turn, `L` zeroes the
+command. For a non-interactive / headless walk, pass `--command VX VY WZ` (m/s, m/s, rad/s) instead of
+using the keyboard.
 
 With `--save_dir`, writes `step_NNNNN/{left,right}_envNN.png` + `depth_envNN.exr` per environment
 every `--save_every` steps, stopping after `--num_frames` batches; without it, streams per-environment
@@ -180,7 +185,7 @@ it doubles as a CI check.
 
 ```bash
 ./isaaclab.sh -p exts/sl.sensor.camera/examples/isaaclab/zed_franka_manipulation.py --headless --num_envs 4 --num_frames 5 --save_dir /tmp/zed_franka
-./isaaclab.sh -p exts/sl.sensor.camera/examples/isaaclab/zed_franka_manipulation.py --num_envs 1    # GUI
+./isaaclab.sh -p exts/sl.sensor.camera/examples/isaaclab/zed_franka_manipulation.py --num_envs 1 --viz kit    # GUI
 ```
 
 Saves a `zed_NNNNN/` batch (`{left,right}_envNN.png` + `depth_envNN.exr`) every `--save_every`
@@ -195,14 +200,15 @@ added to the task's default `wrist_cam`; the static `table_cam` is dropped (the 
 is the relevant one). A GUI window is required for keyboard input.
 
 ```bash
-./isaaclab.sh -p exts/sl.sensor.camera/examples/isaaclab/zed_record_demos.py --num_demos 1 --dataset_file /tmp/demos/zed_stack.hdf5
+./isaaclab.sh -p exts/sl.sensor.camera/examples/isaaclab/zed_record_demos.py --viz kit --num_demos 1 --dataset_file /tmp/demos/zed_stack.hdf5
 ```
 
 `--num_demos N` stops the session automatically once N successful stacks have been exported; `0`
 (the default) records indefinitely until you close the window.
 
-Keyboard controls: arrow keys and `WASDQE` move the end-effector, `K` / `L` toggle the gripper, and
-`R` discards the current attempt and resets. See Isaac Lab's
+Keyboard controls: `W`/`S`, `A`/`D` and `Q`/`E` move the end-effector, `Z`/`X`, `T`/`G` and `C`/`V`
+rotate it, `K` toggles the gripper, `L` stops the motion and opens the gripper, and `R` discards the
+current attempt and resets. See Isaac Lab's
 [Teleoperation and Imitation Learning tutorial](https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/teleop_imitation.html)
 for the fuller walkthrough this script's keyboard path mirrors.
 
@@ -221,8 +227,7 @@ following must be true at the same time:
 
 When all four hold, the console prints `[ZED] Recorded N successful demonstrations.` and the demo
 is flushed to disk immediately. If you never see that line, nothing was recorded; closing the
-window then removes the empty file. The `grasp_1` / `stack_1` / `grasp_2` subtask terms in the
-console show how far an attempt got.
+window then removes the empty file.
 
 The light/texture randomization events are disabled by default (they trigger ~24 large HDR/texture
 downloads from Nucleus); pass `--domain_rand` to re-enable them. To inspect the resulting file
@@ -265,8 +270,9 @@ root = "/World/Robot/wrist/ZED_X"
 zed = sim_utils.UsdFileCfg(usd_path=get_camera_usd_path(args.camera_model))
 zed.func(root, zed)
 
-# 2) Give the authored cameras the model's own field of view and lens: the USD ships one
-#    nominal lens for every variant.
+# 2) Select the model's lens variant (lens body and camera position), then give the authored
+#    cameras the model's own field of view and lens: the USD ships one nominal lens for every
+#    variant.
 apply_zed_optics(sim.stage, root, args.camera_model, args.resolution)
 
 # 3) Attach Camera sensors to the authored stereo prims (spawn=None => use the existing prims).
@@ -310,6 +316,9 @@ nested reference does not track a moving link when Fabric is enabled).
 
 ## Troubleshooting
 
+- **`The OmniLensDistortion USD schema is not loaded`** (own scripts). Call `add_zed_kit_args(args)`
+  before `AppLauncher(args)`: the ZED lens is authored with a USD schema that Isaac Lab's apps do not
+  start, and it cannot be enabled once the app runs.
 - **Empty / all-zero frames** (own scripts). `--enable_cameras` is missing: RGB and depth are
   render-based. The shipped examples force the flag on automatically.
 - **First run seems to hang for minutes.** The first rendered frame compiles RTX shaders on a cold

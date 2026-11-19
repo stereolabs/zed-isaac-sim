@@ -25,14 +25,24 @@ class SlZEDDepthStreamerDatabase(og.Database):
 
     Attribute Value Properties:
         Inputs:
+            inputs.applyZedSim2Real
+            inputs.autoExposure
+            inputs.autoWhiteBalance
+            inputs.cameraIndex
             inputs.cameraModel
             inputs.cameraPrim
+            inputs.cameraSharpness
             inputs.enableSave
             inputs.execIn
+            inputs.focusBlur
+            inputs.fps
             inputs.lensType
+            inputs.motionBlur
             inputs.outputDir
             inputs.resolution
             inputs.saveDepth
+            inputs.sensorNoise
+            inputs.vignetting
 
     Predefined Tokens:
         tokens.ZED_X
@@ -63,14 +73,24 @@ class SlZEDDepthStreamerDatabase(og.Database):
     #     Is_Required, DefaultValue, Is_Deprecated, DeprecationMsg
     # You should not need to access any of this data directly, use the defined database interfaces
     INTERFACE = og.Database._get_interface([
+        ('inputs:applyZedSim2Real', 'bool', 0, 'Apply ZED Sim2Real', "Apply the ZED X camera model: the camera's auto exposure and auto white balance, sensor noise, motion blur, lens vignetting, sharpness and focus blur, each with its own switch below. Off captures the render as is (the scene's own camera exposure, plain sRGB). Set before Play.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
+        ('inputs:autoExposure', 'bool', 0, 'Auto Exposure', "Real-camera auto exposure: meters the rendered HDR image and drives the cameras' exposure time and gain (exposure:time / exposure:iso) like a real ZED X, so the sensor noise and the motion blur follow it. It takes a moment to settle on a new scene, as a real camera does, so the first frames saved can be over- or under-exposed. Off keeps the scene's own camera exposure. Needs Apply ZED Sim2Real and the camera's render rate (see FPS).", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
+        ('inputs:autoWhiteBalance', 'bool', 0, 'Auto White Balance', "The real camera's auto white balance; both eyes share the left image's gains. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
+        ('inputs:cameraIndex', 'int', 0, 'Camera Index', "Index of the camera among the simulated cameras of the same model and lens, from which the ZED SDK derives its serial number and calibration. -1 picks the first free index at Play. Used when the ZED camera mode is 'virtual' (the default).", {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: '-1'}, True, -1, False, ''),
         ('inputs:cameraModel', 'token', 0, 'Camera Model', 'ZED Camera model. Determines intrinsics and stereo baseline.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'ZED_X,ZED_XM,ZED_X_Nano,ZED_M,ZED_2i', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["ZED_X", "ZED_XM", "ZED_X_Nano", "ZED_M", "ZED_2i"]', ogn.MetadataKeys.DEFAULT: '"ZED_X"'}, True, "ZED_X", False, ''),
         ('inputs:cameraPrim', 'target', 0, 'ZED Camera Prim', 'ZED Camera prim (e.g. /World/ZED_X).', {ogn.MetadataKeys.LITERAL_ONLY: '1', ogn.MetadataKeys.ALLOW_MULTI_INPUTS: '0', 'uiGroup': 'Camera Selection'}, True, None, False, ''),
+        ('inputs:cameraSharpness', 'bool', 0, 'Camera Sharpness', "The real camera's sharpness instead of the render's. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:enableSave', 'bool', 0, 'Enable Save', 'Save RGB (PNG) and depth (EXR) to disk each frame.', {'uiGroup': 'Capture', ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
         ('inputs:execIn', 'execution', 0, 'ExecIn', 'Triggers execution', {ogn.MetadataKeys.DEFAULT: '0'}, True, 0, False, ''),
+        ('inputs:focusBlur', 'bool', 0, 'Focus Blur', "The ZED X lenses' fixed focus blurs what is closer than it (1.15 m for the 2.2 mm lens, 2 m for the 4 mm). Renders a depth image per eye while it is on. ZED X, X Mini and X One GS / S lenses only. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'false'}, True, False, False, ''),
+        ('inputs:fps', 'double', 0, 'FPS', "Rate the camera renders at, in frames per second. It caps the render rate as on a streamed camera, and the ZED Sim2Real auto exposure and motion blur need it: the motion vectors span one rendered frame, so a wrong rate scales the blur by the same ratio. 0 takes the camera's own omni:sensor:tickRate, and without that the app's update rate, which the camera then renders at; when the app updates on the wall clock, the auto exposure and motion blur stay off.", {'uiGroup': 'Configuration', ogn.MetadataKeys.DEFAULT: '0.0'}, True, 0.0, False, ''),
         ('inputs:lensType', 'token', 0, 'Lens Type', 'Lens fitted to the camera. Options shown depend on the selected camera model.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'Wide,Narrow', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["Wide", "Narrow"]', ogn.MetadataKeys.DEFAULT: '"Wide"'}, True, "Wide", False, ''),
+        ('inputs:motionBlur', 'bool', 0, 'Motion Blur', "Motion blur over each frame's exposure time, as on a real ZED X: sharp in daylight, smeared indoors and in the dark. Follows the auto exposure, or the camera's exposure:time when it is off. Needs Apply ZED Sim2Real and the camera's render rate (see FPS).", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
         ('inputs:outputDir', 'string', 0, 'Output Directory', 'Directory to save frames. Required when Enable Save is on.', {'uiGroup': 'Capture', ogn.MetadataKeys.DEFAULT: '""'}, True, "", False, ''),
         ('inputs:resolution', 'token', 0, 'Resolution', 'Render resolution for RGB and depth.', {ogn.MetadataKeys.ALLOWED_TOKENS: 'HD2K,HD1200,HD1080,HD720,SVGA,VGA', 'uiGroup': 'Configuration', ogn.MetadataKeys.ALLOWED_TOKENS_RAW: '["HD2K", "HD1200", "HD1080", "HD720", "SVGA", "VGA"]', ogn.MetadataKeys.DEFAULT: '"SVGA"'}, True, "SVGA", False, ''),
         ('inputs:saveDepth', 'bool', 0, 'Save Depth', 'Write the depth map (EXR) alongside the RGB frames. Turn off to record images only: depth costs an extra render annotator and a float32 EXR per frame, which dominates capture I/O. Depth is a stereo feature and is unavailable on mono cameras.', {'uiGroup': 'Capture', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
+        ('inputs:sensorNoise', 'bool', 0, 'Sensor Noise', "The sensor noise of a real ZED X at the camera's gain (exposure:iso / 100), with its fixed pattern and row noise. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
+        ('inputs:vignetting', 'bool', 0, 'Vignetting', "The lens's falloff: darker image corners with a slight colour fringe. Needs Apply ZED Sim2Real.", {'uiGroup': 'ZED Sim2Real', ogn.MetadataKeys.DEFAULT: 'true'}, True, True, False, ''),
     ])
 
     class tokens:
@@ -98,14 +118,14 @@ class SlZEDDepthStreamerDatabase(og.Database):
         return role_data
 
     class ValuesForInputs(og.DynamicAttributeAccess):
-        LOCAL_PROPERTY_NAMES = {"cameraModel", "enableSave", "execIn", "lensType", "outputDir", "resolution", "saveDepth", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
+        LOCAL_PROPERTY_NAMES = {"applyZedSim2Real", "autoExposure", "autoWhiteBalance", "cameraIndex", "cameraModel", "cameraSharpness", "enableSave", "execIn", "focusBlur", "fps", "lensType", "motionBlur", "outputDir", "resolution", "saveDepth", "sensorNoise", "vignetting", "_setting_locked", "_batchedReadAttributes", "_batchedReadValues"}
         """Helper class that creates natural hierarchical access to input attributes"""
         def __init__(self, node: og.Node, attributes, dynamic_attributes: og.DynamicAttributeInterface):
             """Initialize simplified access for the attribute data"""
             context = node.get_graph().get_default_graph_context()
             super().__init__(context, node, attributes, dynamic_attributes)
-            self._batchedReadAttributes = [self._attributes.cameraModel, self._attributes.enableSave, self._attributes.execIn, self._attributes.lensType, self._attributes.outputDir, self._attributes.resolution, self._attributes.saveDepth]
-            self._batchedReadValues = ["ZED_X", False, 0, "Wide", "", "SVGA", True]
+            self._batchedReadAttributes = [self._attributes.applyZedSim2Real, self._attributes.autoExposure, self._attributes.autoWhiteBalance, self._attributes.cameraIndex, self._attributes.cameraModel, self._attributes.cameraSharpness, self._attributes.enableSave, self._attributes.execIn, self._attributes.focusBlur, self._attributes.fps, self._attributes.lensType, self._attributes.motionBlur, self._attributes.outputDir, self._attributes.resolution, self._attributes.saveDepth, self._attributes.sensorNoise, self._attributes.vignetting]
+            self._batchedReadValues = [True, True, True, -1, "ZED_X", True, False, 0, False, 0.0, "Wide", True, "", "SVGA", True, True, True]
 
         @property
         def cameraPrim(self):
@@ -121,60 +141,140 @@ class SlZEDDepthStreamerDatabase(og.Database):
             self.cameraPrim_size = data_view.get_array_size()
 
         @property
-        def cameraModel(self):
+        def applyZedSim2Real(self):
             return self._batchedReadValues[0]
 
-        @cameraModel.setter
-        def cameraModel(self, value):
+        @applyZedSim2Real.setter
+        def applyZedSim2Real(self, value):
             self._batchedReadValues[0] = value
 
         @property
-        def enableSave(self):
+        def autoExposure(self):
             return self._batchedReadValues[1]
 
-        @enableSave.setter
-        def enableSave(self, value):
+        @autoExposure.setter
+        def autoExposure(self, value):
             self._batchedReadValues[1] = value
 
         @property
-        def execIn(self):
+        def autoWhiteBalance(self):
             return self._batchedReadValues[2]
 
-        @execIn.setter
-        def execIn(self, value):
+        @autoWhiteBalance.setter
+        def autoWhiteBalance(self, value):
             self._batchedReadValues[2] = value
 
         @property
-        def lensType(self):
+        def cameraIndex(self):
             return self._batchedReadValues[3]
 
-        @lensType.setter
-        def lensType(self, value):
+        @cameraIndex.setter
+        def cameraIndex(self, value):
             self._batchedReadValues[3] = value
 
         @property
-        def outputDir(self):
+        def cameraModel(self):
             return self._batchedReadValues[4]
 
-        @outputDir.setter
-        def outputDir(self, value):
+        @cameraModel.setter
+        def cameraModel(self, value):
             self._batchedReadValues[4] = value
 
         @property
-        def resolution(self):
+        def cameraSharpness(self):
             return self._batchedReadValues[5]
 
-        @resolution.setter
-        def resolution(self, value):
+        @cameraSharpness.setter
+        def cameraSharpness(self, value):
             self._batchedReadValues[5] = value
 
         @property
-        def saveDepth(self):
+        def enableSave(self):
             return self._batchedReadValues[6]
+
+        @enableSave.setter
+        def enableSave(self, value):
+            self._batchedReadValues[6] = value
+
+        @property
+        def execIn(self):
+            return self._batchedReadValues[7]
+
+        @execIn.setter
+        def execIn(self, value):
+            self._batchedReadValues[7] = value
+
+        @property
+        def focusBlur(self):
+            return self._batchedReadValues[8]
+
+        @focusBlur.setter
+        def focusBlur(self, value):
+            self._batchedReadValues[8] = value
+
+        @property
+        def fps(self):
+            return self._batchedReadValues[9]
+
+        @fps.setter
+        def fps(self, value):
+            self._batchedReadValues[9] = value
+
+        @property
+        def lensType(self):
+            return self._batchedReadValues[10]
+
+        @lensType.setter
+        def lensType(self, value):
+            self._batchedReadValues[10] = value
+
+        @property
+        def motionBlur(self):
+            return self._batchedReadValues[11]
+
+        @motionBlur.setter
+        def motionBlur(self, value):
+            self._batchedReadValues[11] = value
+
+        @property
+        def outputDir(self):
+            return self._batchedReadValues[12]
+
+        @outputDir.setter
+        def outputDir(self, value):
+            self._batchedReadValues[12] = value
+
+        @property
+        def resolution(self):
+            return self._batchedReadValues[13]
+
+        @resolution.setter
+        def resolution(self, value):
+            self._batchedReadValues[13] = value
+
+        @property
+        def saveDepth(self):
+            return self._batchedReadValues[14]
 
         @saveDepth.setter
         def saveDepth(self, value):
-            self._batchedReadValues[6] = value
+            self._batchedReadValues[14] = value
+
+        @property
+        def sensorNoise(self):
+            return self._batchedReadValues[15]
+
+        @sensorNoise.setter
+        def sensorNoise(self, value):
+            self._batchedReadValues[15] = value
+
+        @property
+        def vignetting(self):
+            return self._batchedReadValues[16]
+
+        @vignetting.setter
+        def vignetting(self, value):
+            self._batchedReadValues[16] = value
 
         def __getattr__(self, item: str):
             if item in self.LOCAL_PROPERTY_NAMES:
@@ -339,7 +439,7 @@ class SlZEDDepthStreamerDatabase(og.Database):
     @staticmethod
     def register(node_type_class):
         SlZEDDepthStreamerDatabase.NODE_TYPE_CLASS = node_type_class
-        og.register_node_type(SlZEDDepthStreamerDatabase.abi, 2)
+        og.register_node_type(SlZEDDepthStreamerDatabase.abi, 3)
 
     @staticmethod
     def deregister():

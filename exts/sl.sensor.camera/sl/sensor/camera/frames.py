@@ -128,7 +128,8 @@ class FrameWriter:
     """Where a capture goes. Subclass to send frames somewhere other than numbered PNGs.
 
     ``needs_pose`` asks the capture for the rendered frame's simulation time and camera
-    transform, which costs two extra annotators on the render product.
+    transform, which costs two extra annotators on the render product and a PhysX pose read
+    per physics step.
 
     ``owns_output_dir`` says the writer resolves the output folder itself, so the capture hands
     over the path it was given untouched instead of putting a timestamped folder under it.
@@ -138,7 +139,9 @@ class FrameWriter:
     owns_output_dir = False
 
     def write(self, frame: CapturedFrame) -> bool:
-        """Consume one frame. Return False to skip it, leaving the frame index unspent."""
+        """Consume one frame. Return False to skip it, leaving the frame index unspent: a capture
+        read on each update reads the same rendered frame again on the next one, until a new one
+        renders. A frame the post-render graph handed over (``enable_save``) is not offered again."""
         raise NotImplementedError
 
     def close(self) -> None:

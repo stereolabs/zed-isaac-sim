@@ -50,7 +50,7 @@ DEFAULT_CAMERA_PITCH_DEG = 30.0              # downward tilt about +Y (single ax
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Capture RGB + depth from a ZED ZED depth camera")
+    parser = argparse.ArgumentParser(description="Capture RGB + depth from a ZED camera")
     parser.add_argument("--usd_path", type=str, default=None,
                         help="Environment USD to load. If omitted, a minimal ground + dome-light scene is built.")
     parser.add_argument("--camera_prim", type=str, default=None,
@@ -85,7 +85,7 @@ from isaacsim.core.experimental.utils.stage import add_reference_to_stage, defin
 from isaacsim.core.experimental.utils.transform import euler_angles_to_quaternion
 from isaacsim.core.utils.stage import is_stage_loading, open_stage
 
-from sl.sensor.camera.utils import get_camera_usd_path
+from sl.sensor.camera.utils import get_camera_usd_path, select_lens_variant
 from sl.sensor.camera.zed_depth import ZEDDepthCamera
 
 
@@ -106,7 +106,8 @@ def _spawn_zed(prim_path):
     if usd_path is None:
         return False
     define_prim(prim_path)
-    add_reference_to_stage(usd_path, prim_path)
+    prim = add_reference_to_stage(usd_path, prim_path)
+    select_lens_variant(prim.GetStage(), prim_path, args.camera_model)
     orientation = euler_angles_to_quaternion(
         np.array([0.0, DEFAULT_CAMERA_PITCH_DEG, 0.0]), degrees=True, extrinsic=False
     ).numpy()
@@ -166,6 +167,17 @@ def main():
         camera.destroy()
         simulation_app.close()
         sys.exit(1)
+
+    # The ZED X auto exposure takes a moment to settle on the scene, as a real camera does: wait for it
+    # so the saved frames are not over- or under-exposed.
+    MAX_EXPOSURE_STEPS = 180
+    for _ in range(MAX_EXPOSURE_STEPS):
+        state = camera.exposure_state
+        if state is None or state.converged or state.saturated:
+            break
+        world.step(render=True)
+    else:
+        print(f"[ZED][Depth] Auto exposure not settled after {MAX_EXPOSURE_STEPS} steps; capturing anyway.")
 
     print(f"[ZED][Depth] Capturing {args.num_frames} frames...")
     # The render pipeline delivers empty buffers for the first few ticks after the sensor

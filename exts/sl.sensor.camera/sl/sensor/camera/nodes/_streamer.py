@@ -20,6 +20,7 @@ _SIM2REAL_SWITCHES = (
     ("inputs:motionBlur", "set_motion_blur"),
     ("inputs:vignetting", "set_vignetting"),
     ("inputs:cameraSharpness", "set_camera_sharpness"),
+    ("inputs:focusBlur", "set_focus_blur"),
     ("inputs:autoWhiteBalance", "set_auto_white_balance"),
 )
 
@@ -63,10 +64,10 @@ def setup(db, camera_prims, serial_number=None, stream_depth=False) -> bool:
     """Start streaming `camera_prims` (one prim, or the two of a virtual stereo pair) on the node's port."""
     state = db.per_instance_state
     try:
-        port = db.inputs.streamingPort
-        if port in used_ports:
-            report(state, f"[ZED] Port {port} is already used by another instance.")
-            return False
+        port = requested_port = db.inputs.streamingPort
+        # A stream takes the even port and the next one up (RTP and RTCP).
+        while port in used_ports:
+            port += 2
 
         # Prefer the model + lens read from the placed asset (its 'lens' variant / sl:cameraModel);
         # fall back to the node's base-model + lens-type dropdowns when the asset carries neither.
@@ -91,7 +92,9 @@ def setup(db, camera_prims, serial_number=None, stream_depth=False) -> bool:
             motion_blur=db.inputs.motionBlur,
             vignetting=db.inputs.vignetting,
             camera_sharpness=db.inputs.cameraSharpness,
-            auto_white_balance=db.inputs.autoWhiteBalance)
+            focus_blur=db.inputs.focusBlur,
+            auto_white_balance=db.inputs.autoWhiteBalance,
+            camera_index=db.inputs.cameraIndex)
 
         state.initialized = True
         state.reported = None
@@ -105,19 +108,30 @@ def setup(db, camera_prims, serial_number=None, stream_depth=False) -> bool:
         # The switches are polled on every app update rather than read in compute: execIn may fire
         # only once (e.g. from a run-one-simulation-frame node), and property-panel edits during play
         # go to fabric, which emits no USD change notice. The annotator's setters are change-gated.
-        # The same poll warns once if the IMU never lets the stream start.
+        # The same poll warns once if the IMU never lets the stream start, and once if the app's timing keeps
+        # the stream from sending every frame.
         node = db.node
+        # Resolved once: looking an attribute up by name on every update costs more than reading it.
+        switches = [(node.get_attribute(attr), setter) for attr, setter in _SIM2REAL_SWITCHES]
 
-        def push_sim2real(_e, _state=state, _node=node):
+        def push_sim2real(_e, _state=state, _switches=switches):
             if _state.annotator is None:
                 return
             _state.annotator.warn_if_imu_blocks_stream()
-            for attr, setter in _SIM2REAL_SWITCHES:
-                getattr(_state.annotator, setter)(og.Controller.get(og.Controller.attribute(attr, _node)))
+            _state.annotator.warn_if_timing_drops_frames()
+            for attribute, setter in _switches:
+                getattr(_state.annotator, setter)(attribute.get())
 
         state.sim2real_sub = omni.kit.app.get_app().get_update_event_stream().create_subscription_to_pop(
             push_sim2real, name=f"zed_sim2real_poll_{port}"
         )
+
+        if port != requested_port:
+            # Written to USD so the property panel shows the port and the next Play keeps it.
+            og.Controller.set(og.Controller.attribute("inputs:streamingPort", node), port,
+                              update_usd=True, undoable=False)
+            carb.log_warn(f"[ZED] Port {requested_port} is already used by another camera: "
+                          f"{camera_prims[0].pathString} streams on port {port}, now set on {node.get_prim_path()}.")
 
     except Exception:
         report(state, f"[ZED] Streamer setup failed:\n{traceback.format_exc()}")

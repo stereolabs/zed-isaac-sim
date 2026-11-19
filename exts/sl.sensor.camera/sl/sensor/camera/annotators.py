@@ -4,6 +4,7 @@
 import carb
 import omni.graph.core as og
 import omni.usd
+from pxr import UsdGeom
 
 # Prims are looked up with plain USD calls: isaacsim.core.utils is not in Isaac Lab's app.
 try:
@@ -14,8 +15,9 @@ except ImportError:
     rep = viewport_manager = None
     SyntheticData = SyntheticDataStage = None
 
-from . import camera_model_lib
-from .optics import apply_camera_optics
+from . import camera_model_lib, retime, sdk_virtual_camera, update_clock
+from .imu_stream import FrameImu
+from .optics import apply_camera_optics, setup_virtual_camera
 from .utils import (
     get_camera_subpaths,
     is_stereo_camera,
@@ -27,6 +29,7 @@ from .utils import (
     get_resolution,
     get_pinhole_parameters,
     resolve_resolution_token,
+    stream_frame_rate,
     LensType,
 )
 
@@ -37,6 +40,9 @@ used_ports = set()
 # aspect ratio, since the SDK stretches the map over the whole image and the renderer only draws
 # square pixels.
 _STREAM_DEPTH_WIDTH = 896
+
+# Frames streamed before the timing check: a retime at Play reads back only after the next app update.
+_TIMING_CHECK_FRAMES = 3
 
 
 def _stream_depth_resolution(image_resolution) -> list:
@@ -51,6 +57,31 @@ def _stream_depth_resolution(image_resolution) -> list:
 # the default settings), which turns into 255 * clamp(HDR) as soon as anything requests
 # HdrColor on the same render product.
 STREAM_ENCODINGS = ("srgb", "linear")
+
+
+# Upscaling quality of the ZED image render products. A real ZED X's image is far softer than Isaac's render, but
+# DLSS Performance (Isaac's default) renders at half resolution and leaves stair-stepped slanted edges that the
+# camera model's sharpness cannot hide; DLSS Quality is the closest to a real ZED X. Set per render product, so
+# the viewport keeps the application's setting. "" = leave the render product as the application sets it.
+DLSS_QUALITY_SETTING = "/exts/sl.sensor.camera/renderDlssMode"  # performance | balanced | quality | auto | ""
+DEFAULT_DLSS_MODE = "quality"
+
+
+def apply_render_quality(render_product_path: str) -> None:
+    """Set the ZED render product's DLSS mode (DLSS_QUALITY_SETTING, default quality); the product's own
+    ``omni:rtx:post:dlss:execMode`` attribute, so other render products and the viewport keep theirs."""
+    mode = carb.settings.get_settings().get(DLSS_QUALITY_SETTING)
+    mode = DEFAULT_DLSS_MODE if mode is None else str(mode).strip().lower()
+    if not mode or not render_product_path:
+        return
+    try:
+        stage = omni.usd.get_context().get_stage()
+        prim = stage.GetPrimAtPath(render_product_path) if stage else None
+        attr = prim.GetAttribute("omni:rtx:post:dlss:execMode") if prim and prim.IsValid() else None
+        if attr:
+            attr.Set(mode)
+    except Exception as exc:  # an older Kit without per-product RTX settings: keep the application's
+        carb.log_warn(f"[ZED] could not set DLSS {mode} on {render_product_path}: {exc!r}")
 
 
 class ZEDAnnotator:
@@ -81,6 +112,8 @@ class ZEDAnnotator:
         motion_blur = True,
         vignetting = True,
         camera_sharpness = True,
+        focus_blur = False,
+        camera_index = -1,
         auto_white_balance = True
         ):
 
@@ -89,12 +122,14 @@ class ZEDAnnotator:
         camera_prim can be a list of:
           - a single prim (stereo or mono)
           - two prims (custom stereo made of two monos)
+        camera_index selects the SDK virtual camera (virtual mode only, -1 = first free).
         apply_zed_sim2real is the master switch of the ZED X camera model: off, none of the real-camera
         effects below applies (the render streams as is), whatever their own switch.
         """
 
         self.stage = omni.usd.get_context().get_stage()
         self._imu_gate_checked = False
+        self._timing_checked = False
 
         # Normalize input
         if len(camera_prim) == 1:
@@ -149,10 +184,18 @@ class ZEDAnnotator:
         self.motion_blur = bool(motion_blur)
         self._motion_annots = []
         self._blur_scale_pushed = None
+        self._exposure_time_pushed = None
         # Lens vignetting of a ZED X wide lens, scaled by field angle (not for fisheye lenses).
         self.vignetting = bool(vignetting)
         # A real ZED X's sharpness (lens/demosaic blur + ISP sharpening) instead of the render's.
         self.camera_sharpness = bool(camera_sharpness)
+        # The lens's fixed-focus blur, from each eye's depth (distance_to_image_plane), attached only while on.
+        self.focus_blur = bool(focus_blur)
+        self._srgb_eyes = []        # (sRGB encoder node, its eye's render product path)
+        self._focus_depth = []      # (depth annotator, render product path, sRGB encoder node) while attached
+        self._focus_pushed = None
+        self._focus_warned = False
+        self._focus_sub = None      # pending attach / detach, run after the current app update
         # A real ZED X's auto white balance (auto_white_balance.py), gains shared by both eyes.
         self.auto_white_balance = bool(auto_white_balance)
         self.white_balance_loop = None
@@ -164,8 +207,15 @@ class ZEDAnnotator:
         self.stream_depth = stream_depth
         self.depth_resolution = _stream_depth_resolution(self.resolution) if stream_depth else None
 
+        # Custom stereo keeps its exporter-written calibration file (legacy serial) in both modes.
+        self.use_virtual_camera = (not self.custom_stereo
+                                   and sdk_virtual_camera.get_mode() == sdk_virtual_camera.MODE_VIRTUAL)
+        self.camera_index = camera_index
+        self.virtual_camera = None
+
         self.nodes = []
         self.zed_ = None
+        self.frame_imu = None
 
         self.build_annotators()
         mode_str = "left+depth" if self.stream_depth else ('custom stereo' if self.custom_stereo else ('stereo' if self.is_stereo else 'mono'))
@@ -182,14 +232,35 @@ class ZEDAnnotator:
         if not prim.IsValid():
             carb.log_error(f"[ZED] Camera prim path {camera_prim_path} is not valid.")
             return False
+        if self.virtual_camera is not None:
+            return True   # authored by _init_virtual_camera
         return apply_camera_optics(prim, self.camera_model, self.resolution_token, fps=self.fps)
+
+    def _init_virtual_camera(self, left_path: str, right_path) -> bool:
+        """Get this camera's serial number and calibration from the SDK and render with it."""
+        prims = [self.stage.GetPrimAtPath(path) if path is not None else None for path in (left_path, right_path)]
+        for path, prim in zip((left_path, right_path), prims):
+            if prim is not None and not prim.IsValid():
+                carb.log_error(f"[ZED] Camera prim path {path} is not valid.")
+                return False
+        try:
+            self.virtual_camera = setup_virtual_camera(
+                prims[0], prims[1], self.camera_model, self.resolution_token, self.camera_index, fps=self.fps)
+        except sdk_virtual_camera.VirtualCameraError as e:
+            carb.log_error(f"[ZED] [{self.camera_prim_path[0].pathString}] {e} Camera not streamed.")
+            return False
+        carb.log_info(f"[ZED] [{self.camera_prim_path[0].pathString}] virtual camera index "
+                      f"{self.virtual_camera.index}, SN {self.virtual_camera.serial_number}")
+        print(f"[ZED][port {self.port}] Virtual camera SN {self.virtual_camera.serial_number} "
+              f"(index {self.virtual_camera.index})")
+        return True
 
     @staticmethod
     def check_frame_rate(camera_frame_rate: int):
-        if camera_frame_rate not in [15, 30, 60, 120]:
-            carb.log_warn(f"[ZED] Invalid frame rate passed: {camera_frame_rate}. Defaulting to 30.")
-            return 30
-        return camera_frame_rate
+        fps = stream_frame_rate(camera_frame_rate)
+        if fps != camera_frame_rate:
+            carb.log_warn(f"[ZED] Invalid frame rate passed: {camera_frame_rate}. Defaulting to {fps}.")
+        return fps
 
     def _image_annotator(self, device):
         """Per-eye image source: linear HdrColor for the sRGB encoder, or the legacy tonemapped LdrColor."""
@@ -221,6 +292,7 @@ class ZEDAnnotator:
         # whatever motion_blur is, so it can be toggled live (the blur scale is 0 when off).
         rp_path = self.left_rp if side == "Left" else getattr(self, "right_rp", None)
         if rp_path:
+            self._srgb_eyes.append((node, rp_path))
             try:
                 mv = rep.AnnotatorRegistry.get_annotator("MotionVectors", device="cuda")
                 mv.attach(rp_path)
@@ -250,6 +322,7 @@ class ZEDAnnotator:
                 name_left = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_left_rp"
                 self._left_rp = viewport_manager.get_render_product(left_full_path, self.resolution, False, name_left)
                 self.left_rp = self._left_rp.hydra_texture.get_render_product_path()
+                apply_render_quality(self.left_rp)
                 self.left_rgb_annot = self._image_annotator(device)
                 self._image_camera_paths.insert(0, left_full_path)
                 self.left_rgb_annot.attach(self.left_rp)
@@ -269,6 +342,7 @@ class ZEDAnnotator:
                 name_right = f"{self.camera_prim_path[1].pathString.split('/')[-1]}_right_rp"
                 self._right_rp = viewport_manager.get_render_product(right_full_path, self.resolution, False, name_right)
                 self.right_rp = self._right_rp.hydra_texture.get_render_product_path()
+                apply_render_quality(self.right_rp)
                 self.right_rgb_annot = self._image_annotator(device)
                 self._image_camera_paths.append(right_full_path)
                 self.right_rgb_annot.attach(self.right_rp)
@@ -278,10 +352,16 @@ class ZEDAnnotator:
         else:
             # subpaths["left"] resolves to CameraLeft for stereo models, Camera for mono.
             left_full_path = f"{self.camera_prim_path[0].pathString}/{subpaths['left']}"
+            if self.use_virtual_camera:
+                right_rendered = self.is_stereo and not self.stream_depth
+                right_path = f"{self.camera_prim_path[0].pathString}/{subpaths['right']}" if right_rendered else None
+                if not self._init_virtual_camera(left_full_path, right_path):
+                    return
             if self.init_camera(left_full_path):
                 name_left = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_left_rp"
                 self._left_rp = viewport_manager.get_render_product(left_full_path, self.resolution, False, name_left)
                 self.left_rp = self._left_rp.hydra_texture.get_render_product_path()
+                apply_render_quality(self.left_rp)
                 self.left_rgb_annot = self._image_annotator(device)
                 self._image_camera_paths.insert(0, left_full_path)
                 self.left_rgb_annot.attach(self.left_rp)
@@ -307,6 +387,7 @@ class ZEDAnnotator:
                     name_right = f"{self.camera_prim_path[0].pathString.split('/')[-1]}_right_rp"
                     self._right_rp = viewport_manager.get_render_product(right_full_path, self.resolution, False, name_right)
                     self.right_rp = self._right_rp.hydra_texture.get_render_product_path()
+                    apply_render_quality(self.right_rp)
                     self.right_rgb_annot = self._image_annotator(device)
                     self._image_camera_paths.append(right_full_path)
                     self.right_rgb_annot.attach(self.right_rp)
@@ -380,7 +461,6 @@ class ZEDAnnotator:
         self.zed_.get_attribute("inputs:port").set(self.port)
         self.zed_.get_attribute("inputs:width").set(self.resolution[0])
         self.zed_.get_attribute("inputs:height").set(self.resolution[1])
-        self.zed_.get_attribute("inputs:fps").set(self.fps)
 
         for cam in cams:
             # get the annotator nodes and connect them to the zed node
@@ -395,11 +475,12 @@ class ZEDAnnotator:
                 # Depth keeps its float buffer; image eyes go through the stream encoder.
                 ptr_node = self.annotators[side].get_node() if side == "Depth" else self._image_source_node(side)
                 ptr_node.get_attribute("outputs:exec").connect(self.sync_node.get_attribute("inputs:execIn"), True)
-                for p in _params["attrs"]:
+                attrs = list(_params["attrs"])
+                if side != "Depth" and self.stream_encoding == "srgb":
+                    attrs.append("cudaStream")
+                for p in attrs:
                     target_attr = self.zed_.get_attribute(f"inputs:{p}{side}{_params['attr_suffix']}")
                     ptr_node.get_attribute(f"outputs:{p}").connect(target_attr, True)
-
-        self.sim_time.get_attribute("outputs:simulationTime").connect(self.zed_.get_attribute("inputs:simulationTime"), True)
 
         self.zed_.get_attribute("inputs:stream").set(value=True)
         # Feed the C++ node the two primitives (SDK MODEL code + SIM_LENS_TYPE); it
@@ -411,7 +492,11 @@ class ZEDAnnotator:
         else:
             self.zed_.get_attribute("inputs:simCameraModel").set(get_sdk_model_id(get_camera_model(self.camera_model)))
             self.zed_.get_attribute("inputs:simLensType").set(get_sim_lens_type_id(get_lens_type(self.camera_model)))
-        self.zed_.get_attribute("inputs:serialNumber").set(self.serial_number if self.serial_number else "-1")
+        if self.virtual_camera is not None:
+            self.zed_.get_attribute("inputs:serialNumber").set(str(self.virtual_camera.serial_number))
+        else:
+            self.zed_.get_attribute("inputs:serialNumber").set(self.serial_number if self.serial_number else "-1")
+        self.zed_.get_attribute("inputs:virtualCamera").set(self.virtual_camera is not None)
         self.zed_.get_attribute("inputs:streamDepth").set(self.stream_depth)
         if self.stream_depth:
             self.zed_.get_attribute("inputs:depthWidth").set(self.depth_resolution[0])
@@ -427,15 +512,37 @@ class ZEDAnnotator:
         self.zed_.get_attribute("inputs:bitrate").set(self.bitrate)
         self.zed_.get_attribute("inputs:chunkSize").set(self.chunk_size)
         self.zed_.get_attribute("inputs:transportLayerMode").set(self.transport_layer_mode)
-        self.imu.get_attribute("outputs:orientation").connect(self.zed_.get_attribute("inputs:orientation"), True)
-        self.imu.get_attribute("outputs:linAcc").connect(self.zed_.get_attribute("inputs:linearAcceleration"), True)
-        self.imu.get_attribute("outputs:execOut").connect(self.zed_.get_attribute("inputs:execIn"), True)
+        # IMU -> the IMU at the frame's time (IsaacReadIMU's reading as the fallback) -> ZED node, which takes
+        # its frame time from the same node.
+        frame_imu_path = f"{self._graph_path}/zed_{self.port}_frame_imu"
+        frame_imu = self.graph.get_node(frame_imu_path)
+        if not frame_imu.is_valid():
+            if self.stage.GetPrimAtPath(frame_imu_path):
+                self.stage.RemovePrim(frame_imu_path)
+            frame_imu = self.graph.create_node(frame_imu_path, "sl.sensor.camera.ZED_FrameImu", True)
+        frame_imu.get_attribute("inputs:metersPerUnit").set(UsdGeom.GetStageMetersPerUnit(self.stage))
+        frame_imu.get_attribute("inputs:fps").set(self.fps)
+        self.sim_time.get_attribute("outputs:simulationTime").connect(frame_imu.get_attribute("inputs:simulationTime"), True)
+        self.imu.get_attribute("outputs:execOut").connect(frame_imu.get_attribute("inputs:execIn"), True)
+        self.imu.get_attribute("outputs:orientation").connect(frame_imu.get_attribute("inputs:orientation"), True)
+        self.imu.get_attribute("outputs:linAcc").connect(frame_imu.get_attribute("inputs:linAcc"), True)
+        frame_imu.get_attribute("outputs:orientation").connect(self.zed_.get_attribute("inputs:orientation"), True)
+        frame_imu.get_attribute("outputs:linAcc").connect(self.zed_.get_attribute("inputs:linearAcceleration"), True)
+        frame_imu.get_attribute("outputs:frameTime").connect(self.zed_.get_attribute("inputs:simulationTime"), True)
+        # The rate the stream declares to receivers: lower than its fps when the app updates less often.
+        frame_imu.get_attribute("outputs:fps").connect(self.zed_.get_attribute("inputs:fps"), True)
+        frame_imu.get_attribute("outputs:execOut").connect(self.zed_.get_attribute("inputs:execIn"), True)
+        self.nodes.append(frame_imu)
 
         # Keep the per-eye sRGB encoders created above so destroy() removes them too.
         self.nodes = [self.sync_node, self.sim_time, self.imu, self.zed_] + self.nodes
         self._push_noise_gain()
         self._push_blur_scale()
         self._push_vignetting()
+        self._update_focus_blur()
+
+        self.frame_imu = FrameImu(self._imu_path, frame_imu_path, self.port)
+        update_clock.acquire()
 
     def warn_if_imu_blocks_stream(self) -> None:
         """Warn once if the IMU node keeps running without ever starting the ZED node.
@@ -453,9 +560,32 @@ class ZEDAnnotator:
                 "its Enabled attribute on and an enabled rigid body on the camera or a parent prim. To hold the "
                 "camera still, tick Kinematic Enabled instead of unticking Rigid Body Enabled. Then Stop and Play.")
 
+    def warn_if_timing_drops_frames(self) -> None:
+        """Warn once, after the first frames, if the app's timing keeps this stream from sending every frame."""
+        if (self._timing_checked or self.zed_ is None or not self.zed_.is_valid() or not self._image_camera_paths
+                or self.zed_.get_compute_count() < _TIMING_CHECK_FRAMES):
+            return
+        self._timing_checked = True
+        if retime.physics_steps() is None or retime.isaac_lab_drives_physics():
+            return   # not Isaac Sim's physics; under Isaac Lab the Play retime logs why it leaves the timing alone
+        problem = retime.timing_problem(self.fps, self._image_camera_paths[0])
+        if problem:
+            carb.log_warn(
+                f"[ZED][port {self.port}] The stream may send fewer than {self.fps} frames a second: {problem}. The "
+                f"app is retimed at Play for the streams on the stage unless Stream timing in the ZED Cameras panel "
+                f"({retime.TIMING_SETTING}) is {retime.TIMING_OFF}; a camera added during Play needs a Stop and Play.")
+
     @property
     def _auto_exposure_active(self) -> bool:
         return self.apply_zed_sim2real and self.auto_exposure and self.stream_encoding == "srgb"
+
+    def _metered_eye(self):
+        """(annotator, render product) the camera's auto exposure and white balance meter: the right eye when it is
+        streamed, as a real ZED X's auto exposure meters its right sensor; else the left (mono, left + depth)."""
+        right_streamed = (self.custom_stereo or self.is_stereo) and not self.stream_depth
+        if right_streamed and hasattr(self, "right_rgb_annot") and getattr(self, "_right_rp", None) is not None:
+            return self.right_rgb_annot, self._right_rp
+        return self.left_rgb_annot, self._left_rp
 
     def _update_exposure_loop(self) -> None:
         """Start or stop the camera's auto exposure to match the current settings."""
@@ -467,10 +597,11 @@ class ZEDAnnotator:
                 def view(_self=self):  # the output the real camera meters: lens falloff, white balance
                     return getattr(_self, "_vignette_inv_f", 0.0), getattr(_self, "_wb_pushed", None) or (1.0, 1.0, 1.0)
 
-                self.exposure_loop = CameraExposureLoop(self.left_rgb_annot, self._left_rp,
+                annot, rp = self._metered_eye()
+                self.exposure_loop = CameraExposureLoop(annot, rp,
                                                         self._image_camera_paths, self.fps,
                                                         on_apply=self._on_exposure,
-                                                        view=view)
+                                                        streamer_id=self._streamer_id, view=view)
                 carb.log_info(f"[ZED][port {self.port}] Auto exposure on for {self._image_camera_paths}")
             except Exception as exc:
                 carb.log_error(f"[ZED][port {self.port}] Auto exposure unavailable: {exc!r}")
@@ -496,7 +627,8 @@ class ZEDAnnotator:
                     loop = _self.exposure_loop
                     return float(loop.state.error_ev or 0.0) if loop is not None else 0.0
 
-                self.white_balance_loop = CameraWhiteBalanceLoop(self.left_rgb_annot, self._left_rp, self.fps,
+                annot, rp = self._metered_eye()
+                self.white_balance_loop = CameraWhiteBalanceLoop(annot, rp, self.fps,
                                                                  on_apply=self._push_white_balance, ae_error=ae_error)
                 carb.log_info(f"[ZED][port {self.port}] Auto white balance on")
             except Exception as exc:
@@ -527,6 +659,15 @@ class ZEDAnnotator:
         if enabled != getattr(self, "auto_white_balance", enabled):
             self.auto_white_balance = enabled
             self._update_white_balance_loop()
+
+    def _streamer_id(self) -> int:
+        """Id of this camera's streamer in the ZED SDK, -1 until the streaming node opened it."""
+        if self.zed_ is None or not self.zed_.is_valid():
+            return -1
+        try:
+            return int(self.zed_.get_attribute("outputs:streamerId").get())
+        except Exception:
+            return -1
 
     def set_auto_exposure(self, enabled) -> None:
         """Live toggle (change-gated). Off restores the scene's own camera exposure."""
@@ -577,6 +718,109 @@ class ZEDAnnotator:
             self.camera_sharpness = enabled
             self._push_vignetting()
 
+    def set_focus_blur(self, enabled) -> None:
+        """Live toggle of the lens's focus blur (change-gated; the f-number / focus overrides in the
+        focusBlurFNumber / focusBlurDistance settings are picked up here too)."""
+        enabled = bool(enabled)
+        if enabled != getattr(self, "focus_blur", enabled):
+            self.focus_blur = enabled
+            self._update_focus_blur()
+        elif self._focus_depth:
+            self._push_focus()
+
+    def _focus_lens(self) -> int:
+        from .stream_encoding import focus_lens
+        return focus_lens(self.camera_model)
+
+    def _update_focus_blur(self) -> None:
+        """Attach each eye's depth to its encoder while the focus blur is on, and detach it when off, so
+        a camera without focus blur renders no depth. Called on every switch change, also from the node's
+        compute: the attach / detach itself runs after the app update, outside any graph evaluation
+        (detaching during it leaves the depth nodes half removed, and a later attach then fails)."""
+        if not getattr(self, "_srgb_eyes", None) or self._focus_sub is not None:
+            return
+        import omni.kit.app
+
+        def run(_e, _self=self):
+            _self._focus_sub = None
+            _self._apply_focus_blur()
+
+        self._focus_sub = omni.kit.app.get_app().get_post_update_event_stream().create_subscription_to_pop(
+            run, name=f"zed_focus_blur_{self.port}")
+
+    def _apply_focus_blur(self) -> None:
+        if not getattr(self, "_srgb_eyes", None):
+            return
+        want = bool(self.apply_zed_sim2real and self.focus_blur and self.stream_encoding == "srgb")
+        if want and self._focus_lens() == camera_model_lib.LENS_NONE:
+            if not self._focus_warned:
+                carb.log_warn(f"[ZED][port {self.port}] Focus blur: no lens figures for {self.camera_model} "
+                              "(ZED X, X Mini and X One GS / S lenses only); it stays off.")
+                self._focus_warned = True
+            want = False
+        if want and not camera_model_lib.has_focus_blur():
+            if not self._focus_warned:
+                carb.log_warn(f"[ZED][port {self.port}] Focus blur needs sl_zed_sim2real 0.5.0 or later; it stays off.")
+                self._focus_warned = True
+            want = False
+        if want and not self._focus_depth:
+            for node, rp_path in self._srgb_eyes:
+                if not node.is_valid():
+                    continue
+                try:
+                    depth = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane", device="cuda")
+                    depth.attach(rp_path)
+                    d_node = depth.get_node()
+                    d_node.get_attribute("outputs:dataPtr").connect(node.get_attribute("inputs:depthPtr"), True)
+                    d_node.get_attribute("outputs:bufferSize").connect(node.get_attribute("inputs:depthSize"), True)
+                    self._focus_depth.append((depth, rp_path, node))
+                except Exception as exc:
+                    carb.log_warn(f"[ZED][port {self.port}] Focus blur unavailable for {rp_path}: {exc!r}")
+            self._focus_pushed = None
+            self._push_focus()
+            carb.log_info(f"[ZED][port {self.port}] Focus blur on ({len(self._focus_depth)} eye(s))")
+        elif not want and self._focus_depth:
+            self._focus_pushed = None
+            self._push_focus(lens=camera_model_lib.LENS_NONE)
+            self._detach_focus_depth(disconnect=True)
+            carb.log_info(f"[ZED][port {self.port}] Focus blur off")
+
+    def _push_focus(self, lens=None) -> None:
+        """Hand the encoders the lens of the focus blur, its focal length in pixels, the f-number / focus
+        overrides and the stage's metres per unit (change-gated)."""
+        from pxr import UsdGeom
+        from .stream_encoding import FOCUS_DISTANCE_SETTING, FOCUS_F_NUMBER_SETTING
+        lens = self._focus_lens() if lens is None else lens
+        params = get_pinhole_parameters(self.camera_model, self.resolution_token) or {}
+        settings = carb.settings.get_settings()
+        values = (int(lens), float(params.get("focal_length_px") or 0.0),
+                  float(settings.get(FOCUS_F_NUMBER_SETTING) or 0.0), float(settings.get(FOCUS_DISTANCE_SETTING) or 0.0),
+                  float(UsdGeom.GetStageMetersPerUnit(self.stage) or 1.0))
+        if values == self._focus_pushed:
+            return
+        for node, _ in self._srgb_eyes:
+            if node.is_valid():
+                for name, v in zip(("focusLens", "focusFocalPx", "focusFNumber", "focusDistance", "depthScale"), values):
+                    node.get_attribute(f"inputs:{name}").set(v)
+        self._focus_pushed = values
+
+    def _detach_focus_depth(self, disconnect: bool) -> None:
+        """Detach the depth annotators. A live toggle disconnects them from the encoders first:
+        SyntheticData skips detaching a node that still has downstream connections."""
+        for depth, rp_path, node in self._focus_depth:
+            if disconnect and node.is_valid():
+                try:
+                    d_node = depth.get_node()
+                    d_node.get_attribute("outputs:dataPtr").disconnect(node.get_attribute("inputs:depthPtr"), True)
+                    d_node.get_attribute("outputs:bufferSize").disconnect(node.get_attribute("inputs:depthSize"), True)
+                except Exception:
+                    pass
+            try:
+                depth.detach(rp_path)
+            except Exception:
+                pass
+        self._focus_depth = []
+
     def set_motion_blur(self, enabled) -> None:
         """Live toggle of the exposure-time motion blur (change-gated)."""
         enabled = bool(enabled)
@@ -595,10 +839,26 @@ class ZEDAnnotator:
         value = attr.Get() if attr else None
         return float(value) if value else 0.02
 
+    def _push_exposure_time(self, exposure_s=None) -> None:
+        """Hand the encoders this frame's exposure time (the light flicker integrates over it). Change-gated."""
+        if not getattr(self, "_srgb_nodes", None):
+            return
+        if exposure_s is None:
+            exposure_s = self.exposure_loop.state.exposure_s if self.exposure_loop is not None \
+                else self._camera_exposure_time()
+        last = self._exposure_time_pushed
+        if last is not None and (exposure_s == last or (exposure_s > 0 and last > 0 and abs(exposure_s / last - 1) < 0.01)):
+            return
+        for node in self._srgb_nodes:
+            if node.is_valid():
+                node.get_attribute("inputs:exposureTime").set(float(exposure_s))
+        self._exposure_time_pushed = exposure_s
+
     def _push_blur_scale(self, exposure_s=None) -> None:
         """Hand the encoders the fraction of each motion vector to smear along: exposure time over
-        the vectors' time step (one camera frame); 0 = no blur.
+        the vectors' time step (one camera frame); 0 = no blur. Also hands them the exposure time.
         """
+        self._push_exposure_time(exposure_s)
         if not getattr(self, "_srgb_nodes", None) or not self._motion_annots:
             return
         if not (self.apply_zed_sim2real and self.motion_blur):
@@ -652,6 +912,7 @@ class ZEDAnnotator:
         self._push_noise_gain()
         self._push_blur_scale()
         self._push_vignetting()
+        self._update_focus_blur()
 
     def destroy(self) -> None:
         """Clean up resources used by the annotator.
@@ -660,7 +921,13 @@ class ZEDAnnotator:
         were created, and destroys the render product.
         """
 
-        # Before the annotators go: the exposure and white balance loops meter the left eye's HdrColor.
+        # Before the nodes go: the ZED_FrameImu node reads the frame IMU's history.
+        if getattr(self, "frame_imu", None) is not None:
+            self.frame_imu.destroy()
+            self.frame_imu = None
+            update_clock.release()
+
+        # Before the annotators go: the exposure and white balance loops meter an eye's HdrColor (_metered_eye).
         if getattr(self, "exposure_loop", None) is not None:
             self.exposure_loop.destroy()
             self.exposure_loop = None
@@ -677,6 +944,7 @@ class ZEDAnnotator:
                 carb.log_warn(f"[ZED] Node {node} not found")
         self.nodes = []
         self._srgb_nodes = []
+        self._exposure_time_pushed = None
 
         # Only once the sRGB encoders reading them are gone: SyntheticData silently skips detaching
         # a node that still has downstream connections, and the render product's destroy then leaves
@@ -687,6 +955,9 @@ class ZEDAnnotator:
             except Exception:
                 pass
         self._motion_annots = []
+        self._focus_sub = None
+        self._detach_focus_depth(disconnect=False)
+        self._srgb_eyes = []
 
         if hasattr(self, "left_rgb_annot"):
             self.left_rgb_annot.detach(self.left_rp)
@@ -699,5 +970,9 @@ class ZEDAnnotator:
         if self.stream_depth and hasattr(self, "depth_annot"):
             self.depth_annot.detach(self.depth_rp)
             self._depth_rp.destroy()
+
+        sdk_virtual_camera.release(self.virtual_camera)
+        self.virtual_camera = None
+
 
         carb.log_info(f"[ZED][port {self.port}] Annotators destroyed.")

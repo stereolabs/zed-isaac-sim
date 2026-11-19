@@ -31,9 +31,9 @@ Windows) and printed to the console.
 
 1. Build your multi-camera scene with ZED assets `/World/ZED_X_01..07` and wire each to a **ZED Camera Helper**
    node streaming on a unique even port (`30000`, `30002`, ...), matching the ports in the script.
-   Only four ZED X with the same lens stream at once
-   ([reserved serial numbers](../../docs/README.md#simulated-camera-serial-numbers)): with more, give
-   some of them the narrow lens.
+   Seven ZED X cameras need the default **SDK virtual camera** mode (**Camera mode** in the
+   **Settings** tab of the **ZED Cameras** panel), as the legacy mode allows fewer. ZED Fusion
+   then needs ZED SDK 5.6.0 or newer.
 2. Paste `pose_to_zed_fusion.py` into the Isaac Sim **Script Editor** and run it.
 3. Feed the generated JSON to the [ZED Fusion API](https://www.stereolabs.com/docs/fusion) alongside the
    running streams.

@@ -18,7 +18,7 @@ def OmniGraph "TestGraph"
         token node:type = "sl.sensor.camera.OgnZEDSimCameraNode"
         int node:typeVersion = 3
 
-        # 24 attributes
+        # 27 attributes
         custom uint inputs:bitrate = 8000 (
             docs="""streaming bitrate (in Kbps). Only used for network transport layer mode (not IPC)"""
         )
@@ -33,6 +33,12 @@ def OmniGraph "TestGraph"
         )
         custom uint inputs:chunkSize = 4096 (
             docs="""streaming chunk size (in bytes). Only used for network transport layer mode (not IPC)"""
+        )
+        custom uint64 inputs:cudaStreamLeft = 0 (
+            docs="""CUDA stream the left image was written on, 0 if none: the node then copies the image on that stream and does not wait for the copy"""
+        )
+        custom uint64 inputs:cudaStreamRight = 0 (
+            docs="""CUDA stream the right image was written on, 0 if none"""
         )
         custom uint64 inputs:dataPtrDepth = 0 (
             docs="""Pointer to the depth data (cuda device pointer, float32)"""
@@ -88,8 +94,16 @@ def OmniGraph "TestGraph"
         custom token inputs:transportLayerMode = "BOTH" (
             docs="""Communication protocol used to send data to the ZED SDK."""
         )
+        custom bool inputs:virtualCamera = false (
+            docs="""serialNumber was built by the SDK's create_virtual_camera(): stream it as is instead of taking a serial from the legacy pool."""
+        )
         custom uint inputs:width = 960 (
             docs="""Camera stream width in pixels."""
+        )
+
+        # 1 attribute
+        custom int outputs:streamerId = -1 (
+            docs="""Id of this camera's streamer in the ZED SDK, -1 while it is not open. The camera's auto exposure uses it to apply the camera settings stream receivers set."""
         )
     }
 }

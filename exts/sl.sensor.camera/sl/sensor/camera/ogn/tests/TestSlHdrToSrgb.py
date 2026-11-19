@@ -79,17 +79,97 @@ class TestOgn(ogts.OmniGraphTestCase):
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
         ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
 
+        self.assertTrue(test_node.get_attribute_exists("inputs:depthPtr"))
+        attribute = test_node.get_attribute("inputs:depthPtr")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.depthPtr
+        database.inputs.depthPtr = db_value
+        expected_value = 0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:depthScale"))
+        attribute = test_node.get_attribute("inputs:depthScale")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.depthScale
+        database.inputs.depthScale = db_value
+        expected_value = 1.0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:depthSize"))
+        attribute = test_node.get_attribute("inputs:depthSize")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.depthSize
+        database.inputs.depthSize = db_value
+        expected_value = 0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
         self.assertTrue(test_node.get_attribute_exists("inputs:exec"))
         attribute = test_node.get_attribute("inputs:exec")
         self.assertTrue(attribute.is_valid())
         db_value = database.inputs.exec
         database.inputs.exec = db_value
 
+        self.assertTrue(test_node.get_attribute_exists("inputs:exposureTime"))
+        attribute = test_node.get_attribute("inputs:exposureTime")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.exposureTime
+        database.inputs.exposureTime = db_value
+        expected_value = 0.0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
         self.assertTrue(test_node.get_attribute_exists("inputs:eye"))
         attribute = test_node.get_attribute("inputs:eye")
         self.assertTrue(attribute.is_valid())
         db_value = database.inputs.eye
         database.inputs.eye = db_value
+        expected_value = 0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:focusDistance"))
+        attribute = test_node.get_attribute("inputs:focusDistance")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.focusDistance
+        database.inputs.focusDistance = db_value
+        expected_value = 0.0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:focusFNumber"))
+        attribute = test_node.get_attribute("inputs:focusFNumber")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.focusFNumber
+        database.inputs.focusFNumber = db_value
+        expected_value = 0.0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:focusFocalPx"))
+        attribute = test_node.get_attribute("inputs:focusFocalPx")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.focusFocalPx
+        database.inputs.focusFocalPx = db_value
+        expected_value = 0.0
+        actual_value = og.Controller.get(attribute)
+        ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
+        ogts.verify_values(expected_value, db_value, _attr_error(attribute, False))
+
+        self.assertTrue(test_node.get_attribute_exists("inputs:focusLens"))
+        attribute = test_node.get_attribute("inputs:focusLens")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.inputs.focusLens
+        database.inputs.focusLens = db_value
         expected_value = 0
         actual_value = og.Controller.get(attribute)
         ogts.verify_values(expected_value, actual_value, _attr_error(attribute, True))
@@ -196,6 +276,12 @@ class TestOgn(ogts.OmniGraphTestCase):
         self.assertTrue(attribute.is_valid())
         db_value = database.outputs.cudaDeviceIndex
         database.outputs.cudaDeviceIndex = db_value
+
+        self.assertTrue(test_node.get_attribute_exists("outputs:cudaStream"))
+        attribute = test_node.get_attribute("outputs:cudaStream")
+        self.assertTrue(attribute.is_valid())
+        db_value = database.outputs.cudaStream
+        database.outputs.cudaStream = db_value
 
         self.assertTrue(test_node.get_attribute_exists("outputs:dataPtr"))
         attribute = test_node.get_attribute("outputs:dataPtr")

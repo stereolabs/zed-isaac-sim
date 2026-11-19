@@ -92,6 +92,11 @@
                 "description": "Serial number of the stereo cam. Only used for virtual ZED X cameras, otherwise the serial number is automatically alocated",
                 "default": "109999999"
             },
+            "virtualCamera": {
+                "type": "bool",
+                "description": "serialNumber was built by the SDK's create_virtual_camera(): stream it as is instead of taking a serial from the legacy pool.",
+                "default": false
+            },
             "simulationTime": {
                 "type": "double",
                 "description": "simulation time"
@@ -121,6 +126,16 @@
             "dataPtrDepth": {
                 "type": "uint64",
                 "description": "Pointer to the depth data (cuda device pointer, float32)",
+                "default": 0
+            },
+            "cudaStreamLeft": {
+                "type": "uint64",
+                "description": "CUDA stream the left image was written on, 0 if none: the node then copies the image on that stream and does not wait for the copy",
+                "default": 0
+            },
+            "cudaStreamRight": {
+                "type": "uint64",
+                "description": "CUDA stream the right image was written on, 0 if none",
                 "default": 0
             },
             "streamDepth": {
@@ -158,6 +173,16 @@
                 ]
             }
         },
-        "outputs": {}
+        "outputs": {
+            "streamerId": {
+                "type": "int",
+                "default": -1,
+                "description": "Id of this camera's streamer in the ZED SDK, -1 while it is not open. The camera's auto exposure uses it to apply the camera settings stream receivers set.",
+                "metadata": {
+                    "uiName": "Streamer id",
+                    "hidden": "true"
+                }
+            }
+        }
     }
 }

@@ -3,14 +3,33 @@ set -e
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE}")
 
+# -x / --rebuild and -c / --clean also remove bin/, which holds the downloaded libraries and a
+# copy of the build outputs; repo build itself cleans _build, _compiler and _builtpackages.
+# -c stops after repo's clean: there is nothing to download or sync.
+CLEAN_BIN=0
+CLEAN_ONLY=0
+for arg in "$@"; do
+    case "$arg" in
+        -x|--rebuild) CLEAN_BIN=1 ;;
+        -c|--clean) CLEAN_BIN=1; CLEAN_ONLY=1 ;;
+    esac
+done
+if [ "$CLEAN_BIN" = 1 ]; then
+    echo "Removing exts/sl.sensor.camera/bin/..."
+    rm -rf exts/sl.sensor.camera/bin/
+fi
+if [ "$CLEAN_ONLY" = 1 ]; then
+    exec "$SCRIPT_DIR/repo.sh" build "$@"
+fi
+
 mkdir -p exts/sl.sensor.camera/bin/
 rm -f exts/sl.sensor.camera/bin/libsl.sensor.camera.plugin.so
 
 # Each dependency is versioned independently under its own path segment
 # (<CDN_BASE>/<lib>/<version>/<archive>), so bumping one lib's version never forces
 # re-uploading another unchanged lib.
-ZED_ISAAC_SIM_VERSION=5.2.0
-SL_ZED_SIM2REAL_VERSION="1.0.0"
+ZED_ISAAC_SIM_VERSION=5.6.0
+SL_ZED_SIM2REAL_VERSION="1.0.1"
 echo "Downloading dependencies (sl_zed $ZED_ISAAC_SIM_VERSION, sl_zed_sim2real $SL_ZED_SIM2REAL_VERSION)..."
 
 CDN_BASE="https://stereolabs.sfo2.cdn.digitaloceanspaces.com/utils/zed_isaac_sim"

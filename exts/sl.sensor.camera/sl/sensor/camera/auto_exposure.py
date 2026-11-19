@@ -21,11 +21,12 @@ with K = 1.000 (distant light), 0.987 (sphere light), 0.956 (dome light: Real-Ti
 renders environment light ~4 % below the path tracer). A UsdLux DistantLight of intensity I
 delivers 3.116 * I lux (~pi * I, independent of its angle); sphere/dome intensities are nits as
 UsdLux defines. Creating a render product authors exposure:time 0.02, fStop 5, responsivity
-1.1027 on the camera, so these must be read from the prim, not assumed.
+1.1027 on the camera when they are not authored yet, so these must be read from the prim, not assumed,
+and an unauthored exposure:fStop must not be read as UsdGeomCamera's fallback (1.0): see camera_fstop().
 """
 import ctypes
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional, Sequence
 
 from . import camera_model_lib
@@ -45,6 +46,22 @@ def zedx_image_level() -> float:
     """The real ZED X's linear image level: the auto exposure's default target."""
     lib = camera_model_lib.lib()
     return float(lib.sl_zed_sim2real_ae_image_level()) if lib is not None else _FALLBACK_IMAGE_LEVEL
+
+
+RTX_DEFAULT_FSTOP = 5.0  # the exposure:fStop a render product authors on a camera that has none
+
+
+def camera_fstop(prim, default: float = RTX_DEFAULT_FSTOP) -> float:
+    """The f-stop the renderer exposes this camera with: its authored exposure:fStop, else the render product's.
+
+    An unauthored exposure:fStop reads as UsdGeomCamera's fallback, 1.0, but the first render authors 5.0 and
+    renders with it: taking the fallback made the image 25x darker than the photometry assumed."""
+    attr = prim.GetAttribute("exposure:fStop") if prim else None
+    if attr and attr.HasAuthoredValue():
+        value = attr.Get()
+        if value:
+            return float(value)
+    return default
 
 
 def zedx_responsivity(target_mean: float, fstop: float = 5.0) -> float:
@@ -109,6 +126,10 @@ class AeLimits:
                 self.analog_gain_mdb = tuple(float(v) for v in defaults.analog_gain_mdb)
             if self.digital_gain is None:
                 self.digital_gain = tuple(float(v) for v in defaults.digital_gain)
+
+    @property
+    def t_max(self) -> float:
+        return self.exposure_max_s if self.exposure_max_s else 1.0 / self.fps
 
     def to_c(self):
         return camera_model_lib.AeLimitsC(
@@ -203,14 +224,25 @@ class ZedAutoExposure:
         self._lib.sl_zed_sim2real_ae_get_state(self._handle, ctypes.byref(c))
         self.state = AeState.from_c(c)
         if abs(self.config.target_mean - zedx_image_level()) > 1e-9:
-            self._lib.sl_zed_sim2real_ae_reconfigure(self._handle, ctypes.byref(self.limits.to_c()),
-                                                     float(self.config.target_mean), ctypes.byref(c))
-            self.state = AeState.from_c(c)
+            self.reconfigure(self.limits, self.config.target_mean)
 
     def __del__(self):
         handle, self._handle = getattr(self, "_handle", None), None
         if handle and getattr(self, "_lib", None) is not None:
             self._lib.sl_zed_sim2real_ae_destroy(handle)
+
+    def reconfigure(self, limits: AeLimits, target_mean: float) -> AeState:
+        """Change the ranges and the target while running (the camera settings a stream receiver
+        sets). The exposure moves into the new ranges at once, then converges to the target."""
+        self.limits = limits
+        self.config = replace(self.config, target_mean=target_mean)
+        c = camera_model_lib.AeStateC()
+        self._lib.sl_zed_sim2real_ae_reconfigure(self._handle, ctypes.byref(limits.to_c()), float(target_mean),
+                                                 ctypes.byref(c))
+        new = AeState.from_c(c)
+        new.scene_luminance = self.state.scene_luminance
+        self.state = new
+        return new
 
     def update(self, stats, dt: Optional[float] = None) -> AeState:
         """Advance one camera frame. Stats from an already-seen frame are ignored."""
@@ -252,9 +284,11 @@ class RenderExposureActuator:
     """
 
     def __init__(self, stage, camera_paths: Sequence[str], iso_base: float = 100.0, min_rel_change: float = 1e-3,
-                 responsivity: Optional[float] = None):
+                 responsivity: Optional[float] = None, fstop: Optional[float] = None):
         """``responsivity``: also author exposure:responsivity (e.g. zedx_responsivity(target))
-        so the chosen exposure time and gain match the real camera; None keeps the prim's."""
+        so the chosen exposure time and gain match the real camera; None keeps the prim's.
+        ``fstop``: also author exposure:fStop, the f-stop that responsivity was computed for, so the render
+        uses the one the photometry assumes; None keeps the prim's."""
         from pxr import Sdf
 
         self.stage = stage
@@ -263,6 +297,7 @@ class RenderExposureActuator:
         self.writes = 0
         self._attrs = []
         self._resp_attrs = []
+        self._fstop_attrs = []
         self._rtx_ae_attrs = []
         with self._session():
             for path in camera_paths:
@@ -280,35 +315,44 @@ class RenderExposureActuator:
                 if responsivity is not None:
                     self._resp_attrs.append(prim.GetAttribute("exposure:responsivity") or
                                             prim.CreateAttribute("exposure:responsivity", Sdf.ValueTypeNames.Float))
+                if fstop is not None:
+                    self._fstop_attrs.append(prim.GetAttribute("exposure:fStop") or
+                                             prim.CreateAttribute("exposure:fStop", Sdf.ValueTypeNames.Float))
         self._responsivity = responsivity
+        self._fstop = fstop
         self._applied = None
         self._resp_applied = False
         self._primary = stage.GetPrimAtPath(camera_paths[0])
         self._author_responsivity()
 
+    @staticmethod
+    def _differs(attr, want) -> bool:
+        value = attr.Get()
+        return value is None or abs(float(value) - float(want)) > 1e-6 * abs(float(want))
+
     def _author_responsivity(self) -> None:
-        # A render product authors its default exposure attributes (responsivity 1.1027) when it
-        # first renders, which can come after this actuator authored its own: check the value is
+        # A render product authors its default exposure attributes (fStop 5, responsivity 1.1027) when it
+        # first renders, which can come after this actuator authored its own: check the values are
         # still ours, or the loop compensates with ~20x the exposure x gain (same image, wrong noise).
-        if self._resp_applied and self._resp_attrs:
-            value = self._resp_attrs[0].Get()
-            if value is None or abs(float(value) - float(self._responsivity)) > 1e-6 * abs(float(self._responsivity)):
-                self._resp_applied = False
+        if self._resp_applied and ((self._resp_attrs and self._differs(self._resp_attrs[0], self._responsivity)) or
+                                   (self._fstop_attrs and self._differs(self._fstop_attrs[0], self._fstop))):
+            self._resp_applied = False
         if not self._resp_applied:
             with self._session():
                 for r in self._resp_attrs:
                     r.Set(float(self._responsivity))
+                for f in self._fstop_attrs:
+                    f.Set(float(self._fstop))
                 for a in self._rtx_ae_attrs:
                     a.Set(False)
             self._resp_applied = True
 
     def photometry(self, k: float = RTX_SIGNAL_PER_NIT) -> Photometry:
         """The camera's exposure terms the actuator does not drive (f-stop, responsivity)."""
-        def get(name, default):
-            attr = self._primary.GetAttribute(name)
-            value = attr.Get() if attr else None
-            return float(value) if value is not None else default
-        return Photometry(fstop=get("exposure:fStop", 5.0), responsivity=get("exposure:responsivity", 1.0),
+        attr = self._primary.GetAttribute("exposure:responsivity")
+        resp = attr.Get() if attr else None
+        fstop = self._fstop if self._fstop is not None else camera_fstop(self._primary)
+        return Photometry(fstop=fstop, responsivity=float(resp) if resp is not None else 1.0,
                           iso_base=self.iso_base, k=k)
 
     def _session(self):
@@ -323,7 +367,11 @@ class RenderExposureActuator:
             t0, iso0 = self._applied
             if abs(t / t0 - 1) < self.min_rel_change and abs(iso / iso0 - 1) < self.min_rel_change:
                 return False
-        with self._session():
+        from pxr import Sdf
+
+        # One change notice for all the eyes' attributes rather than one per attribute: every USD
+        # listener in the app (UI panels, behavior scripting) runs on each, and this runs most frames.
+        with self._session(), Sdf.ChangeBlock():
             for t_attr, iso_attr in self._attrs:
                 t_attr.Set(float(t))
                 iso_attr.Set(float(iso))
@@ -339,6 +387,8 @@ class RenderExposureActuator:
                 iso_attr.Clear()
             for r in self._resp_attrs:
                 r.Clear()
+            for f in self._fstop_attrs:
+                f.Clear()
             for a in self._rtx_ae_attrs:
                 a.Clear()
         self._applied = None

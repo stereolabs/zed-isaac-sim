@@ -12,8 +12,8 @@ tonemapper and of whatever else reads the render product.
 
 The encoding is the ZED X camera model of the ``sl_zed_sim2real`` library (camera_model_lib.py): the
 real camera's sharpness, motion blur over its exposure time, the scene lights' flicker, its white
-balance, lens falloff and sensor noise at its gain, then sRGB. Without the library the image is
-encoded as plain sRGB, with none of these.
+balance, lens falloff and sensor noise at its gain, then sRGB; with the eye's depth, first the lens's
+focus blur (library 0.5.0). Without the library the image is encoded as plain sRGB, with none of these.
 """
 import ctypes
 import math
@@ -21,22 +21,72 @@ import math
 import warp as wp
 
 from . import camera_model_lib
+from .utils import LensType, get_camera_model, get_lens_type
 
-# Light flicker: mains-powered lights make a real frame's brightness vary by a global gain, the same
-# in both eyes. It depends on the scene's lights, so it is off unless this setting is set (the std of
-# the linear light, e.g. 0.0099 for an office's fluorescent tubes).
-LIGHT_FLICKER_SETTING = "/exts/sl.sensor.camera/lightFlickerStd"  # linear fraction; 0 = off
-LIGHT_FLICKER_HZ_SETTING = "/exts/sl.sensor.camera/lightFlickerHz"  # 0 = the measured default
+# Light flicker: mains-powered lamps make a real frame's brightness vary by a global gain, the same
+# in both eyes. It depends on the scene's lights, so it is off unless this setting is set: the std of
+# the lamps' light swing (linear fraction, as a very short exposure sees it), or a preset name.
+LIGHT_FLICKER_SETTING = "/exts/sl.sensor.camera/lightFlickerStd"  # fraction or preset; 0 / "" = off
+LIGHT_FLICKER_MAINS_SETTING = "/exts/sl.sensor.camera/lightFlickerMainsHz"  # 50 or 60; 0 = 50
+# legacy: a fixed flicker frequency as seen by the camera, without the exposure's integration; 0 = unused
+LIGHT_FLICKER_HZ_SETTING = "/exts/sl.sensor.camera/lightFlickerHz"
+# measured on real ZED X recordings: office LED panels ~0.6 %, the lamps of a light booth (halogen,
+# fluorescent, LED) ~2 %
+LIGHT_FLICKER_PRESETS = {"office_led": 0.006, "lamps": 0.02}
 
 
-def light_flicker_gain(sim_time: float, std: float, hz: float = 0.0) -> float:
-    """Global light gain at ``sim_time`` (s) for a flicker of ``std`` (fraction); 1 when off."""
+def light_flicker_std(value) -> float:
+    """The lightFlickerStd setting as a fraction: a number, or a preset name (LIGHT_FLICKER_PRESETS); 0 = off."""
+    if value is None or value == "":
+        return 0.0
+    if isinstance(value, str):
+        key = value.strip().lower()
+        if key in LIGHT_FLICKER_PRESETS:
+            return LIGHT_FLICKER_PRESETS[key]
+    try:
+        std = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return std if math.isfinite(std) and std > 0 else 0.0
+
+
+def light_flicker_gain(sim_time: float, std: float, hz: float = 0.0, exposure_s: float = 0.0,
+                      mains_hz: float = 0.0) -> float:
+    """Global light gain of the frame at ``sim_time`` (s) for lamps swinging by ``std`` (fraction); 1 when off.
+
+    The lamps' light swings at twice the mains frequency (``mains_hz``, 0 = 50 Hz); the frame's exposure
+    (``exposure_s``) integrates the swing, so long exposures flicker less, and sampling at the camera's frame
+    times gives the beat a real camera shows (10 Hz at 30 fps under 50 Hz mains). ``hz`` > 0 instead imposes a
+    fixed beat frequency without the exposure's integration (the older model).
+    """
     if not std or std <= 0 or not math.isfinite(sim_time):
         return 1.0
     lib = camera_model_lib.lib()
     if lib is None:
         return 1.0
-    return float(lib.sl_zed_sim2real_light_flicker_gain(float(sim_time), float(std), float(hz or 0.0)))
+    exact = getattr(lib, "sl_zed_sim2real_light_flicker_gain_exposure", None)
+    if exact is None or (hz and hz > 0):
+        return float(lib.sl_zed_sim2real_light_flicker_gain(float(sim_time), float(std), float(hz or 0.0)))
+    return float(exact(float(sim_time), float(std), float(mains_hz or 0.0), float(exposure_s or 0.0)))
+
+
+# Lenses with the focus blur's figures: the ZED X family's 2.2 mm and 4 mm (AR0234 sensor).
+_FOCUS_BLUR_BASES = ("ZED_X", "ZED_XM", "ZED_XONE_GS", "ZED_XONE_S")
+# Overrides of the lens figures for every focus-blurring camera (e.g. a unit focused nearer); 0 = the lens's.
+FOCUS_F_NUMBER_SETTING = "/exts/sl.sensor.camera/focusBlurFNumber"
+FOCUS_DISTANCE_SETTING = "/exts/sl.sensor.camera/focusBlurDistance"  # metres
+
+
+def focus_lens(camera_model: str) -> int:
+    """The focus blur's lens (camera_model_lib.LENS_*) for a camera model; LENS_NONE when it has no figures."""
+    try:
+        base, lens = get_camera_model(camera_model), get_lens_type(camera_model)
+    except Exception:
+        return camera_model_lib.LENS_NONE
+    if base not in _FOCUS_BLUR_BASES:
+        return camera_model_lib.LENS_NONE
+    return {LensType.WIDE: camera_model_lib.LENS_2_2MM, LensType.NARROW: camera_model_lib.LENS_4MM}.get(
+        lens, camera_model_lib.LENS_NONE)
 
 
 def noise_seed(value: int) -> int:
@@ -64,6 +114,25 @@ def _plain_srgb8(src: wp.array3d(dtype=wp.float16), dst: wp.array3d(dtype=wp.uin
     dst[y, x, 3] = wp.uint8(255)
 
 
+def light_gain_now(exposure_s: float) -> float:
+    """This frame's light flicker gain, from the settings, the timeline and the frame's exposure time.
+
+    The same gain for both eyes of a camera, and 1.0 (no flicker) unless LIGHT_FLICKER_SETTING is
+    set. Kit-only, so the imports are local: the rest of this module runs without Kit.
+    """
+    import carb.settings
+
+    settings = carb.settings.get_settings()
+    std = light_flicker_std(settings.get(LIGHT_FLICKER_SETTING))
+    if not std:
+        return 1.0
+    import omni.timeline
+
+    t = omni.timeline.get_timeline_interface().get_current_time()
+    return light_flicker_gain(t, std, float(settings.get(LIGHT_FLICKER_HZ_SETTING) or 0.0), exposure_s,
+                              float(settings.get(LIGHT_FLICKER_MAINS_SETTING) or 0.0))
+
+
 class StreamEncoder:
     """One camera eye's encoder: the camera model's scratch buffers, reused every frame."""
 
@@ -77,7 +146,8 @@ class StreamEncoder:
 
     def encode(self, src: wp.array, dst: wp.array, *, seed: int = 0, gain: float = None, motion: wp.array = None,
                blur_scale: float = 0.0, vignette_inv_f: float = 0.0, sharpness: bool = False,
-               light_gain: float = 1.0, wb=None, eye: int = 0) -> bool:
+               light_gain: float = 1.0, wb=None, eye: int = 0, depth: wp.array = None,
+               focus: "camera_model_lib.DefocusParams" = None) -> bool:
         """Encode ``src`` (linear RGBA float16 (H, W, 4), may be strided) into ``dst`` (RGBA8 (H, W, 4),
         packed), both on the same CUDA device, ordered on Warp's stream for that device.
 
@@ -87,7 +157,9 @@ class StreamEncoder:
         the motion blur. ``vignette_inv_f`` (1 / the focal length in pixels) adds the lens falloff.
         ``sharpness``: the real camera's instead of the render's. ``light_gain``: this frame's light
         flicker. ``wb``: white balance gains (R, G, B); None = none. ``eye``: 0 left (or a single camera),
-        1 right, the lens a fault set through the environment (SL_SIM2REAL_*) aims at.
+        1 right, the lens a fault set through the environment (SL_SIM2REAL_*) aims at. ``depth`` (the eye's
+        distance_to_image_plane, float32 (H, W), may have a row stride) with ``focus`` (lens, focal length in
+        pixels, overrides, metres per depth unit) adds the lens's focus blur, when the library has it.
         """
         h, w = int(src.shape[0]), int(src.shape[1])
         stream = wp.get_stream(src.device)
@@ -100,6 +172,11 @@ class StreamEncoder:
             white_balance=camera_model_lib.f3(wb or (0.0, 0.0, 0.0)), sharpness=1 if sharpness else 0, edge_noise=1,
             eye=1 if eye == 1 else 0)
         mv = motion.ptr if motion is not None and blur_scale > 0 and tuple(motion.shape) == (h, w, 4) else None
+        if (depth is not None and focus is not None and focus.lens != camera_model_lib.LENS_NONE
+                and tuple(depth.shape) == (h, w) and camera_model_lib.has_focus_blur()):
+            return bool(self._lib.sl_zed_sim2real_encode_device_depth(
+                self._handle, src.ptr, int(src.strides[0]), int(src.strides[1]), w, h, dst.ptr, mv, depth.ptr,
+                int(depth.strides[0]), ctypes.byref(params), ctypes.byref(focus), stream.cuda_stream))
         return bool(self._lib.sl_zed_sim2real_encode_device(
             self._handle, src.ptr, int(src.strides[0]), int(src.strides[1]), w, h, dst.ptr, mv, ctypes.byref(params),
             stream.cuda_stream))
@@ -147,7 +224,8 @@ def _shared_encoder(device) -> StreamEncoder:
 
 
 def encode_srgb(hdr, device: str = None, gain: float = None, seed: int = 0, motion=None, blur_scale: float = 0.0,
-                focal_px: float = None, mtf: bool = False, light_gain: float = 1.0, wb=None, eye: int = 0):
+                focal_px: float = None, mtf: bool = False, light_gain: float = 1.0, wb=None, eye: int = 0,
+                depth=None, focus=None):
     """Encode an HdrColor annotator output ((H, W, 4) float16, Warp or numpy) to sRGB RGBA8.
 
     A CUDA Warp array is encoded on its GPU and returns a new Warp array there, or a numpy array
@@ -159,8 +237,11 @@ def encode_srgb(hdr, device: str = None, gain: float = None, seed: int = 0, moti
     ``blur_scale`` (exposure time over the vectors' time step) adds the camera's motion blur.
     ``focal_px`` (focal length in pixels at this resolution) adds the lens vignetting; None = none.
     ``mtf`` applies the real camera's sharpness. ``light_gain`` scales the scene's light for this
-    frame (light flicker, see light_flicker_gain). ``wb``: white balance gains (R, G, B); None = none.
-    ``eye``: 0 left (or a single camera), 1 right (see StreamEncoder.encode).
+    frame (light flicker, see light_gain_now). ``wb``: white balance gains (R, G, B); None = none.
+    ``eye``: 0 left (or a single camera), 1 right (see StreamEncoder.encode). ``depth`` (the eye's
+    distance_to_image_plane as a CUDA Warp array, float32 (H, W)) with ``focus``
+    (camera_model_lib.DefocusParams) adds the lens's focus blur; it needs the GPU path, so host data
+    is encoded without it.
     """
     import numpy as np
 
@@ -172,7 +253,10 @@ def encode_srgb(hdr, device: str = None, gain: float = None, seed: int = 0, moti
         if motion is not None and blur_scale > 0 and not isinstance(motion, wp.array):
             motion = wp.array(np.ascontiguousarray(motion, dtype=np.float32), device=hdr.device)
         out = wp.empty(hdr.shape, dtype=wp.uint8, device=hdr.device)
-        if not _shared_encoder(hdr.device).encode(hdr, out, motion=motion, **kw):
+        # the focus blur reads the depth on the device: only a Warp array there can be handed over
+        if depth is not None and not (isinstance(depth, wp.array) and depth.device.is_cuda):
+            depth = None
+        if not _shared_encoder(hdr.device).encode(hdr, out, motion=motion, depth=depth, focus=focus, **kw):
             return None
         return out.numpy() if device is not None and str(device).lower() == "cpu" else out
     host = hdr.numpy() if isinstance(hdr, wp.array) else np.asarray(hdr)
